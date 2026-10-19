@@ -1,0 +1,18 @@
+{
+  "brand": "braise.exe",
+  "colors": {
+    "charcoal": "#242423",
+    "cream": "#F7F2E6",
+    "orange": "#EC693A",
+    "deep": "#CE4D27",
+    "light": "#FA8851"
+  },
+  "wordmark_font": "DejaVu Sans Mono Regular",
+  "clear_space": "At least one browser control dot diameter on all sides; prefer 10% of icon width.",
+  "minimum_sizes": {
+    "full_icon_px": 48,
+    "simplified_favicon_px": 16,
+    "horizontal_lockup_px": 220,
+    "stacked_lockup_px": 180
+  }
+}
