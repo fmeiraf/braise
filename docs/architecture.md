@@ -192,6 +192,11 @@ Milestone: braise manages itself as a venture (dogfooding).
   craft level on the braise.exe brand kit (charcoal rail, near-cream work area, ember
   for actions/selection/state, pixel-square status markers, the strategy spine).
   Contract: `packages/web/.impeccable/surfaces/index-html.md`.
+- 2026-11-24: New identity, chosen by the owner from four directions: Growth Rings.
+  Replaces braise.exe and the pinned visual direction above. Pith rail, sage-white
+  ground, resin for primary action and live state, a ring hue per venture, round
+  markers, Bricolage Grotesque / Geist / Geist Mono self-hosted via `@fontsource-variable`.
+  Live state is shown by rings growing (mark, venture glyph, cockpit core sample).
 - 2026-11-24: Work item model, chosen by the owner: status `todo`/`doing`/`done` set
   by hand (parents show derived progress, no roll-up); a root names a goal and
   children inherit it; at most three levels, kind named by depth; one function from a

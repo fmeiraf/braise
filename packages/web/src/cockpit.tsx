@@ -2,7 +2,7 @@ import type { Bet, BetStatus, Cockpit, Goal, StrategyVersion, WorkProgress } fro
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { Archive, ChevronDown, ChevronRight, History, Pencil, Plus } from "lucide-react";
-import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 import { ApiRequestError, api, type SetStatusResult } from "./api.ts";
 import { Editable } from "./editable.tsx";
 import { describeError } from "./errors.ts";
@@ -12,6 +12,7 @@ import { useFreshIds } from "./fresh.ts";
 import { PageError } from "./holding.tsx";
 import { kindLabel } from "./labels.ts";
 import { keys, queries, rememberVenture, updateCockpit } from "./live.ts";
+import { CoreSample, ringColor } from "./rings.tsx";
 import { ago, formatDate } from "./time.ts";
 import { useCommand } from "./use-command.ts";
 
@@ -52,6 +53,8 @@ function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 	const freshBets = useFreshIds(venture.id, bets);
 	const freshGoals = useFreshIds(venture.id, goals);
 	const [adding, setAdding] = useState(false);
+	const activeRuns = useQuery(queries.activeRuns());
+	const working = (activeRuns.data?.runs ?? []).filter((run) => run.ventureSlug === slug);
 
 	const liveBetIds = new Set(bets.map((bet) => bet.id));
 	const looseGoals = goals.filter((goal) => goal.betId === null || !liveBetIds.has(goal.betId));
@@ -73,12 +76,23 @@ function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 				<span className="crumb-current">{venture.name}</span>
 			</header>
 
-			<div className="cockpit">
+			<div className="cockpit" style={{ "--ring": ringColor(venture.id) } as CSSProperties}>
 				<div className="cockpit-main">
 					<div className="venture-title">
-						<h1>{venture.name}</h1>
-						<span className="tag">{kindLabel[venture.kind]}</span>
-						<span className="data muted">/v/{venture.slug}</span>
+						<CoreSample id={venture.id} version={strategy.version} live={working.length > 0} />
+						<div className="venture-title-text">
+							<h1>{venture.name}</h1>
+							<div className="venture-meta">
+								<span className="tag">{kindLabel[venture.kind]}</span>
+								<span className="data muted">/v/{venture.slug}</span>
+								{working.length > 0 ? (
+									<span className="venture-working">
+										<span className="pixel is-live" aria-hidden />
+										{working.length === 1 ? "An agent is working" : `${working.length} agents are working`}
+									</span>
+								) : null}
+							</div>
+						</div>
 					</div>
 
 					<div className="trunk">

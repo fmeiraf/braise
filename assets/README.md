@@ -1,28 +1,38 @@
-# braise.exe — Option 02 brand kit
+# braise brand kit: Growth Rings
 
-A clean vector reconstruction of the simmering terminal concept: a cream browser frame, charcoal interior, layered orange liquid and rising pixel bubbles. This is a manually rebuilt interpretation of the concept, not an exact automatic trace. The original generated wordmark is approximated with DejaVu Sans Mono Regular.
+Every venture is a living cross-section. Each strategy revision lays down a ring, and
+agents at work grow the outer ring. The mark is an off-centre pith (resin), two growth
+rings and an outer ring that is still being drawn.
 
-## Pick a file
+## Files
 
-- svg/: transparent, scalable master artwork. All production lettering is converted to vector paths: no installed fonts required, no embedded raster images. Shapes remain editable in Figma, Illustrator, Affinity Designer or Inkscape.
-- dark: dark lettering/frame for light backgrounds. light: cream lettering/frame for dark backgrounds. Filenames refer to the artwork color, not its intended background.
-- mono-dark / mono-light: single-ink dark / light artwork. Interior negative space uses a mask; fully transparent for print and arbitrary backgrounds.
-- icon: symbol only. stacked: symbol over name. horizontal: symbol beside name. wordmark: name only.
-- png/: transparent raster exports at listed widths. Keep aspect ratio. All PNG assets use RGB/RGBA.
-- print/: vector PDF and EPS for full-color artwork. RGB, not a press-specific CMYK conversion. EPS has no alpha channel; use SVG/PDF for transparent workflows. Ask a printer to convert to their required color profile and spot inks.
-- web/: simplified small-size icon, multi-resolution ICO, Apple touch icon, PWA icons, maskable icon, manifest and HTML integration snippet. Copy the files to your site public root. The simplified version deliberately uses fewer bubbles and a single liquid shape for readability.
-- social/: 1024px avatar, 1200x630 link card, 1500x500 banner; SVG masters and PNG exports. Check cropping in your chosen platform.
-- source/: live-text wordmark for editing the name. Install DejaVu Sans Mono Regular to retain its appearance; production SVGs do not need it. Font file is not bundled.
-- brand-tokens.json and brand.css: palette values for reuse.
-
-## Usage
-
-Use the light artwork on charcoal and dark artwork on cream. Preserve the proportions and give the logo breathing room: at least one control-dot diameter around the outer artwork; 10% of icon width is preferable. Use full icon at 48px or larger, simplified favicon below 48px. Recommended minimum lockup widths: 220px horizontal, 180px stacked. Wordmark-only minimum: 150px. Avoid glows, extra outlines, rotated logos or stretching.
+- `svg/`: masters. `braise-mark-*` (symbol), `braise-wordmark-*` (name only),
+  `braise-horizontal-*` (lockup), `braise-icon.svg` (app tile on pith),
+  `braise-mark-animated.svg` (the outer ring drawing itself, SMIL, for splash and
+  README use). `ink` artwork is for light grounds, `light` for pith or dark grounds.
+  The wordmark is Bricolage Grotesque, outlined: no font needed.
+- `png/`: raster exports of the masters.
+- `web/`: favicons (a simplified mark below 48px: pith and one growing ring), ICO,
+  Apple touch icon, PWA icons, maskable icon, manifest and head snippet. The web app
+  serves this folder as its public root.
+- `social/`: 1024px avatar, 1200x630 link card, 1500x500 banner.
+- `brand.css` and `brand-tokens.json`: palette, venture ring hues and fonts.
 
 ## Palette
 
-Charcoal #242423; cream #F7F2E6; ember orange #EC693A; deep orange #CE4D27; light orange #FA8851.
+Pith #131a16 (rail, icon tile), sage #e8ede5 (ink on pith), ground #f4f5f1, paper
+#ffffff, ink #151b18. Resin #f0a63a is the one accent: the primary action and live
+state only; resin-deep #b8720f for text on light grounds. Moss #4f7a45 marks done,
+bark #b23a24 errors. Each venture owns one ring hue from the eight in the tokens.
 
-## Production notes
+## Usage
 
-The logo is static and does not require scripts, network resources or fonts. These designs have not undergone trademark clearance. This package does not claim exclusive rights to general terminal-window or cooking imagery. Review the outlined vector master before large print runs.
+Give the mark clear space of at least the pith dot's diameter. Keep the outer ring's
+gap at the upper right; never close it, rotate the mark or recolour the pith. Motion is
+limited to the outer ring drawing itself, and only when something is actually live.
+
+## Provenance
+
+All artwork is authored geometry generated from code in this session (2026-11-24);
+no image generation or stock. Rasters are rendered from the SVG masters with
+`rsvg-convert`. Not trademark-cleared.

@@ -63,15 +63,17 @@ bots) as building blocks for that loop.
 
 ## Brand Commitments
 
-The braise.exe brand kit in `assets/` is binding for the app UI: charcoal #242423,
-cream #F7F2E6, ember orange #EC693A, deep orange #CE4D27, light orange #FA8851;
-the simmering-terminal logo (cream browser frame, charcoal interior, orange liquid,
-pixel bubbles); and the monospace wordmark. Logo usage rules are in
-`assets/README.md`.
+The Growth Rings brand kit in `assets/` (chosen by the owner 2026-11-24, replacing
+braise.exe) is binding for the app UI: pith #131a16 rail, sage-white ground #f4f5f1,
+resin #f0a63a only for the primary action and live state, moss #4f7a45 for done, bark
+#b23a24 for errors, and one ring hue per venture. The growth-ring mark (off-centre
+pith, two rings, an outer ring still being drawn), the Bricolage Grotesque wordmark,
+Geist for UI and Geist Mono for data. Motion is the outer ring growing, and only when
+something is actually live. Usage rules are in `assets/README.md`.
 
 ## Evidence on Hand
 
-The brand kit (`assets/`). No real venture data yet; do not invent ventures, metrics
+The Growth Rings brand kit (`assets/`). No real venture data yet; do not invent ventures, metrics
 or testimonials beyond clearly labeled examples.
 
 ## Product Principles

@@ -5,20 +5,20 @@ primary_target: "index.html"
 related_targets: []
 ---
 
-# braise app shell (slice 1)
+# braise app shell
 
 Mode: Operate. Desktop-first (~1024px min). One expert user, the owner.
 
-Audience and job: the owner steering several ventures. Two scenes, equally: long planning sessions in the cockpit (read and revise strategy, bets, goals) and quick check-ins on the Holding table (what moved, one edit, leave).
-Surfaces: Holding table, venture cockpit, strategy history (word diff + reason), activity feed, first-run create form. Topology and states are fixed by docs/slices/01-strategy-spine.md § UI brief.
-Constraints: ember only for primary actions, selection and state. No modals, no ⌘K, no mobile layout. Live updates without refresh; a reconnect indicator only while the stream is down.
-User steer (quoted): "A mixture of Linear and Slack UI, very modern and minimalist on details (not in content of functionality)". Must not feel like terminal cosplay or kitchen kitsch.
+Audience and job: the owner steering several ventures. Two scenes, equally: long planning sessions in the cockpit (read and revise strategy, bets, goals; steer agent threads) and quick check-ins (what moved, what needs me, one edit, leave).
+Surfaces: Holding, venture cockpit, work, threads with live agent runs, strategy history, activity, first-run create form.
+Constraints: no modals, no ⌘K, no mobile layout. Live updates without refresh; a reconnect indicator only while the stream is down.
+User steer (quoted, 2026-11-24): "completely blow me out... minimalistic with very proper spacing and typography... no life no movement even on the branding and the logo... I love linear... every time I look at it I'm proud I'm excited that things are happening that things are moving... you can even create a new logo a new identity". Earlier steer still holds: "A mixture of Linear and Slack UI, very modern and minimalist on details". Not a big animated blob: motion is small, purposeful and tied to real state.
 
 ## Direction contract
 
-THESIS: a working holding console where strategy is visibly the spine: every venture reads top-down, kernel → bets → goals, on one connected line. It refuses the category default of card grids and kanban columns for strategy.
-OWN-WORLD: Slack's committed charcoal rail (#242423) with cream ink, beside a Linear-precise work area on a barely-cream ground; system UI sans at 13px with tabular numerals, ui-monospace only for data (seq, slugs, dates, versions). Hairline rules, 6px control radii, no cards; the venture title (20px) heads the cockpit. Ember #EC693A only on the primary action, selection and live state; deep #CE4D27 for pressed states; errors use a darker rust #A93B19 so error text keeps 4.5:1; pixel-square markers (from the logo's bubbles) for every status and activity dot.
-STORY: the owner sees every venture's state at a glance, opens one, reads why/what/diagnosis/policy, then the bets and the goals testing them; edits in place, revises the strategy with a reason, and trusts the screen is live.
-FIRST VIEWPORT: left 232px charcoal rail (wordmark, Inbox placeholder, Holding, venture list with pixel activity squares, Overview / Activity). Work area: venture title row with "v2 · revised 2d ago" and the History link; strategy kernel as a four-field definition grid; below it the spine: bets as rows hanging off a vertical hairline, goals nested beneath each bet, "Not tied to a bet" detached at the end. Right column 300px: recent activity (last 10). Primary action "Add bet" in ember, top right of the bets section.
-FORM: a pinned direction; seed: none (pinned). Pinned by the user's words "A mixture of Linear and Slack UI, very modern and minimalist on details (not in content of functionality)", plus the binding brand kit and the slice spec's topology. Signature move: the spine, a 1px vertical line with pixel-square nodes joining strategy, bets and goals down to the detached "Not tied to a bet" group; live changes arriving from elsewhere make the touched node simmer (a brief ember pulse) and the sidebar square light up.
+THESIS: every venture is a living cross-section. Each strategy revision lays down a ring; agents at work grow the outer ring live. Refuses the flat grey Linear clone and the charcoal-and-cream terminal kit it replaces.
+OWN-WORLD: pith green-black rail (#131a16) with pale sage ink, a cool sage-white ground (#f4f5f1) and white raised panels; resin amber (#f0a63a) only for the primary action and live state; moss for done, bark for error. Each venture owns one full-strength hue (violet, rose, teal, ...) that colours its ring glyph everywhere (raise: acetate manual). Bricolage Grotesque for the wordmark and page titles, Geist for UI, Geist Mono for data only. Rounded 8px controls, 14px panels, hairline rules, round markers.
+STORY: the owner sees each venture's rings in the rail, knows which one is alive by its turning outer ring, opens it, reads the strategy under a ring core sample of its revisions, scans bets and goals, and watches agent runs whose steps are drawn to their exact duration (raise: labanotation). Agents carry a named glyph and fixed colour (raise: character catalog).
+FIRST VIEWPORT: 244px pith rail (ring logo + braise wordmark, Inbox with resin count, Runs with live count, Holding, ventures with ring glyphs, venture sub-nav). Work area: breadcrumb bar with secondary New thread and resin Add bet; venture header with a 92px ring core sample beside the 30px Bricolage title and "Claude is working" meta; strategy kernel as a definition list; bets with goals and slim venture-hue progress bars. Right column: live run panel with duration-scaled step bars, Needs you, Activity.
+FORM: assigned direction 5 of 7 (Growth Rings); seed:fe083d5136f1ba63. Raise from design annual: one grotesque at three sizes, rank from weight and ink.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

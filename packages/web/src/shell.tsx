@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate, useParams } from "@tanstack/react-router";
 import { Activity, CircleDot, Inbox, Layers, ListTree, MessagesSquare, PanelsTopLeft, Plus } from "lucide-react";
-import wordmark from "../../../assets/svg/braise-exe-wordmark-light.svg";
 import { useFreshVentures } from "./fresh.ts";
 import { queries, rememberVenture, useHintStream } from "./live.ts";
+import { BraiseMark, VentureRings } from "./rings.tsx";
 
 const dayMs = 24 * 60 * 60 * 1000;
 
@@ -35,8 +35,9 @@ export function Shell() {
 	return (
 		<div className="shell">
 			<nav className="rail" aria-label="Main">
-				<Link to="/" className="rail-brand" aria-label="braise.exe, Holding">
-					<img src={wordmark} alt="" width={150} height={28} />
+				<Link to="/" className="rail-brand" aria-label="braise, Holding">
+					<BraiseMark size={30} live={runs.length > 0} />
+					<span className="rail-wordmark">braise</span>
 				</Link>
 
 				<div className="rail-section">
@@ -91,11 +92,7 @@ export function Shell() {
 					{(ventures.data?.ventures ?? []).map((venture) => {
 						const recent = now - Date.parse(venture.lastActivityAt) < dayMs;
 
-						const pixelClass = [
-							"pixel",
-							recent ? "is-active" : "is-quiet",
-							fresh.has(venture.id) ? "is-simmering" : "",
-						].join(" ");
+						const live = runs.some((run) => run.ventureSlug === venture.slug);
 
 						return (
 							<Link
@@ -103,9 +100,17 @@ export function Shell() {
 								to="/v/$slug"
 								params={{ slug: venture.slug }}
 								className={venture.slug === scopeSlug ? "rail-item is-scope" : "rail-item"}
-								title={recent ? `${venture.name}: active today` : venture.name}
+								title={
+									live
+										? `${venture.name}: an agent is working`
+										: recent
+											? `${venture.name}: active today`
+											: venture.name
+								}
 							>
-								<span className={pixelClass} aria-hidden />
+								<span className={fresh.has(venture.id) ? "rail-rings is-simmering" : "rail-rings"}>
+									<VentureRings id={venture.id} live={live} quiet={!recent && !live} />
+								</span>
 								<span className="rail-label">{venture.name}</span>
 							</Link>
 						);

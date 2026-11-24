@@ -1,7 +1,22 @@
 :root {
-  --braise-charcoal: #242423;
-  --braise-cream: #F7F2E6;
-  --braise-orange: #EC693A;
-  --braise-deep: #CE4D27;
-  --braise-light: #FA8851;
+	--braise-pith: #131a16;
+	--braise-pith-2: #1d2721;
+	--braise-sage: #e8ede5;
+	--braise-ground: #f4f5f1;
+	--braise-paper: #ffffff;
+	--braise-ink: #151b18;
+	--braise-resin: #f0a63a;
+	--braise-resin-deep: #b8720f;
+	--braise-resin-wash: #fdf1dd;
+	--braise-moss: #4f7a45;
+	--braise-bark: #b23a24;
+
+	--braise-ring-1: #7c6cf0;
+	--braise-ring-2: #e0566b;
+	--braise-ring-3: #2fa58a;
+	--braise-ring-4: #3b8fe0;
+	--braise-ring-5: #b35cc9;
+	--braise-ring-6: #6e9b2f;
+	--braise-ring-7: #4f5bd5;
+	--braise-ring-8: #d14d9b;
 }

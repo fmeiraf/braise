@@ -1,18 +1,30 @@
 {
-  "brand": "braise.exe",
-  "colors": {
-    "charcoal": "#242423",
-    "cream": "#F7F2E6",
-    "orange": "#EC693A",
-    "deep": "#CE4D27",
-    "light": "#FA8851"
-  },
-  "wordmark_font": "DejaVu Sans Mono Regular",
-  "clear_space": "At least one browser control dot diameter on all sides; prefer 10% of icon width.",
-  "minimum_sizes": {
-    "full_icon_px": 48,
-    "simplified_favicon_px": 16,
-    "horizontal_lockup_px": 220,
-    "stacked_lockup_px": 180
-  }
+	"brand": "braise",
+	"identity": "Growth Rings",
+	"colors": {
+		"pith": "#131a16",
+		"pith-2": "#1d2721",
+		"sage": "#e8ede5",
+		"ground": "#f4f5f1",
+		"paper": "#ffffff",
+		"ink": "#151b18",
+		"resin": "#f0a63a",
+		"resin-deep": "#b8720f",
+		"resin-wash": "#fdf1dd",
+		"moss": "#4f7a45",
+		"bark": "#b23a24"
+	},
+	"venture_rings": ["#7c6cf0", "#e0566b", "#2fa58a", "#3b8fe0", "#b35cc9", "#6e9b2f", "#4f5bd5", "#d14d9b"],
+	"fonts": {
+		"display": "Bricolage Grotesque (wordmark and page titles)",
+		"ui": "Geist",
+		"data": "Geist Mono"
+	},
+	"wordmark_font": "Bricolage Grotesque, weight 640, optical size 48, tracking -0.02em, outlined",
+	"clear_space": "At least the pith dot's diameter on all sides; prefer 12% of the mark's width.",
+	"minimum_sizes": {
+		"mark_px": 20,
+		"favicon_px": 16,
+		"horizontal_lockup_px": 120
+	}
 }

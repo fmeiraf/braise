@@ -7,6 +7,7 @@ import { CreateVenture } from "./create-venture.tsx";
 import { describeError } from "./errors.ts";
 import { kindLabel } from "./labels.ts";
 import { queries } from "./live.ts";
+import { VentureRings } from "./rings.tsx";
 import { ago } from "./time.ts";
 
 type SortKey = "name" | "kind" | "openBets" | "goals" | "unlinkedGoals" | "lastActivityAt";
@@ -96,6 +97,7 @@ export function HoldingPage() {
 							<tr key={row.id} onClick={() => void navigate({ to: "/v/$slug", params: { slug: row.slug } })}>
 								<td>
 									<Link to="/v/$slug" params={{ slug: row.slug }} className="venture-cell">
+										<VentureRings id={row.id} live={false} quiet={false} />
 										{row.name}
 									</Link>
 								</td>
