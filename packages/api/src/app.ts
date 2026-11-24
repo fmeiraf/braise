@@ -6,7 +6,15 @@ import { AppError } from "./errors.ts";
 import { handlers } from "./handlers.ts";
 import type { HintHub } from "./hints.ts";
 import { executeCommand } from "./pipeline.ts";
-import { getCockpit, getEvents, getRecentEvents, getStrategyVersions, listVentures } from "./queries.ts";
+import {
+	getCockpit,
+	getEvents,
+	getHoldingWork,
+	getRecentEvents,
+	getStrategyVersions,
+	getVentureWork,
+	listVentures,
+} from "./queries.ts";
 
 const actor = "owner";
 
@@ -70,6 +78,10 @@ export function createApp({ db, hub }: { db: Database; hub: HintHub }) {
 	app.get("/ventures", async (c) => c.json({ ventures: await listVentures(db) }));
 
 	app.get("/ventures/:slug", async (c) => c.json(await getCockpit(db, c.req.param("slug"))));
+
+	app.get("/work", async (c) => c.json(await getHoldingWork(db)));
+
+	app.get("/ventures/:slug/work", async (c) => c.json(await getVentureWork(db, c.req.param("slug"))));
 
 	app.get("/ventures/:slug/strategy/versions", async (c) => {
 		const { version } = parseQuery(versionQuery, c.req.query());

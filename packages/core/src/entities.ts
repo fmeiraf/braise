@@ -1,8 +1,14 @@
-import type { betStatuses, ventureKinds } from "./commands.ts";
+import type { betStatuses, ventureKinds, workFunctions, workPriorities, workStatuses } from "./commands.ts";
 
 export type VentureKind = (typeof ventureKinds)[number];
 
 export type BetStatus = (typeof betStatuses)[number];
+
+export type WorkStatus = (typeof workStatuses)[number];
+
+export type WorkFunction = (typeof workFunctions)[number];
+
+export type WorkPriority = (typeof workPriorities)[number];
 
 export type StrategyStatus = "draft" | "active" | "superseded";
 
@@ -57,6 +63,41 @@ export interface Goal {
 	archivedAt: string | null;
 }
 
+export interface WorkItem {
+	id: string;
+	ventureId: string;
+	goalId: string;
+	parentId: string | null;
+	depth: number;
+	position: number;
+	title: string;
+	description: string;
+	status: WorkStatus;
+	function: WorkFunction;
+	priority: WorkPriority;
+	createdAt: string;
+	updatedAt: string;
+	archivedAt: string | null;
+}
+
+export interface WorkProgress {
+	done: number;
+	total: number;
+}
+
+export interface VentureWork {
+	ventureId: string;
+	lastSeq: number;
+	goals: Goal[];
+	workItems: WorkItem[];
+}
+
+export interface HoldingWork {
+	ventures: { id: string; slug: string; name: string; lastSeq: number }[];
+	goals: Goal[];
+	workItems: WorkItem[];
+}
+
 export interface HoldingRow {
 	id: string;
 	slug: string;
@@ -74,6 +115,7 @@ export interface Cockpit {
 	strategy: StrategyVersion;
 	bets: Bet[];
 	goals: Goal[];
+	workProgress: Record<string, WorkProgress>;
 }
 
 export type FieldChanges = Record<string, { from: unknown; to: unknown }>;

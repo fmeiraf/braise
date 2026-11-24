@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { Database } from "./db/client.ts";
-import { bets, commands, events, goals, strategyVersions, ventures } from "./db/schema.ts";
+import { bets, commands, events, goals, strategyVersions, ventures, workItems } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 
 export async function listVentures(db: Database) {
@@ -79,7 +79,62 @@ export async function getCockpit(db: Database, slug: string) {
 		.where(and(eq(goals.ventureId, venture.id), isNull(goals.archivedAt)))
 		.orderBy(asc(goals.createdAt));
 
-	return { venture, strategy, bets: ventureBets, goals: ventureGoals };
+	const progressRows = await db
+		.select({
+			goalId: workItems.goalId,
+			done: sql<number>`count(*) FILTER (WHERE ${workItems.status} = 'done')::int`,
+			total: sql<number>`count(*)::int`,
+		})
+		.from(workItems)
+		.where(and(eq(workItems.ventureId, venture.id), isNull(workItems.archivedAt)))
+		.groupBy(workItems.goalId);
+
+	const workProgress = Object.fromEntries(progressRows.map(({ goalId, done, total }) => [goalId, { done, total }]));
+
+	return { venture, strategy, bets: ventureBets, goals: ventureGoals, workProgress };
+}
+
+function liveWorkItems(db: Database, ventureIds: string[]) {
+	if (ventureIds.length === 0) return Promise.resolve([]);
+
+	return db
+		.select()
+		.from(workItems)
+		.where(and(inArray(workItems.ventureId, ventureIds), isNull(workItems.archivedAt)))
+		.orderBy(asc(workItems.depth), asc(workItems.position));
+}
+
+function liveGoals(db: Database, ventureIds: string[]) {
+	if (ventureIds.length === 0) return Promise.resolve([]);
+
+	return db
+		.select()
+		.from(goals)
+		.where(and(inArray(goals.ventureId, ventureIds), isNull(goals.archivedAt)))
+		.orderBy(asc(goals.createdAt));
+}
+
+export async function getVentureWork(db: Database, slug: string) {
+	const venture = await ventureBySlug(db, slug);
+
+	return {
+		ventureId: venture.id,
+		lastSeq: venture.lastSeq,
+		goals: await liveGoals(db, [venture.id]),
+		workItems: await liveWorkItems(db, [venture.id]),
+	};
+}
+
+export async function getHoldingWork(db: Database) {
+	const live = await db
+		.select({ id: ventures.id, slug: ventures.slug, name: ventures.name, lastSeq: ventures.lastSeq })
+		.from(ventures)
+		.where(isNull(ventures.archivedAt))
+		.orderBy(desc(ventures.updatedAt));
+
+	const ids = live.map((venture) => venture.id);
+
+	return { ventures: live, goals: await liveGoals(db, ids), workItems: await liveWorkItems(db, ids) };
 }
 
 export async function getStrategyVersions(db: Database, slug: string, version: number | null) {

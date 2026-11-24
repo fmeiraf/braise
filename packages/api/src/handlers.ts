@@ -1,8 +1,8 @@
-import { type FieldChanges, slugify } from "@braise/core";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { type FieldChanges, maxWorkDepth, slugify } from "@braise/core";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import type { Transaction } from "./db/client.ts";
-import { bets, goals, strategyVersions, ventures } from "./db/schema.ts";
+import { bets, goals, strategyVersions, ventures, workItems } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 import type { HandlerContext, Handlers, VentureRow } from "./pipeline.ts";
 
@@ -81,6 +81,114 @@ async function liveGoal(tx: Transaction, venture: VentureRow, goalId: string) {
 	}
 
 	return goal;
+}
+
+type WorkItemRow = typeof workItems.$inferSelect;
+
+async function linkableGoal(tx: Transaction, venture: VentureRow, goalId: string) {
+	const [goal] = await tx.select().from(goals).where(eq(goals.id, goalId));
+
+	if (goal === undefined || goal.ventureId !== venture.id || goal.archivedAt !== null) {
+		throw new AppError("rule_violated", "Work can only hang off a live goal of the same venture", {
+			rule: "goal_not_in_venture",
+			goalId,
+		});
+	}
+
+	return goal;
+}
+
+function rootGoal(tx: Transaction, venture: VentureRow, goalId: string | undefined) {
+	if (goalId === undefined) throw new AppError("internal_error", "Initiative without a goal passed validation");
+
+	return linkableGoal(tx, venture, goalId);
+}
+
+function workArchived(workItemId: string) {
+	return new AppError("rule_violated", "The work item is archived", { rule: "work_archived", workItemId });
+}
+
+async function liveWorkItem(tx: Transaction, venture: VentureRow, workItemId: string) {
+	const [item] = await tx
+		.select()
+		.from(workItems)
+		.where(and(eq(workItems.id, workItemId), eq(workItems.ventureId, venture.id)));
+
+	if (item === undefined) throw new AppError("not_found", "Work item not found", { workItemId });
+
+	if (item.archivedAt !== null) throw workArchived(workItemId);
+
+	return item;
+}
+
+async function parentFor(tx: Transaction, venture: VentureRow, parentId: string) {
+	const [parent] = await tx.select().from(workItems).where(eq(workItems.id, parentId));
+
+	if (parent === undefined || parent.ventureId !== venture.id) {
+		throw new AppError("rule_violated", "The parent must be a work item of the same venture", {
+			rule: "parent_not_in_venture",
+			parentId,
+		});
+	}
+
+	if (parent.archivedAt !== null) throw workArchived(parentId);
+
+	if (parent.depth >= maxWorkDepth) {
+		throw new AppError("rule_violated", "Work items nest at most three levels deep", {
+			rule: "depth_exceeded",
+			parentId,
+		});
+	}
+
+	return parent;
+}
+
+function siblingIds(tx: Transaction, place: { goalId: string; parentId: string | null }) {
+	const group =
+		place.parentId === null
+			? and(eq(workItems.goalId, place.goalId), isNull(workItems.parentId))
+			: eq(workItems.parentId, place.parentId);
+
+	return tx
+		.select({ id: workItems.id })
+		.from(workItems)
+		.where(and(group, isNull(workItems.archivedAt)))
+		.orderBy(asc(workItems.position))
+		.then((rows) => rows.map((row) => row.id));
+}
+
+async function renumber(tx: Transaction, ids: string[]) {
+	if (ids.length === 0) return;
+
+	await tx.execute(sql`
+		UPDATE work_items SET position = ordered.ord - 1
+		FROM unnest(${`{${ids.join(",")}}`}::uuid[]) WITH ORDINALITY AS ordered(id, ord)
+		WHERE work_items.id = ordered.id AND work_items.position <> ordered.ord - 1
+	`);
+}
+
+function indexOutOfRange(index: number, size: number) {
+	return new AppError("rule_violated", "There is no such position", {
+		rule: "index_out_of_range",
+		index,
+		size,
+	});
+}
+
+function subtreeCondition(item: WorkItemRow) {
+	return or(
+		eq(workItems.id, item.id),
+		eq(workItems.parentId, item.id),
+		inArray(workItems.parentId, sql`(SELECT id FROM work_items WHERE parent_id = ${item.id})`),
+	);
+}
+
+async function reloadWorkItem(tx: Transaction, workItemId: string) {
+	const [item] = await tx.select().from(workItems).where(eq(workItems.id, workItemId));
+
+	if (item === undefined) throw new AppError("internal_error", "Work item disappeared during the command");
+
+	return item;
 }
 
 export const handlers = {
@@ -399,6 +507,19 @@ export const handlers = {
 
 		const goal = await liveGoal(context.tx, venture, payload.goalId);
 
+		const [liveWorkOfGoal] = await context.tx
+			.select({ id: workItems.id })
+			.from(workItems)
+			.where(and(eq(workItems.goalId, goal.id), isNull(workItems.archivedAt)))
+			.limit(1);
+
+		if (liveWorkOfGoal !== undefined) {
+			throw new AppError("rule_violated", "Archive or move this goal's work first", {
+				rule: "goal_has_work",
+				goalId: goal.id,
+			});
+		}
+
 		const [archived] = await context.tx
 			.update(goals)
 			.set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
@@ -409,6 +530,187 @@ export const handlers = {
 			ventureId: venture.id,
 			result: archived,
 			events: [{ type: "goal.archived", subject: `goal:${goal.id}`, payload: { outcome: goal.outcome } }],
+		};
+	},
+
+	"work.create": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const parent = payload.parentId === undefined ? null : await parentFor(context.tx, venture, payload.parentId);
+
+		const goalId = parent === null ? (await rootGoal(context.tx, venture, payload.goalId)).id : parent.goalId;
+
+		const place = { goalId, parentId: parent?.id ?? null };
+
+		const siblings = await siblingIds(context.tx, place);
+
+		const fn = payload.function ?? parent?.function;
+
+		if (fn === undefined) throw new AppError("internal_error", "Work item without a function passed validation");
+
+		const [item] = await context.tx
+			.insert(workItems)
+			.values({
+				id: uuidv7(),
+				ventureId: venture.id,
+				...place,
+				depth: parent === null ? 0 : parent.depth + 1,
+				position: siblings.length,
+				title: payload.title,
+				description: payload.description,
+				function: fn,
+				priority: payload.priority,
+			})
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: item,
+			events: [
+				{
+					type: "work.created",
+					subject: `work:${item?.id}`,
+					payload: { title: payload.title, goalId, parentId: place.parentId, depth: item?.depth },
+				},
+			],
+		};
+	},
+
+	"work.update": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const item = await liveWorkItem(context.tx, venture, payload.workItemId);
+
+		const next = {
+			title: payload.title,
+			description: payload.description,
+			function: payload.function,
+			priority: payload.priority,
+		};
+
+		const changes = changesBetween(item, next);
+
+		if (!hasChanges(changes)) throw noChanges();
+
+		const [updated] = await context.tx
+			.update(workItems)
+			.set({ ...next, updatedAt: sql`now()` })
+			.where(eq(workItems.id, item.id))
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: updated,
+			events: [{ type: "work.updated", subject: `work:${item.id}`, payload: { title: item.title, changes } }],
+		};
+	},
+
+	"work.set_status": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const item = await liveWorkItem(context.tx, venture, payload.workItemId);
+
+		if (item.status === payload.status) throw noChanges();
+
+		const [updated] = await context.tx
+			.update(workItems)
+			.set({ status: payload.status, updatedAt: sql`now()` })
+			.where(eq(workItems.id, item.id))
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: updated,
+			events: [
+				{
+					type: "work.status_set",
+					subject: `work:${item.id}`,
+					payload: { title: item.title, changes: { status: { from: item.status, to: payload.status } } },
+				},
+			],
+		};
+	},
+
+	"work.move": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const item = await liveWorkItem(context.tx, venture, payload.workItemId);
+
+		if (payload.goalId !== undefined && item.parentId !== null) {
+			throw new AppError("rule_violated", "Only an initiative can move to another goal", {
+				rule: "goal_on_child",
+				workItemId: item.id,
+			});
+		}
+
+		const targetGoalId =
+			payload.goalId === undefined ? item.goalId : (await linkableGoal(context.tx, venture, payload.goalId)).id;
+
+		const changes: FieldChanges = {};
+
+		if (targetGoalId === item.goalId) {
+			const siblings = await siblingIds(context.tx, item);
+
+			if (payload.index >= siblings.length) throw indexOutOfRange(payload.index, siblings.length);
+
+			if (payload.index === item.position) throw noChanges();
+
+			const reordered = siblings.filter((id) => id !== item.id);
+
+			reordered.splice(payload.index, 0, item.id);
+
+			await renumber(context.tx, reordered);
+		} else {
+			const targetSiblings = await siblingIds(context.tx, { goalId: targetGoalId, parentId: null });
+
+			if (payload.index > targetSiblings.length) throw indexOutOfRange(payload.index, targetSiblings.length + 1);
+
+			await context.tx
+				.update(workItems)
+				.set({ goalId: targetGoalId, updatedAt: sql`now()` })
+				.where(subtreeCondition(item));
+
+			const remaining = (await siblingIds(context.tx, item)).filter((id) => id !== item.id);
+
+			await renumber(context.tx, remaining);
+
+			targetSiblings.splice(payload.index, 0, item.id);
+
+			await renumber(context.tx, targetSiblings);
+
+			changes.goalId = { from: item.goalId, to: targetGoalId };
+		}
+
+		changes.index = { from: item.position, to: payload.index };
+
+		await context.tx.update(workItems).set({ updatedAt: sql`now()` }).where(eq(workItems.id, item.id));
+
+		return {
+			ventureId: venture.id,
+			result: await reloadWorkItem(context.tx, item.id),
+			events: [{ type: "work.moved", subject: `work:${item.id}`, payload: { title: item.title, changes } }],
+		};
+	},
+
+	"work.archive": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const item = await liveWorkItem(context.tx, venture, payload.workItemId);
+
+		const archived = await context.tx
+			.update(workItems)
+			.set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+			.where(and(subtreeCondition(item), isNull(workItems.archivedAt)))
+			.returning({ id: workItems.id });
+
+		await renumber(context.tx, await siblingIds(context.tx, item));
+
+		const archivedIds = archived.map((row) => row.id);
+
+		return {
+			ventureId: venture.id,
+			result: { workItem: await reloadWorkItem(context.tx, item.id), archivedIds },
+			events: [{ type: "work.archived", subject: `work:${item.id}`, payload: { title: item.title, archivedIds } }],
 		};
 	},
 } satisfies Handlers;

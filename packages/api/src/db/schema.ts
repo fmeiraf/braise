@@ -9,6 +9,7 @@ import {
 	jsonb,
 	pgTable,
 	primaryKey,
+	smallint,
 	text,
 	timestamp,
 	unique,
@@ -101,6 +102,49 @@ export const goals = pgTable(
 		archivedAt: archivedAt(),
 	},
 	(table) => [index("goals_venture_idx").on(table.ventureId)],
+);
+
+export const workItems = pgTable(
+	"work_items",
+	{
+		id: uuid("id").primaryKey(),
+		ventureId: uuid("venture_id")
+			.notNull()
+			.references(() => ventures.id),
+		goalId: uuid("goal_id")
+			.notNull()
+			.references(() => goals.id),
+		parentId: uuid("parent_id"),
+		depth: smallint("depth").notNull(),
+		position: integer("position").notNull(),
+		title: text("title").notNull(),
+		description: text("description").notNull().default(""),
+		status: text("status", { enum: ["todo", "doing", "done"] })
+			.notNull()
+			.default("todo"),
+		function: text("function", {
+			enum: ["product", "design", "engineering", "marketing", "sales", "ops"],
+		}).notNull(),
+		priority: text("priority", { enum: ["none", "low", "medium", "high", "urgent"] })
+			.notNull()
+			.default("none"),
+		createdAt: createdAt(),
+		updatedAt: updatedAt(),
+		archivedAt: archivedAt(),
+	},
+	(table) => [
+		foreignKey({ columns: [table.parentId], foreignColumns: [table.id] }),
+		index("work_items_venture_idx").on(table.ventureId),
+		index("work_items_goal_idx").on(table.goalId),
+		index("work_items_parent_idx").on(table.parentId),
+		check("work_items_depth_check", sql`${table.depth} BETWEEN 0 AND 2`),
+		check("work_items_status_check", sql`${table.status} IN ('todo','doing','done')`),
+		check(
+			"work_items_function_check",
+			sql`${table.function} IN ('product','design','engineering','marketing','sales','ops')`,
+		),
+		check("work_items_priority_check", sql`${table.priority} IN ('none','low','medium','high','urgent')`),
+	],
 );
 
 export const commands = pgTable("commands", {

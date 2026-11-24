@@ -33,7 +33,7 @@ export async function seedExample(db: Database) {
 		killCriteria: "Fewer than 30 pre-orders a week after four weeks.",
 	});
 
-	await send(db, "goal.create", "goal-preorders", {
+	const preorders = await send(db, "goal.create", "goal-preorders", {
 		ventureId,
 		betId: bet.result.id,
 		outcome: "Pre-orders cover a third of the morning bake",
@@ -41,12 +41,52 @@ export async function seedExample(db: Database) {
 		horizon: null,
 	});
 
-	await send(db, "goal.create", "goal-waste", {
+	const waste = await send(db, "goal.create", "goal-waste", {
 		ventureId,
 		betId: null,
 		outcome: "Unsold bread under 5% of the bake",
 		signal: "Loaves left at closing ÷ loaves baked",
 		horizon: null,
+	});
+
+	const page = await send(db, "work.create", "work-page", {
+		ventureId,
+		goalId: preorders.result.id,
+		title: "One-screen pre-order page",
+		function: "engineering",
+		priority: "high",
+	});
+
+	const form = await send(db, "work.create", "work-form", {
+		ventureId,
+		parentId: page.result.id,
+		title: "Order form with tomorrow's bake",
+	});
+
+	await send(db, "work.create", "work-form-sms", {
+		ventureId,
+		parentId: form.result.id,
+		title: "Text a pickup reminder at 7am",
+	});
+
+	await send(db, "work.create", "work-flyers", {
+		ventureId,
+		goalId: preorders.result.id,
+		title: "Flyers for the first 200 customers",
+		function: "marketing",
+	});
+
+	const tally = await send(db, "work.create", "work-tally", {
+		ventureId,
+		goalId: waste.result.id,
+		title: "Count leftover loaves at closing",
+		function: "ops",
+	});
+
+	await send(db, "work.set_status", "work-tally-doing", {
+		ventureId,
+		workItemId: tally.result.id,
+		status: "doing",
 	});
 
 	return created.result.venture;

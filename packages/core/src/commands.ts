@@ -7,6 +7,10 @@ const isoDate = z.iso.date();
 
 export const ventureKinds = ["for_profit", "non_profit"] as const;
 export const betStatuses = ["open", "won", "lost", "killed"] as const;
+export const workStatuses = ["todo", "doing", "done"] as const;
+export const workFunctions = ["product", "design", "engineering", "marketing", "sales", "ops"] as const;
+export const workPriorities = ["none", "low", "medium", "high", "urgent"] as const;
+export const maxWorkDepth = 2;
 
 export const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
@@ -75,6 +79,46 @@ export const commandSchemas = {
 			{ message: "Change at least one field" },
 		),
 	"goal.archive": z.strictObject({ ...ventureScoped, goalId: id }),
+	"work.create": z
+		.strictObject({
+			...ventureScoped,
+			goalId: id.optional(),
+			parentId: id.optional(),
+			title: text.max(500),
+			description: longText.default(""),
+			function: z.enum(workFunctions).optional(),
+			priority: z.enum(workPriorities).default("none"),
+		})
+		.refine((value) => (value.goalId === undefined) !== (value.parentId === undefined), {
+			message: "Give either a goal (new initiative) or a parent, not both",
+			path: ["goalId"],
+		})
+		.refine((value) => value.parentId !== undefined || value.function !== undefined, {
+			message: "An initiative needs a function",
+			path: ["function"],
+		}),
+	"work.update": z
+		.strictObject({
+			...ventureScoped,
+			workItemId: id,
+			title: text.max(500).optional(),
+			description: longText.optional(),
+			function: z.enum(workFunctions).optional(),
+			priority: z.enum(workPriorities).optional(),
+		})
+		.refine(
+			(value) =>
+				[value.title, value.description, value.function, value.priority].some((field) => field !== undefined),
+			{ message: "Change at least one field" },
+		),
+	"work.set_status": z.strictObject({ ...ventureScoped, workItemId: id, status: z.enum(workStatuses) }),
+	"work.move": z.strictObject({
+		...ventureScoped,
+		workItemId: id,
+		index: z.number().int().min(0),
+		goalId: id.optional(),
+	}),
+	"work.archive": z.strictObject({ ...ventureScoped, workItemId: id }),
 };
 
 export type CommandName = keyof typeof commandSchemas;
