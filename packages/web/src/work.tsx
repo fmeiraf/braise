@@ -30,6 +30,7 @@ import { focusOnMount } from "./focus.ts";
 import { useFreshIds } from "./fresh.ts";
 import { PageError } from "./holding.tsx";
 import { patchWork, queries, refreshVenture, rememberVenture } from "./live.ts";
+import { WorkItemThreads } from "./threads.tsx";
 import { ago, formatDate } from "./time.ts";
 import { useCommand } from "./use-command.ts";
 import { buildForest, cycleStatus, goalProgress, kindOf, orderGoals, type WorkNode } from "./work-tree.ts";
@@ -1085,6 +1086,8 @@ function WorkPane({ located, close, onArchived }: { located: Located; close: () 
 					save={(description) => update.mutateAsync({ payload: { ...base, description } })}
 				/>
 			</div>
+
+			<WorkItemThreads workItem={item} venture={venture} />
 
 			{error === null ? null : (
 				<p className="error-text" role="alert">

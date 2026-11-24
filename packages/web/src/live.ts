@@ -1,4 +1,4 @@
-import type { Cockpit, HoldingWork, StreamHint, VentureWork, WorkItem } from "@braise/core";
+import type { Cockpit, HoldingWork, StreamHint, ThreadHint, VentureWork, WorkItem } from "@braise/core";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "./api.ts";
@@ -12,6 +12,11 @@ export const keys = {
 	versions: (slug: string) => ["venture", slug, "versions"] as const,
 	events: (slug: string) => ["venture", slug, "events"] as const,
 	work: (slug: string) => ["venture", slug, "work"] as const,
+	threads: ["threads"] as const,
+	threadList: (scope: { ventureId?: string; subject?: string }) =>
+		["threads", "list", scope.ventureId ?? "holding", scope.subject ?? "all"] as const,
+	thread: (id: string) => ["threads", "detail", id] as const,
+	activeRuns: ["runs", "active"] as const,
 };
 
 export const queries = {
@@ -21,7 +26,19 @@ export const queries = {
 	versions: (slug: string) => queryOptions({ queryKey: keys.versions(slug), queryFn: () => api.versions(slug) }),
 	work: (slug: string) => queryOptions({ queryKey: keys.work(slug), queryFn: () => api.work(slug) }),
 	holdingWork: () => queryOptions({ queryKey: keys.holdingWork, queryFn: api.holdingWork }),
+	threads: (scope: { ventureId?: string; subject?: string }) =>
+		queryOptions({ queryKey: keys.threadList(scope), queryFn: () => api.threads(scope) }),
+	thread: (id: string) => queryOptions({ queryKey: keys.thread(id), queryFn: () => api.thread(id) }),
+	activeRuns: () => queryOptions({ queryKey: keys.activeRuns, queryFn: api.activeRuns }),
 };
+
+export function applyThreadHint(client: QueryClient, hint: ThreadHint) {
+	void client.invalidateQueries({ queryKey: keys.thread(hint.threadId) });
+
+	void client.invalidateQueries({ queryKey: ["threads", "list"] });
+
+	void client.invalidateQueries({ queryKey: keys.activeRuns });
+}
 
 const knownSeq = new Map<string, number>();
 const slugById = new Map<string, string>();
@@ -166,6 +183,12 @@ export function useHintStream(client: QueryClient) {
 				heard();
 
 				applyHint(client, JSON.parse(event.data as string) as StreamHint);
+			});
+
+			next.addEventListener("thread", (event) => {
+				heard();
+
+				applyThreadHint(client, JSON.parse(event.data as string) as ThreadHint);
 			});
 
 			next.addEventListener("reset", () => {

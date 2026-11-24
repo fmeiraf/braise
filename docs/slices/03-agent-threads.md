@@ -1,6 +1,6 @@
 # Slice 3: Agent threads, streaming live
 
-Status: **draft**, awaiting the owner's OK. This is the build spec; the rules in
+Status: **landed** 2026-11-24. This is the build spec; the rules in
 `docs/architecture.md` apply throughout.
 
 ## Goal
@@ -253,8 +253,12 @@ duration and tokens, and the status (`cancelled`, `failed` with the error,
 Stop button in the composer.
 
 **Composer:** multiline, Enter sends, Shift+Enter breaks the line; `@` opens the
-autocomplete (work items first, kind and venture shown), and choosing a target links
-it and inserts its title. Disabled with an explanation while a run is active.
+autocomplete (work items first, kind and venture shown), and choosing a target adds it
+to the links sent with the message and inserts its title. Sending is disabled, with an
+explanation and a Stop button, while a run is active.
+
+**Tool activity (owner, 2026-11-24):** each round of consecutive tool calls folds into
+one toggle, collapsed by default, placed before the reply text it led to.
 
 **Work item pane:** a **Threads** section listing linked threads (title, time, run
 marker) and "New thread", which opens the Threads view with that item pre-linked.

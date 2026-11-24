@@ -1,6 +1,6 @@
 {
 	"schemaVersion": 2,
-	"generatedAt": "2026-11-24T21:00:00+00:00",
+	"generatedAt": "2026-11-24T21:55:02+00:00",
 	"title": "Design System: braise",
 	"extensions": {
 		"colorMeta": {
@@ -355,7 +355,7 @@
 			{
 				"name": "field-halo",
 				"value": "0 0 0 3px var(--ember-wash)",
-				"purpose": "Focused inputs, textareas, selects and the slug field."
+				"purpose": "Focused inputs, textareas, selects, the slug field and the thread composer (with an ember border)."
 			},
 			{
 				"name": "node-gap",
@@ -380,7 +380,7 @@
 			{
 				"name": "work-focus",
 				"value": "inset 0 0 0 1px var(--ember)",
-				"purpose": "Keyboard focus on a work tree row; square, replaces the focus ring."
+				"purpose": "Keyboard focus on a work tree row or thread list row; square, replaces the focus ring."
 			}
 		],
 		"motion": [
@@ -417,7 +417,7 @@
 			{
 				"name": "blink",
 				"value": "1.2s steps(2, jump-none) infinite, opacity 0.2 at 50%",
-				"purpose": "Reconnect pixel while the live stream is down."
+				"purpose": "Reconnect pixel while the live stream is down, in the rail foot and in a thread's stream-down line."
 			},
 			{
 				"name": "shimmer",
@@ -430,8 +430,18 @@
 				"purpose": "Work tree disclosure chevron opening."
 			},
 			{
+				"name": "tool-fold",
+				"value": "120ms rotate(90deg), ease-out",
+				"purpose": "Tool activity round chevron opening."
+			},
+			{
+				"name": "working",
+				"value": "1.6s ease-in-out infinite, opacity 0.35 at 50%",
+				"purpose": "Agent run live: live pixels (rail, thread list, work pane), live author marks, pending tool markers and the streaming caret. Only while a run is active."
+			},
+			{
 				"name": "reduced-motion",
-				"value": "prefers-reduced-motion: reduce removes simmer, flash, reveal, shimmer, blink, the work add-form reveal, the target-goal flash and both chevron rotations",
+				"value": "prefers-reduced-motion: reduce removes simmer, flash, reveal, shimmer, blink, the work add-form reveal, the target-goal flash, the working pulse (live pixels, live author marks, pending tool markers, streaming caret), the thread stream-down blink, and the strategy, fold and tool chevron rotations",
 				"purpose": "Accessibility floor."
 			}
 		],
@@ -447,6 +457,10 @@
 			{
 				"name": "compact-work",
 				"value": "max-width: 1279px (work pane 320px, main padding 24px, keyboard hint hidden with the pane open)"
+			},
+			{
+				"name": "compact-threads",
+				"value": "max-width: 1279px (thread list 280px)"
 			}
 		]
 	},
@@ -532,9 +546,9 @@
 		{
 			"name": "Activity Feed",
 			"kind": "custom",
-			"description": "Pixel-led event list; ember pixel when fresh, reason on a hairline left rule.",
-			"html": "<ul class=\"ds-feed\"><li class=\"ds-item ds-fresh\"><span class=\"ds-fpx\"></span><div><div class=\"ds-text\"><strong>owner</strong> revised the strategy to <strong>v2</strong></div><div class=\"ds-reason\">Interviews showed it is a full day, not hours</div><div class=\"ds-meta\">8m ago <span class=\"ds-mono\">· #41</span></div></div></li><li class=\"ds-item\"><span class=\"ds-fpx\"></span><div><div class=\"ds-text\"><strong>owner</strong> added a goal <strong>Waitlist reaches 500</strong></div><div class=\"ds-meta\">7m ago</div></div></li></ul>",
-			"css": ".ds-feed { list-style: none; margin: 0; padding: 8px; background: var(--ground-sunk, #f5f1e8); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; line-height: 1.45; } .ds-item { display: grid; grid-template-columns: 6px 1fr; gap: 0 12px; padding: 8px; } .ds-fpx { width: 6px; height: 6px; margin-top: 7px; background: var(--line-strong, #d8d0bf); } .ds-fresh .ds-fpx { background: var(--ember, #ec693a); } .ds-text { color: var(--ink-2, #57544d); } .ds-text strong { color: var(--ink, #242423); font-weight: 500; } .ds-meta { font-size: 12px; color: var(--ink-3, #6e6a62); margin-top: 1px; } .ds-reason { margin-top: 4px; padding-left: 8px; border-left: 1px solid var(--line-strong, #d8d0bf); font-size: 12px; color: var(--ink-2, #57544d); } .ds-mono { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 12px; }"
+			"description": "Pixel-led event list; ember pixel when fresh, hollow pixel for agent events, reason on a hairline left rule.",
+			"html": "<ul class=\"ds-feed\"><li class=\"ds-item ds-fresh\"><span class=\"ds-fpx\"></span><div><div class=\"ds-text\"><strong>You</strong> revised the strategy to <strong>v2</strong></div><div class=\"ds-reason\">Interviews showed it is a full day, not hours</div><div class=\"ds-meta\">8m ago <span class=\"ds-mono\">· #41</span></div></div></li><li class=\"ds-item\"><span class=\"ds-fpx\"></span><div><div class=\"ds-text\"><strong>You</strong> added a goal <strong>Waitlist reaches 500</strong></div><div class=\"ds-meta\">7m ago</div></div></li><li class=\"ds-item ds-agent\"><span class=\"ds-fpx\"></span><div><div class=\"ds-text\"><strong>Claude</strong> added a task <strong>Consent screen copy</strong></div><div class=\"ds-meta\">5m ago</div></div></li></ul>",
+			"css": ".ds-feed { list-style: none; margin: 0; padding: 8px; background: var(--ground-sunk, #f5f1e8); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; line-height: 1.45; } .ds-item { display: grid; grid-template-columns: 6px 1fr; gap: 0 12px; padding: 8px; } .ds-fpx { width: 6px; height: 6px; margin-top: 7px; background: var(--line-strong, #d8d0bf); } .ds-fresh .ds-fpx { background: var(--ember, #ec693a); } .ds-text { color: var(--ink-2, #57544d); } .ds-text strong { color: var(--ink, #242423); font-weight: 500; } .ds-meta { font-size: 12px; color: var(--ink-3, #6e6a62); margin-top: 1px; } .ds-reason { margin-top: 4px; padding-left: 8px; border-left: 1px solid var(--line-strong, #d8d0bf); font-size: 12px; color: var(--ink-2, #57544d); } .ds-mono { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 12px; } .ds-agent .ds-fpx { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-strong, #d8d0bf); }"
 		},
 		{
 			"name": "Word Diff",
@@ -542,11 +556,51 @@
 			"description": "Strategy revision diff: ember-wash insertions with an ember underline, muted strikes.",
 			"html": "<dl class=\"ds-diff\"><dt>Diagnosis</dt><dd>Bank feeds and invoices never share an identifier, so matching takes <ins>a full day</ins><del>hours</del> every month.</dd></dl>",
 			"css": ".ds-diff { display: grid; grid-template-columns: 128px 1fr; gap: 16px; padding: 12px 0; margin: 0; border-bottom: 1px solid var(--line, #e9e4d8); background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-diff dt { color: var(--ink-3, #6e6a62); font-weight: 500; } .ds-diff dd { margin: 0; max-width: 75ch; line-height: 1.6; } .ds-diff ins { text-decoration: none; background: var(--ember-wash-strong, #f8d4c3); box-shadow: inset 0 -1.5px 0 var(--ember, #ec693a); border-radius: 2px; margin-right: 0.3em; } .ds-diff del { color: var(--ink-3, #6e6a62); text-decoration-thickness: 1.5px; text-decoration-color: var(--ink-2, #57544d); }"
+		},
+		{
+			"name": "Small Button",
+			"kind": "button",
+			"refersTo": "button-small",
+			"description": "Any variant at 24px for in-context actions in dense regions (Link, New thread, Retry).",
+			"html": "<button class=\"ds-btn-sm ds-ghost\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>New thread</button> <button class=\"ds-btn-sm ds-sec\">Retry</button>",
+			"css": ".ds-btn-sm { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: background-color 120ms, border-color 120ms; } .ds-btn-sm svg { width: 13px; height: 13px; } .ds-btn-sm:focus-visible { box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); outline: none; } .ds-ghost { background: transparent; border: 1px solid transparent; color: var(--ink-2, #57544d); } .ds-ghost:hover { background: var(--ground-sunk, #f5f1e8); color: var(--ink, #242423); } .ds-sec { background: var(--raised, #fffefb); border: 1px solid var(--line-strong, #d8d0bf); color: var(--ink, #242423); } .ds-sec:hover { background: var(--ground-sunk, #f5f1e8); }"
+		},
+		{
+			"name": "Thread List",
+			"kind": "custom",
+			"refersTo": "thread-row",
+			"description": "Conversation rows: 6px pixel (Line Strong at rest, ember working pulse while live), 500 ellipsized title, 11px time or \"working\", 12px Ink 3 snippet, venture and one link tag plus +n.",
+			"html": "<ul class=\"ds-tl\"><li class=\"ds-tr ds-sel\"><span class=\"ds-tpx ds-live\"></span><span class=\"ds-tm\"><span class=\"ds-tt\"><span class=\"ds-ttl\">Plan the bank connection launch</span><span class=\"ds-ttime\">working</span></span><span class=\"ds-tsn\">Here is a first cut of the rollout in three steps</span><span class=\"ds-tln\"><span class=\"ds-tv\">Quiet Ledger</span><span class=\"ds-tag\">Bank connection flow</span><span class=\"ds-more\">+2</span></span></span></li><li class=\"ds-tr\" tabindex=\"0\"><span class=\"ds-tpx\"></span><span class=\"ds-tm\"><span class=\"ds-tt\"><span class=\"ds-ttl\">Waitlist copy ideas</span><span class=\"ds-ttime\">2h</span></span><span class=\"ds-tsn\">Three options, shortest first</span></span></li></ul>",
+			"css": "@keyframes ds-working { 50% { opacity: 0.35; } } .ds-tl { list-style: none; margin: 0; padding: 8px; width: 320px; display: flex; flex-direction: column; gap: 1px; background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-tr { display: grid; grid-template-columns: 6px minmax(0, 1fr); gap: 10px; align-items: start; padding: 9px 8px 10px; border-radius: 6px; transition: background-color 100ms; cursor: pointer; } .ds-tr:hover { background: var(--ground-sunk, #f5f1e8); } .ds-tr.ds-sel { background: var(--line, #e9e4d8); } .ds-tr:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--ember, #ec693a); } .ds-tpx { width: 6px; height: 6px; margin-top: 7px; background: var(--line-strong, #d8d0bf); } .ds-tpx.ds-live { background: var(--ember, #ec693a); animation: ds-working 1.6s ease-in-out infinite; } .ds-tm { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .ds-tt { display: flex; align-items: baseline; gap: 8px; min-width: 0; } .ds-ttl { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-ttime { flex: none; font-size: 11px; color: var(--ink-3, #6e6a62); } .ds-tsn { font-size: 12px; color: var(--ink-3, #6e6a62); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-tln { display: flex; align-items: center; gap: 4px; margin-top: 3px; font-size: 11px; } .ds-tv { color: var(--ink-2, #57544d); font-weight: 500; } .ds-tag { display: inline-block; height: 20px; line-height: 20px; padding: 0 7px; border-radius: 4px; background: var(--ground-sunk, #f5f1e8); color: var(--ink-2, #57544d); font-weight: 500; } .ds-sel .ds-tag { background: var(--raised, #fffefb); } .ds-more { color: var(--ink-3, #6e6a62); } @media (prefers-reduced-motion: reduce) { .ds-tpx.ds-live { animation: none; } }"
+		},
+		{
+			"name": "Message",
+			"kind": "custom",
+			"refersTo": null,
+			"description": "Slack-style conversation rows: 7px square author marks (owner filled ink, agent hollow, ember pulse while live), mono 11px time, Markdown prose at 1.6 with a pulsing ember caret while streaming, and an 11px run footer.",
+			"html": "<ol class=\"ds-tlm\"><li class=\"ds-msg\"><div class=\"ds-mh\"><span class=\"ds-am\"></span><span class=\"ds-au\">You</span><time class=\"ds-mt\">14:02</time></div><div class=\"ds-mb ds-plain\">What should we ship first for bank connection?</div></li><li class=\"ds-msg\"><div class=\"ds-mh\"><span class=\"ds-am ds-agent\"></span><span class=\"ds-au\">Claude</span><time class=\"ds-mt\">14:02</time></div><div class=\"ds-mb\"><div class=\"ds-prose\"><p>Start with the <code>consent</code> screen. Then:</p><ul><li>Sandbox keys</li><li>Error states</li></ul></div><div class=\"ds-rf\"><span class=\"ds-rmono\">claude-opus-5-5</span><span class=\"ds-num\">12s</span><span class=\"ds-num\">8.4k tokens</span></div></div></li><li class=\"ds-msg\"><div class=\"ds-mh\"><span class=\"ds-am ds-live\"></span><span class=\"ds-au\">Claude</span><time class=\"ds-mt\">14:05</time></div><div class=\"ds-mb\"><div class=\"ds-prose ds-streaming\"><p>Looking at the open tasks under that goal</p></div></div></li></ol>",
+			"css": "@keyframes ds-working { 50% { opacity: 0.35; } } .ds-tlm { list-style: none; margin: 0; padding: 16px; max-width: 760px; display: flex; flex-direction: column; gap: 24px; background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; line-height: 1.5; color: var(--ink, #242423); } .ds-msg { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 6px; row-gap: 4px; } .ds-mh { grid-column: 1 / -1; display: grid; grid-template-columns: 16px auto auto; justify-content: start; align-items: baseline; column-gap: 6px; } .ds-am { align-self: center; width: 7px; height: 7px; background: var(--ink, #242423); } .ds-am.ds-agent { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink, #242423); } .ds-am.ds-live { background: var(--ember, #ec693a); animation: ds-working 1.6s ease-in-out infinite; } .ds-au { font-weight: 600; } .ds-mt { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 11px; color: var(--ink-3, #6e6a62); } .ds-mb { grid-column: 2; min-width: 0; display: flex; flex-direction: column; gap: 8px; } .ds-plain { white-space: pre-wrap; max-width: 72ch; } .ds-prose { max-width: 72ch; line-height: 1.6; } .ds-prose p, .ds-prose ul { margin: 0 0 10px; } .ds-prose > :last-child { margin-bottom: 0; } .ds-prose ul { padding-left: 20px; list-style: square; } .ds-prose li::marker { color: var(--ink-3, #6e6a62); } .ds-prose code { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--ground-sunk, #f5f1e8); } .ds-streaming > :last-child::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 4px; background: var(--ember, #ec693a); animation: ds-working 1.6s ease-in-out infinite; } .ds-rf { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 24px; font-size: 11px; color: var(--ink-3, #6e6a62); } .ds-rmono { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 11px; } .ds-num { font-variant-numeric: tabular-nums; } @media (prefers-reduced-motion: reduce) { .ds-am.ds-live, .ds-streaming > :last-child::after { animation: none; } }"
+		},
+		{
+			"name": "Tool Activity",
+			"kind": "custom",
+			"refersTo": null,
+			"description": "A round of tool calls folded into one 24px toggle (\"n steps · n changes · n failed\"); rows on a Line Strong rule with 6px markers: hollow read, Ink 2 write, ember pending, rust failed; each opens to mono input/output.",
+			"html": "<details class=\"ds-tg\" open><summary><svg class=\"ds-tc\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 18 6-6-6-6\"/></svg><span class=\"ds-ts ds-changed\">4 steps · 1 change · 1 failed</span></summary><ul class=\"ds-tcs\"><li><div class=\"ds-tcall\"><span class=\"ds-tmk\"></span><span class=\"ds-ta\">Read work under Bank connection</span><span class=\"ds-td\">6 items</span></div></li><li><div class=\"ds-tcall\"><span class=\"ds-tmk ds-write\"></span><span class=\"ds-ta ds-write\">Added task Consent screen copy</span></div></li><li><div class=\"ds-tcall\"><span class=\"ds-tmk ds-failed\"></span><span class=\"ds-ta\">Moved task</span><span class=\"ds-td ds-failed\">failed</span></div><div class=\"ds-io\"><span class=\"ds-iol\">Error</span><pre class=\"ds-failed\">Work item not found</pre></div></li><li><div class=\"ds-tcall\"><span class=\"ds-tmk ds-pending\"></span><span class=\"ds-ta\">Reading the strategy</span></div></li></ul></details>",
+			"css": "@keyframes ds-working { 50% { opacity: 0.35; } } .ds-tg { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); background: var(--ground, #fbf9f4); padding: 12px; } .ds-tg > summary { list-style: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px 0 4px; border-radius: 6px; color: var(--ink-3, #6e6a62); font-size: 12px; cursor: pointer; transition: background-color 100ms, color 100ms; } .ds-tg > summary::-webkit-details-marker { display: none; } .ds-tg > summary:hover { background: var(--ground-sunk, #f5f1e8); color: var(--ink-2, #57544d); } .ds-tg > summary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); } .ds-tc { width: 13px; height: 13px; transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-tg[open] .ds-tc { transform: rotate(90deg); } .ds-changed { color: var(--ink-2, #57544d); } .ds-tcs { list-style: none; margin: 4px 0 0 3px; padding: 0 0 0 13px; border-left: 1px solid var(--line-strong, #d8d0bf); } .ds-tcall { display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 0 6px; border-radius: 4px; font-size: 12px; color: var(--ink-2, #57544d); cursor: pointer; } .ds-tcall:hover { background: var(--ground-sunk, #f5f1e8); } .ds-tmk { flex: none; width: 6px; height: 6px; box-shadow: inset 0 0 0 1.5px var(--ink-3, #6e6a62); } .ds-tmk.ds-write { background: var(--ink-2, #57544d); box-shadow: none; } .ds-tmk.ds-pending { background: var(--ember, #ec693a); box-shadow: none; animation: ds-working 1.6s ease-in-out infinite; } .ds-tmk.ds-failed { background: var(--error, #a93b19); box-shadow: none; } .ds-ta.ds-write { color: var(--ink, #242423); font-weight: 500; } .ds-td { color: var(--ink-3, #6e6a62); font-variant-numeric: tabular-nums; } .ds-td.ds-failed, pre.ds-failed { color: var(--error, #a93b19); } .ds-io { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 10px; margin-bottom: 4px; border-radius: 0 0 4px 4px; background: var(--ground-sunk, #f5f1e8); } .ds-iol { font-size: 11px; font-weight: 500; color: var(--ink-3, #6e6a62); } .ds-io pre { margin: 0; padding: 6px 8px; border-radius: 4px; background: var(--raised, #fffefb); font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 11px; line-height: 1.5; white-space: pre-wrap; } @media (prefers-reduced-motion: reduce) { .ds-tmk.ds-pending { animation: none; } .ds-tc { transition: none; } }"
+		},
+		{
+			"name": "Composer",
+			"kind": "input",
+			"refersTo": "composer",
+			"description": "Raised message field with Line Strong border; ember border and wash halo on focus-within; sizes to content up to 220px; primary Send or secondary Stop; link chips above, 11px kbd hint below.",
+			"html": "<div class=\"ds-cmp\"><div class=\"ds-cl\"><span class=\"ds-lt\"><span class=\"ds-ltk\">Task</span><span class=\"ds-ltl\">Consent screen copy</span><button class=\"ds-ltx\" aria-label=\"Remove\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/></svg></button></span></div><div class=\"ds-cb\"><textarea class=\"ds-cf\" rows=\"1\" placeholder=\"Message Claude\"></textarea><button class=\"ds-send\">Send</button></div><p class=\"ds-ch\"><kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line · <kbd>@</kbd> to link</p></div>",
+			"css": ".ds-cmp { display: flex; flex-direction: column; gap: 6px; max-width: 560px; padding: 12px; background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-cl { display: flex; flex-wrap: wrap; gap: 6px; } .ds-lt { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 2px 0 8px; border: 1px solid var(--line, #e9e4d8); border-radius: 6px; background: var(--raised, #fffefb); font-size: 12px; } .ds-ltk { color: var(--ink-3, #6e6a62); font-size: 11px; font-weight: 500; } .ds-ltx { display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 4px; background: transparent; color: var(--ink-3, #6e6a62); cursor: pointer; } .ds-ltx:hover { background: var(--ground-sunk, #f5f1e8); color: var(--ink, #242423); } .ds-ltx svg { width: 12px; height: 12px; } .ds-cb { display: flex; align-items: flex-end; gap: 8px; padding: 6px 6px 6px 12px; border: 1px solid var(--line-strong, #d8d0bf); border-radius: 6px; background: var(--raised, #fffefb); transition: border-color 120ms, box-shadow 120ms; } .ds-cb:focus-within { border-color: var(--ember, #ec693a); box-shadow: 0 0 0 3px var(--ember-wash, #fbe6dc); } .ds-cf { flex: 1; min-width: 0; min-height: 28px; max-height: 220px; padding: 4px 0; border: 0; background: transparent; font: inherit; line-height: 1.5; resize: none; outline: none; field-sizing: content; color: inherit; } .ds-cf::placeholder { color: var(--ink-3, #6e6a62); } .ds-send { flex: none; height: 28px; padding: 0 12px; border: 1px solid var(--ember, #ec693a); border-radius: 6px; background: var(--ember, #ec693a); color: var(--ink, #242423); font: inherit; font-weight: 600; cursor: pointer; transition: background-color 120ms; } .ds-send:hover { background: var(--ember-light, #fa8851); } .ds-send:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); } .ds-ch { margin: 0; font-size: 11px; color: var(--ink-3, #6e6a62); } .ds-ch kbd { font: inherit; font-weight: 500; color: var(--ink-2, #57544d); }"
 		}
 	],
 	"narrative": {
 		"northStar": "The Holding Console",
-		"overview": "A working console for one expert owner steering several ventures. A committed charcoal rail (Slack's posture) sits beside a Linear-precise work area on a barely-cream ground. Everything reads top-down along one connected line, the spine: strategy kernel, then bets, then the goals testing them. Density is high and quiet: 13px system UI, hairline rules, 28px controls, no decoration that does not carry state.\n\nThe brand's simmering-terminal logo supplies exactly two devices and no more: the pixel-square bubble, which becomes every status and activity marker, and the ember orange, which is reserved for the one thing that matters on a screen. The app must never read as terminal cosplay or kitchen kitsch; monospace appears only where the content is literally data.\n\nLiveness is shown, never claimed. Changes that arrive from elsewhere make the touched node and its rail square simmer once (an ember pulse that settles), and a blinking pixel appears in the rail foot only while the live stream is down.",
+		"overview": "A working console for one expert owner steering several ventures. A committed charcoal rail (Slack's posture) sits beside a Linear-precise work area on a barely-cream ground. Everything reads top-down along one connected line, the spine: strategy kernel, then bets, then the goals testing them. Density is high and quiet: 13px system UI, hairline rules, 28px controls, no decoration that does not carry state.\n\nThe brand's simmering-terminal logo supplies exactly two devices and no more: the pixel-square bubble, which becomes every status and activity marker, and the ember orange, which is reserved for the one thing that matters on a screen. The app must never read as terminal cosplay or kitchen kitsch; monospace appears only where the content is literally data.\n\nLiveness is shown, never claimed. Changes that arrive from elsewhere make the touched node and its rail square simmer once (an ember pulse that settles), and a blinking pixel appears in the rail foot only while the live stream is down.\n\nAgent work is shown the same way. While Claude is running, its pixel pulses (the working pulse) in the rail, the thread list and the conversation, and its tool calls fold into quiet one-line rounds; when the run ends, everything settles back to neutral.",
 		"keyCharacteristics": [
 			"Charcoal rail (232px) + cream work area; desktop only (1024px minimum width).",
 			"Hairline-ruled rows and definition grids instead of cards.",
@@ -589,7 +643,8 @@
 			"**Do** hang new strategy-derived content off the spine: kernel, bets, goals, top-down on one line.",
 			"**Do** show liveness with the 1.8s simmer on what changed, and the reconnect pixel only while the stream is down.",
 			"**Do** keep work markers neutral: ember fills a work marker only while the item is doing.",
-			"**Do** honor reduced motion by removing every animation listed under States."
+			"**Do** honor reduced motion by removing every animation listed under States.",
+			"**Do** show agent work live with the 1.6s working pulse, and only while a run is active; when it ends the thread pixel returns to Line Strong and the author mark to ink. Ember stays for the primary action, selection and live state."
 		],
 		"donts": [
 			"**Don't** wrap content in cards, tiles or kanban columns; the only bordered box is the transient add-bet form.",

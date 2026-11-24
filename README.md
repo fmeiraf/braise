@@ -34,11 +34,17 @@ Database tasks run through the `braise` bin from `@braise/api`:
 
 `npm test` needs the Postgres container: the API suites run against `braise_test`.
 
+Agent threads run Claude through the Claude Agent SDK on the local Claude Code login:
+install the `claude` CLI and sign in once (`claude`, then `/login`). No API key is
+needed. `BRAISE_AGENT_MODEL` in `.env` overrides the model (default `claude-opus-5-5`).
+Tests never call the model.
+
 ## Structure
 
 - `packages/core`: `@braise/core`, command schemas (zod) and shared types; no I/O.
 - `packages/api`: `@braise/api`, the Hono API, command pipeline, Drizzle schema and
-  migrations (`drizzle/`), SSE hints and the `braise` bin.
+  migrations (`drizzle/`), SSE hints, the agent runner (`src/agent/`: pg-boss worker,
+  Claude Agent SDK adapter, braise tools) and the `braise` bin.
 - `packages/web`: `@braise/web`, the Vite + React SPA. It talks to the API over HTTP
   only.
 - `tsconfig.base.json`: shared compiler settings.

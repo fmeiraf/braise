@@ -1,4 +1,5 @@
 import type {
+	ActiveRun,
 	ApiError,
 	Bet,
 	Cockpit,
@@ -10,7 +11,10 @@ import type {
 	Goal,
 	HoldingRow,
 	HoldingWork,
+	LinkTarget,
 	StrategyVersion,
+	ThreadDetail,
+	ThreadSummary,
 	VentureWork,
 	WorkItem,
 } from "@braise/core";
@@ -70,6 +74,21 @@ export const api = {
 	work: (slug: string) => request<VentureWork>(`/api/ventures/${encodeURIComponent(slug)}/work`),
 	holdingWork: () => request<HoldingWork>("/api/work"),
 	recentEvents: (limit = 100) => request<{ events: RecentEvent[] }>(`/api/events?limit=${limit}`),
+	threads: (filter: { ventureId?: string; subject?: string }) => {
+		const params = new URLSearchParams();
+
+		if (filter.ventureId !== undefined) params.set("ventureId", filter.ventureId);
+
+		if (filter.subject !== undefined) params.set("subject", filter.subject);
+
+		return request<{ threads: ThreadSummary[] }>(`/api/threads?${params.toString()}`);
+	},
+	thread: (id: string) => request<ThreadDetail>(`/api/threads/${encodeURIComponent(id)}`),
+	activeRuns: () => request<{ runs: ActiveRun[] }>("/api/runs/active"),
+	linkTargets: (query: string, ventureId: string | null) =>
+		request<{ targets: LinkTarget[] }>(
+			`/api/link-targets?q=${encodeURIComponent(query)}${ventureId === null ? "" : `&ventureId=${ventureId}`}`,
+		),
 	command<Name extends CommandName, Result>(
 		name: Name,
 		input: { payload: CommandInput<Name>; idempotencyKey: string; reason?: string },

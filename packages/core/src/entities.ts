@@ -241,7 +241,7 @@ export interface Run {
 
 export type RunEventPayload =
 	| { type: "run.started"; payload: { model: string } }
-	| { type: "message"; payload: { block: number; text: string } }
+	| { type: "message"; payload: { block: number; text: string; partial?: boolean } }
 	| { type: "tool.call"; payload: { toolUseId: string; name: string; input: unknown } }
 	| { type: "tool.result"; payload: { toolUseId: string; output: string; isError: boolean } }
 	| { type: "run.finished"; payload: { status: RunStatus } };

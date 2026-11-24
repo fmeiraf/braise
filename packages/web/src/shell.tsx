@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Outlet, useParams } from "@tanstack/react-router";
-import { Activity, CircleDot, Inbox, Layers, ListTree, PanelsTopLeft, Plus } from "lucide-react";
+import { Link, Outlet, useNavigate, useParams } from "@tanstack/react-router";
+import { Activity, CircleDot, Inbox, Layers, ListTree, MessagesSquare, PanelsTopLeft, Plus } from "lucide-react";
 import wordmark from "../../../assets/svg/braise-exe-wordmark-light.svg";
 import { useFreshVentures } from "./fresh.ts";
 import { queries, rememberVenture, useHintStream } from "./live.ts";
@@ -11,6 +11,7 @@ export function Shell() {
 	const client = useQueryClient();
 	const stream = useHintStream(client);
 	const ventures = useQuery(queries.ventures());
+	const activeRuns = useQuery(queries.activeRuns());
 	const fresh = useFreshVentures();
 	const { slug } = useParams({ strict: false });
 	const now = Date.now();
@@ -21,6 +22,15 @@ export function Shell() {
 	const overviewPath = scopeSlug === null ? "/" : `/v/${scopeSlug}`;
 	const activityPath = scopeSlug === null ? "/activity" : `/v/${scopeSlug}/activity`;
 	const workPath = scopeSlug === null ? "/work" : `/v/${scopeSlug}/work`;
+	const threadsPath = scopeSlug === null ? "/threads" : `/v/${scopeSlug}/threads`;
+	const runs = activeRuns.data?.runs ?? [];
+	const oldestRun = runs[0];
+	const navigate = useNavigate();
+
+	const runHref =
+		oldestRun === undefined
+			? null
+			: `${oldestRun.ventureSlug === null ? "" : `/v/${encodeURIComponent(oldestRun.ventureSlug)}`}/threads?thread=${encodeURIComponent(oldestRun.threadId)}`;
 
 	return (
 		<div className="shell">
@@ -35,10 +45,30 @@ export function Shell() {
 						<span className="rail-label">Inbox</span>
 						<span className="rail-count">soon</span>
 					</span>
-					<span className="rail-item" aria-disabled="true" title="Live agent runs arrive with threads">
-						<CircleDot aria-hidden />
-						<span className="rail-label">No runs</span>
-					</span>
+					{oldestRun === undefined ? (
+						<span className="rail-item" aria-disabled="true" title="No agent is working right now">
+							<CircleDot aria-hidden />
+							<span className="rail-label">No runs</span>
+						</span>
+					) : (
+						<a
+							href={runHref ?? undefined}
+							className="rail-item is-running"
+							title={`Claude is working on “${oldestRun.threadTitle}”`}
+							onClick={(event) => {
+								if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+
+								event.preventDefault();
+
+								if (runHref !== null) void navigate({ href: runHref });
+							}}
+						>
+							<span className="rail-run-mark" aria-hidden>
+								<span className="pixel is-live" />
+							</span>
+							<span className="rail-label">{runs.length} running</span>
+						</a>
+					)}
 				</div>
 
 				<div className="rail-divider" />
@@ -92,6 +122,10 @@ export function Shell() {
 					<Link to={workPath} className="rail-item" activeOptions={{ exact: true, includeSearch: false }}>
 						<ListTree aria-hidden />
 						<span className="rail-label">Work</span>
+					</Link>
+					<Link to={threadsPath} className="rail-item" activeOptions={{ exact: true, includeSearch: false }}>
+						<MessagesSquare aria-hidden />
+						<span className="rail-label">Threads</span>
 					</Link>
 					<Link to={activityPath} className="rail-item" activeOptions={{ exact: true }}>
 						<Activity aria-hidden />

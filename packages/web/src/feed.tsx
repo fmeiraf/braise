@@ -1,6 +1,7 @@
-import type { DomainEvent } from "@braise/core";
+import { type DomainEvent, isAgentActor } from "@braise/core";
 import { Link } from "@tanstack/react-router";
 import { labelEvent } from "./labels.ts";
+import { actorName } from "./thread-timeline.ts";
 import { ago, formatDateTime } from "./time.ts";
 
 interface FeedEvent extends DomainEvent {
@@ -20,11 +21,11 @@ export function EventItem({
 	const label = labelEvent(event);
 
 	return (
-		<li className={fresh ? "feed-item is-fresh" : "feed-item"}>
+		<li className={["feed-item", fresh ? "is-fresh" : "", isAgentActor(event.actor) ? "is-agent" : ""].join(" ")}>
 			<span className="pixel" aria-hidden />
 			<div>
 				<p className="feed-text">
-					<strong>{event.actor}</strong> {label.action}
+					<strong>{actorName(event.actor)}</strong> {label.action}
 					{label.subject === null ? null : (
 						<>
 							{" "}

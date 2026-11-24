@@ -130,7 +130,11 @@ export function createAgentWorker(deps: {
 		const entry = { controller: new AbortController(), reason: null as "cancel" | "shutdown" | null };
 		const thread = { id: run.threadId, ventureId: null as string | null };
 		let seq = 0;
-		const result: { finished: Extract<RunSignal, { type: "finished" }> | null } = { finished: null };
+
+		const result: {
+			finished: Extract<RunSignal, { type: "finished" }> | null;
+			partial: { block: number; text: string } | null;
+		} = { finished: null, partial: null };
 
 		active.set(run.id, entry);
 
@@ -166,10 +170,17 @@ export function createAgentWorker(deps: {
 				async (signal) => {
 					switch (signal.type) {
 						case "delta":
+							result.partial =
+								result.partial?.block === signal.block
+									? { block: signal.block, text: result.partial.text + signal.text }
+									: { block: signal.block, text: signal.text };
+
 							deltas.push({ threadId: run.threadId, runId: run.id, ...signal });
 
 							return;
 						case "message":
+							result.partial = null;
+
 							return append("message", { block: signal.block, text: signal.text });
 						case "tool.call":
 							return append("tool.call", {
@@ -203,7 +214,11 @@ export function createAgentWorker(deps: {
 			await rm(workDir, { recursive: true, force: true });
 		}
 
-		const { finished } = result;
+		const { finished, partial } = result;
+
+		if (entry.controller.signal.aborted && partial !== null && partial.text.trim() !== "") {
+			await append("message", { block: partial.block, text: partial.text, partial: true });
+		}
 
 		const outcome: Outcome =
 			entry.reason === "cancel"

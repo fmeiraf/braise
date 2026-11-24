@@ -74,7 +74,9 @@ Stores finished messages and tool calls; token deltas are live-only or batched.
 ### Architecture invariants
 1. The API is the only writer. The UI, CLI, MCP tools and runners are all clients.
 2. Every change is a command: one transaction covers the state change, its event(s)
-   and the idempotency record.
+   and the idempotency record. The one exception is a run's own lifecycle (run status,
+   run events, the agent's saved reply), which the runner writes directly; anything an
+   agent changes in braise is still a command.
 3. Postgres holds all state. The filesystem holds only repos and run worktrees.
 4. Grants are enforced in the API, not in the tools. An out-of-grant attempt becomes
    an inbox `access_request`, never a silent failure.
@@ -105,7 +107,8 @@ Planned (order may change):
    pipeline, event log, live updates, history. Spec: `docs/slices/01-strategy-spine.md`.
 2. **Work items under goals:** initiative → task → subtask under goals, function
    tags, manual order, the Work view. Spec: `docs/slices/02-work-items.md`.
-3. Agent thread on a work item, streaming live (Claude Agent SDK).
+3. **Agent threads, streaming live (Claude Agent SDK):** threads linked to work, runs
+   and run events, the Claude runner. Spec: `docs/slices/03-agent-threads.md`.
 4. Agent proposal → inbox → owner approves.
 5. Grants and access requests; Pi runner as the second adapter.
 
@@ -128,6 +131,18 @@ Milestone: braise manages itself as a venture (dogfooding).
   Rule review (process rule 3): the invariants and process rules held unchanged; the
   slice added only handlers, events and one table. The decisions below record what it
   settled.
+- **Slice 3, Agent threads** (2026-11-24): threads in Holding or venture scope, linked
+  to work items, goals, bets and ventures; runs and run events; the pg-boss worker and
+  the Claude Agent SDK adapter with braise tools (read-only SQL, work item writes,
+  thread links); per-thread live streaming; the Threads view, threads on the work
+  item pane and the rail's live-runs count. Demo scenario 1–7 verified in the running
+  app with real Claude runs; the spec's tests pass against real Postgres.
+  Rule review (process rule 3): invariant 2 changed (a run's own lifecycle is written
+  by the runner, not as commands; recorded below). Invariant 6 now holds for agents:
+  commands and events carry `run_id`. Invariants 4 and 5 hold through a fixed agent
+  command allowlist enforced in the pipeline until grants (slice 5) and proposals
+  (slice 4) replace it. Invariant 7 holds through the runtime contract
+  (`packages/api/src/agent/runtime.ts`). The process rules held unchanged.
 
 ## Decisions log
 
@@ -191,3 +206,42 @@ Milestone: braise manages itself as a venture (dogfooding).
   key is kept while the same payload is retried and replaced when the payload
   changes or the command succeeds. It lives in a ref, not React state, so two quick
   commands never share a key.
+- 2026-11-24: Agent runtimes by model family, behind one braise contract: Anthropic
+  models on the Claude Agent SDK, GPT on its own runtime, the rest on Pi + pi-durable.
+  Each runtime owns its loop and durability; braise owns threads, runs, run events and
+  jobs. pi-durable stores only in SQLite/JSONL/IndexedDB/Chord (checked at 1.6.0), so
+  the Pi adapter's storage is decided in slice 5.
+- 2026-11-24: Threads belong to the Holding or one venture and link to many work
+  items, goals, bets or ventures (`thread_links`); a venture thread links only to its
+  venture's items. Thread commands go through the pipeline but are sequenced per
+  thread and write no domain events (chat is not domain history).
+- 2026-11-24: Invariant 2 narrowed: a run's lifecycle (status, run events, the saved
+  reply) is written by the runner directly. Commands for each tool call and message
+  would add a transaction per token-burst for no audit gain; what agents change in
+  braise stays a command with actor `agent:<name>` and the run id.
+- 2026-11-24: Run engine: the command writes a `queued` run; the pg-boss job is sent
+  after commit (pg-boss can join our transaction only through a custom adapter), is
+  re-sent for every queued run at startup, and the worker claims runs atomically, so
+  duplicate jobs are no-ops. One active run per thread, two at once overall. A restart
+  marks running runs `interrupted` (keeping their partial text) and the owner retries;
+  there is no auto-resume and no durability layer on top of the Agent SDK.
+- 2026-11-24: Claude runs with `claude-opus-5-5` (override `BRAISE_AGENT_MODEL`) on the
+  owner's local Claude Code login; no API key. The Agent SDK runs with built-in tools
+  off, `persistSession: false` (no transcripts on disk, invariant 3) and the braise
+  tools as an in-process MCP server; each run rebuilds its context from Postgres. The
+  SDK's alpha `sessionStore` is the upgrade path if tool context across runs matters.
+- 2026-11-24: Agent access until grants (slice 5): reads through one read-only SQL tool
+  as the `braise_agent_reader` role (no `commands` table, 5s timeout, 200 rows) plus a
+  schema tool; writes through `work.create/update/set_status/move` and
+  `thread.link/unlink` only. Any other command from an agent actor is refused with 403
+  `not_granted` in the pipeline. Write tools are idempotent per (run, tool payload).
+- 2026-11-24: Token deltas are live only: the worker sends them over `NOTIFY` (chunks
+  under the 8KB limit) to a per-thread SSE stream; finished messages, tool calls and
+  results are `run_events`, and the agent's reply is a thread message. A stopped or
+  interrupted run saves its unfinished text block. No run-event pruning yet.
+- 2026-11-24: The Agent SDK is not exercised in automated tests (it runs Claude Code as
+  a child process, out of reach of in-process MSW): the SDK-message mapping is
+  unit-tested against recorded fixtures, everything else against real Postgres.
+- 2026-11-24: Threads UI: a Threads rail entry with a list and a Slack-style
+  conversation; each round of tool calls folds into one collapsed toggle before the
+  reply text; live state uses a slow ember pulse on square pixels.
