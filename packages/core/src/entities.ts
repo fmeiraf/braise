@@ -1,5 +1,7 @@
 import type {
 	betStatuses,
+	ProposableCommand,
+	proposalStatuses,
 	runStatuses,
 	threadLinkTypes,
 	ventureKinds,
@@ -23,6 +25,8 @@ export type StrategyStatus = "draft" | "active" | "superseded";
 export type ThreadLinkType = (typeof threadLinkTypes)[number];
 
 export type RunStatus = (typeof runStatuses)[number];
+
+export type ProposalStatus = (typeof proposalStatuses)[number];
 
 export interface Venture {
 	id: string;
@@ -282,4 +286,64 @@ export interface LinkTarget {
 	ventureId: string;
 	ventureSlug: string;
 	ventureName: string;
+}
+
+export type ChangeBase = { strategyVersion: number } | { updatedAt: string } | null;
+
+export interface ProposalChange {
+	command: ProposableCommand;
+	payload: Record<string, unknown>;
+	base: ChangeBase;
+}
+
+export interface AppliedChange {
+	command: ProposableCommand;
+	payload: Record<string, unknown>;
+}
+
+export interface Proposal {
+	id: string;
+	ventureId: string;
+	threadId: string;
+	runId: string;
+	createdBy: string;
+	title: string;
+	reason: string;
+	changes: ProposalChange[];
+	status: ProposalStatus;
+	applied: (AppliedChange | null)[] | null;
+	note: string | null;
+	createdAt: string;
+	decidedAt: string | null;
+}
+
+export interface InboxProposal {
+	id: string;
+	venture: { id: string; slug: string; name: string };
+	thread: { id: string; title: string };
+	title: string;
+	createdBy: string;
+	status: ProposalStatus;
+	changeCount: number;
+	staleCount: number;
+	createdAt: string;
+	decidedAt: string | null;
+}
+
+export interface Inbox {
+	pending: InboxProposal[];
+	decided: InboxProposal[];
+}
+
+export interface ProposalChangeDetail extends ProposalChange {
+	current: Record<string, unknown> | null;
+	stale: string | null;
+}
+
+export interface ProposalDetail {
+	proposal: Proposal;
+	venture: { id: string; slug: string; name: string; lastSeq: number };
+	thread: { id: string; title: string; ventureSlug: string | null };
+	changes: ProposalChangeDetail[];
+	bets: Pick<Bet, "id" | "hypothesis" | "status">[];
 }

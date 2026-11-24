@@ -1,3 +1,4 @@
+import type { AppliedChange, ProposalChange } from "@braise/core";
 import { sql } from "drizzle-orm";
 import {
 	bigint,
@@ -275,4 +276,35 @@ export const runEvents = pgTable(
 		createdAt: createdAt(),
 	},
 	(table) => [primaryKey({ columns: [table.runId, table.seq] })],
+);
+
+export const proposals = pgTable(
+	"proposals",
+	{
+		id: uuid("id").primaryKey(),
+		ventureId: uuid("venture_id")
+			.notNull()
+			.references(() => ventures.id),
+		threadId: uuid("thread_id")
+			.notNull()
+			.references(() => threads.id),
+		runId: uuid("run_id")
+			.notNull()
+			.references(() => runs.id),
+		createdBy: text("created_by").notNull(),
+		title: text("title").notNull(),
+		reason: text("reason").notNull(),
+		changes: jsonb("changes").$type<ProposalChange[]>().notNull(),
+		status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull(),
+		applied: jsonb("applied").$type<(AppliedChange | null)[]>(),
+		note: text("note"),
+		createdAt: createdAt(),
+		decidedAt: timestamp("decided_at", { withTimezone: true }),
+	},
+	(table) => [
+		index("proposals_status_created_idx").on(table.status, table.createdAt),
+		index("proposals_venture_idx").on(table.ventureId),
+		index("proposals_thread_idx").on(table.threadId),
+		check("proposals_status_check", sql`${table.status} IN ('pending','approved','rejected')`),
+	],
 );

@@ -36,6 +36,13 @@
 			"when": 1795557780258,
 			"tag": "0004_run_cancel_request",
 			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1795562565554,
+			"tag": "0005_proposals",
+			"breakpoints": true
 		}
 	]
 }

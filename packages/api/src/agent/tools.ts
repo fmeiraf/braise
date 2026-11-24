@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
-import { type CommandName, threadLinkTypes, workFunctions, workPriorities, workStatuses } from "@braise/core";
+import {
+	type CommandName,
+	maxProposalChanges,
+	proposalTitleLength,
+	threadLinkTypes,
+	workFunctions,
+	workPriorities,
+	workStatuses,
+} from "@braise/core";
 import { eq } from "drizzle-orm";
 import type pg from "pg";
 import { z } from "zod";
@@ -136,6 +144,61 @@ export function toolIdempotencyKey(runId: string, call: number, name: string, pa
 	return `run:${runId}:${call}:${digest}`;
 }
 
+const betReference = z.union([
+	z.uuid(),
+	z.strictObject({ ref: z.number().int().min(0).describe("Index of an earlier bet.create in this proposal") }),
+]);
+
+const isoDate = z.iso.date();
+
+const proposedChange = z.discriminatedUnion("command", [
+	z.object({
+		command: z.literal("strategy.revise"),
+		why: z.string().min(1),
+		what: z.string().min(1),
+		diagnosis: z.string(),
+		guidingPolicy: z.string(),
+	}),
+	z.object({
+		command: z.literal("bet.create"),
+		hypothesis: z.string().min(1),
+		action: z.string().min(1),
+		killCriteria: z.string().min(1),
+	}),
+	z.object({
+		command: z.literal("bet.update"),
+		betId: z.uuid(),
+		hypothesis: z.string().min(1).optional(),
+		action: z.string().min(1).optional(),
+		killCriteria: z.string().min(1).optional(),
+	}),
+	z.object({
+		command: z.literal("bet.set_status"),
+		betId: z.uuid(),
+		status: z.enum(["won", "lost", "killed"]),
+		archiveGoals: z.boolean(),
+	}),
+	z.object({
+		command: z.literal("goal.create"),
+		betId: betReference.nullable(),
+		outcome: z.string().min(1),
+		signal: z.string().min(1),
+		horizon: isoDate.nullable(),
+	}),
+	z.object({
+		command: z.literal("goal.update"),
+		goalId: z.uuid(),
+		betId: betReference.nullable().optional(),
+		outcome: z.string().min(1).optional(),
+		signal: z.string().min(1).optional(),
+		horizon: isoDate.nullable().optional(),
+	}),
+]);
+
+const proposeDescription = `Propose changes to a venture's strategy, bets or goals for the owner to approve. Nothing changes until the owner approves in the inbox; they may edit or drop changes, or reject with a note, and the decision appears in this thread as a braise line.
+Group related changes into one proposal, in the order they should apply. strategy.revise needs the full new text of all four fields (copy unchanged ones). A goal can test a bet created earlier in the same proposal with betId {"ref": <index of that bet.create>}.
+The changes are checked right away; an error comes back if one would fail.`;
+
 const linkShape = {
 	type: z.enum(threadLinkTypes).describe("What the link points at"),
 	id: z.uuid().describe("The id of the work item, goal, bet or venture"),
@@ -148,7 +211,11 @@ Rows with archived_at set are archived. The active strategy of a venture has sta
 export function braiseTools(scope: ToolScope) {
 	let calls = 0;
 
-	const command = async (name: CommandName, payload: Record<string, unknown>) => {
+	const command = async (
+		name: CommandName,
+		payload: Record<string, unknown>,
+		present: (result: unknown) => unknown = (result) => result,
+	) => {
 		calls += 1;
 
 		const call = calls;
@@ -161,7 +228,7 @@ export function braiseTools(scope: ToolScope) {
 				runId: scope.runId,
 			});
 
-			return ok(response.result);
+			return ok(present(response.result));
 		} catch (error) {
 			return failure(error);
 		}
@@ -248,6 +315,37 @@ export function braiseTools(scope: ToolScope) {
 			execute: (args) =>
 				attempt(async () =>
 					command("work.move", { ventureId: await ventureOfWorkItem(scope.db, args.workItemId), ...args }),
+				),
+		}),
+		defineTool({
+			name: "propose_changes",
+			description: proposeDescription,
+			input: {
+				ventureId: z.uuid(),
+				title: z.string().min(1).max(proposalTitleLength).describe("Short name for the proposal"),
+				reason: z.string().min(1).max(2_000).describe("Why: becomes the recorded reason when approved"),
+				changes: z.array(proposedChange).min(1).max(maxProposalChanges),
+			},
+			execute: ({ ventureId, title, reason, changes }) =>
+				command(
+					"proposal.create",
+					{
+						ventureId,
+						threadId: scope.threadId,
+						title,
+						reason,
+						changes: changes.map(({ command: name, ...payload }) => ({ command: name, payload })),
+					},
+					(result) => {
+						const proposal = result as { id: string; status: string };
+
+						return {
+							proposalId: proposal.id,
+							status: proposal.status,
+							changes: changes.length,
+							inbox: `/inbox?proposal=${proposal.id}`,
+						};
+					},
 				),
 		}),
 		defineTool({

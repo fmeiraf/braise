@@ -1,0 +1,1458 @@
+{
+	"id": "0fad124f-02f2-43f3-be6d-f1ddf92827ec",
+	"prevId": "68fb6530-4df0-4082-9166-101e9e6454cc",
+	"version": "7",
+	"dialect": "postgresql",
+	"tables": {
+		"public.bets": {
+			"name": "bets",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"venture_id": {
+					"name": "venture_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"hypothesis": {
+					"name": "hypothesis",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"action": {
+					"name": "action",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"kill_criteria": {
+					"name": "kill_criteria",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'open'"
+				},
+				"introduced_in": {
+					"name": "introduced_in",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"archived_at": {
+					"name": "archived_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"bets_venture_idx": {
+					"name": "bets_venture_idx",
+					"columns": [
+						{
+							"expression": "venture_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"bets_venture_id_ventures_id_fk": {
+					"name": "bets_venture_id_ventures_id_fk",
+					"tableFrom": "bets",
+					"tableTo": "ventures",
+					"columnsFrom": ["venture_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"bets_introduced_in_strategy_versions_id_fk": {
+					"name": "bets_introduced_in_strategy_versions_id_fk",
+					"tableFrom": "bets",
+					"tableTo": "strategy_versions",
+					"columnsFrom": ["introduced_in"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"bets_status_check": {
+					"name": "bets_status_check",
+					"value": "\"bets\".\"status\" IN ('open','won','lost','killed')"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.commands": {
+			"name": "commands",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"idempotency_key": {
+					"name": "idempotency_key",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"venture_id": {
+					"name": "venture_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"actor": {
+					"name": "actor",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"reason": {
+					"name": "reason",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"payload": {
+					"name": "payload",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"payload_hash": {
+					"name": "payload_hash",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"result": {
+					"name": "result",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"run_id": {
+					"name": "run_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"commands_idempotency_key_unique": {
+					"name": "commands_idempotency_key_unique",
+					"nullsNotDistinct": false,
+					"columns": ["idempotency_key"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.events": {
+			"name": "events",
+			"schema": "",
+			"columns": {
+				"venture_id": {
+					"name": "venture_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"seq": {
+					"name": "seq",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"command_id": {
+					"name": "command_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"type": {
+					"name": "type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"subject": {
+					"name": "subject",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"payload": {
+					"name": "payload",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"actor": {
+					"name": "actor",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"run_id": {
+					"name": "run_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"events_venture_id_ventures_id_fk": {
+					"name": "events_venture_id_ventures_id_fk",
+					"tableFrom": "events",
+					"tableTo": "ventures",
+					"columnsFrom": ["venture_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"events_command_id_commands_id_fk": {
+					"name": "events_command_id_commands_id_fk",
+					"tableFrom": "events",
+					"tableTo": "commands",
+					"columnsFrom": ["command_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {
+				"events_venture_id_seq_pk": {
+					"name": "events_venture_id_seq_pk",
+					"columns": ["venture_id", "seq"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.goals": {
+			"name": "goals",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"venture_id": {
+					"name": "venture_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"bet_id": {
+					"name": "bet_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"outcome": {
+					"name": "outcome",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"signal": {
+					"name": "signal",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"horizon": {
+					"name": "horizon",
+					"type": "date",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"archived_at": {
+					"name": "archived_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"goals_venture_idx": {
+					"name": "goals_venture_idx",
+					"columns": [
+						{
+							"expression": "venture_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"goals_venture_id_ventures_id_fk": {
+					"name": "goals_venture_id_ventures_id_fk",
+					"tableFrom": "goals",
+					"tableTo": "ventures",
+					"columnsFrom": ["venture_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"goals_bet_id_bets_id_fk": {
+					"name": "goals_bet_id_bets_id_fk",
+					"tableFrom": "goals",
+					"tableTo": "bets",
+					"columnsFrom": ["bet_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.proposals": {
+			"name": "proposals",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"venture_id": {
+					"name": "venture_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"thread_id": {
+					"name": "thread_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"run_id": {
+					"name": "run_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"title": {
+					"name": "title",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"reason": {
+					"name": "reason",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"changes": {
+					"name": "changes",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"applied": {
+					"name": "applied",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"note": {
+					"name": "note",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"decided_at": {
+					"name": "decided_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"proposals_status_created_idx": {
+					"name": "proposals_status_created_idx",
+					"columns": [
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"proposals_venture_idx": {
+					"name": "proposals_venture_idx",
+					"columns": [
+						{
+							"expression": "venture_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"proposals_thread_idx": {
+					"name": "proposals_thread_idx",
+					"columns": [
+						{
+							"expression": "thread_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"proposals_venture_id_ventures_id_fk": {
+					"name": "proposals_venture_id_ventures_id_fk",
+					"tableFrom": "proposals",
+					"tableTo": "ventures",
+					"columnsFrom": ["venture_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"proposals_thread_id_threads_id_fk": {
+					"name": "proposals_thread_id_threads_id_fk",
+					"tableFrom": "proposals",
+					"tableTo": "threads",
+					"columnsFrom": ["thread_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"proposals_run_id_runs_id_fk": {
+					"name": "proposals_run_id_runs_id_fk",
+					"tableFrom": "proposals",
+					"tableTo": "runs",
+					"columnsFrom": ["run_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"proposals_status_check": {
+					"name": "proposals_status_check",
+					"value": "\"proposals\".\"status\" IN ('pending','approved','rejected')"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.run_events": {
+			"name": "run_events",
+			"schema": "",
+			"columns": {
+				"run_id": {
+					"name": "run_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"seq": {
+					"name": "seq",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"type": {
+					"name": "type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"payload": {
+					"name": "payload",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"run_events_run_id_runs_id_fk": {
+					"name": "run_events_run_id_runs_id_fk",
+					"tableFrom": "run_events",
+					"tableTo": "runs",
+					"columnsFrom": ["run_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {
+				"run_events_run_id_seq_pk": {
+					"name": "run_events_run_id_seq_pk",
+					"columns": ["run_id", "seq"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.runs": {
+			"name": "runs",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"thread_id": {
+					"name": "thread_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"message_id": {
+					"name": "message_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"retry_of": {
+					"name": "retry_of",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"runtime": {
+					"name": "runtime",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"model": {
+					"name": "model",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"actor": {
+					"name": "actor",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"error": {
+					"name": "error",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"usage": {
+					"name": "usage",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"started_at": {
+					"name": "started_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"finished_at": {
+					"name": "finished_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"cancel_requested_at": {
+					"name": "cancel_requested_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"runs_thread_idx": {
+					"name": "runs_thread_idx",
+					"columns": [
+						{
+							"expression": "thread_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"runs_one_active_per_thread": {
+					"name": "runs_one_active_per_thread",
+					"columns": [
+						{
+							"expression": "thread_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"where": "\"runs\".\"status\" IN ('queued','running')",
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"runs_thread_id_threads_id_fk": {
+					"name": "runs_thread_id_threads_id_fk",
+					"tableFrom": "runs",
+					"tableTo": "threads",
+					"columnsFrom": ["thread_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"runs_retry_of_runs_id_fk": {
+					"name": "runs_retry_of_runs_id_fk",
+					"tableFrom": "runs",
+					"tableTo": "runs",
+					"columnsFrom": ["retry_of"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"runs_status_check": {
+					"name": "runs_status_check",
+					"value": "\"runs\".\"status\" IN ('queued','running','succeeded','failed','cancelled','interrupted')"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.strategy_versions": {
+			"name": "strategy_versions",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"venture_id": {
+					"name": "venture_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"why": {
+					"name": "why",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"what": {
+					"name": "what",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"diagnosis": {
+					"name": "diagnosis",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "''"
+				},
+				"guiding_policy": {
+					"name": "guiding_policy",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "''"
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"activated_at": {
+					"name": "activated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"strategy_versions_one_active": {
+					"name": "strategy_versions_one_active",
+					"columns": [
+						{
+							"expression": "venture_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"where": "\"strategy_versions\".\"status\" = 'active'",
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"strategy_versions_venture_id_ventures_id_fk": {
+					"name": "strategy_versions_venture_id_ventures_id_fk",
+					"tableFrom": "strategy_versions",
+					"tableTo": "ventures",
+					"columnsFrom": ["venture_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"strategy_versions_venture_version_unique": {
+					"name": "strategy_versions_venture_version_unique",
+					"nullsNotDistinct": false,
+					"columns": ["venture_id", "version"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {
+				"strategy_versions_status_check": {
+					"name": "strategy_versions_status_check",
+					"value": "\"strategy_versions\".\"status\" IN ('draft','active','superseded')"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.thread_links": {
+			"name": "thread_links",
+			"schema": "",
+			"columns": {
+				"thread_id": {
+					"name": "thread_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"subject_type": {
+					"name": "subject_type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"subject_id": {
+					"name": "subject_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"thread_links_subject_idx": {
+					"name": "thread_links_subject_idx",
+					"columns": [
+						{
+							"expression": "subject_type",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "subject_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"thread_links_thread_id_threads_id_fk": {
+					"name": "thread_links_thread_id_threads_id_fk",
+					"tableFrom": "thread_links",
+					"tableTo": "threads",
+					"columnsFrom": ["thread_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {
+				"thread_links_thread_id_subject_type_subject_id_pk": {
+					"name": "thread_links_thread_id_subject_type_subject_id_pk",
+					"columns": ["thread_id", "subject_type", "subject_id"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"thread_links_subject_type_check": {
+					"name": "thread_links_subject_type_check",
+					"value": "\"thread_links\".\"subject_type\" IN ('work_item','goal','bet','venture')"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.thread_messages": {
+			"name": "thread_messages",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"thread_id": {
+					"name": "thread_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"seq": {
+					"name": "seq",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"author": {
+					"name": "author",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"run_id": {
+					"name": "run_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"body": {
+					"name": "body",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"thread_messages_thread_id_threads_id_fk": {
+					"name": "thread_messages_thread_id_threads_id_fk",
+					"tableFrom": "thread_messages",
+					"tableTo": "threads",
+					"columnsFrom": ["thread_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"thread_messages_run_id_runs_id_fk": {
+					"name": "thread_messages_run_id_runs_id_fk",
+					"tableFrom": "thread_messages",
+					"tableTo": "runs",
+					"columnsFrom": ["run_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"thread_messages_thread_seq_unique": {
+					"name": "thread_messages_thread_seq_unique",
+					"nullsNotDistinct": false,
+					"columns": ["thread_id", "seq"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.threads": {
+			"name": "threads",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"venture_id": {
+					"name": "venture_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"title": {
+					"name": "title",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"last_seq": {
+					"name": "last_seq",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"archived_at": {
+					"name": "archived_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"threads_venture_updated_idx": {
+					"name": "threads_venture_updated_idx",
+					"columns": [
+						{
+							"expression": "venture_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "updated_at",
+							"isExpression": false,
+							"asc": false,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"threads_venture_id_ventures_id_fk": {
+					"name": "threads_venture_id_ventures_id_fk",
+					"tableFrom": "threads",
+					"tableTo": "ventures",
+					"columnsFrom": ["venture_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.ventures": {
+			"name": "ventures",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"slug": {
+					"name": "slug",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"kind": {
+					"name": "kind",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"last_seq": {
+					"name": "last_seq",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"archived_at": {
+					"name": "archived_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"ventures_slug_unique": {
+					"name": "ventures_slug_unique",
+					"nullsNotDistinct": false,
+					"columns": ["slug"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {
+				"ventures_kind_check": {
+					"name": "ventures_kind_check",
+					"value": "\"ventures\".\"kind\" IN ('for_profit','non_profit')"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.work_items": {
+			"name": "work_items",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"venture_id": {
+					"name": "venture_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"goal_id": {
+					"name": "goal_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"parent_id": {
+					"name": "parent_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"depth": {
+					"name": "depth",
+					"type": "smallint",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"position": {
+					"name": "position",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"title": {
+					"name": "title",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "''"
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'todo'"
+				},
+				"function": {
+					"name": "function",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"priority": {
+					"name": "priority",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'none'"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"archived_at": {
+					"name": "archived_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"work_items_venture_idx": {
+					"name": "work_items_venture_idx",
+					"columns": [
+						{
+							"expression": "venture_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"work_items_goal_idx": {
+					"name": "work_items_goal_idx",
+					"columns": [
+						{
+							"expression": "goal_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"work_items_parent_idx": {
+					"name": "work_items_parent_idx",
+					"columns": [
+						{
+							"expression": "parent_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"work_items_venture_id_ventures_id_fk": {
+					"name": "work_items_venture_id_ventures_id_fk",
+					"tableFrom": "work_items",
+					"tableTo": "ventures",
+					"columnsFrom": ["venture_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"work_items_goal_id_goals_id_fk": {
+					"name": "work_items_goal_id_goals_id_fk",
+					"tableFrom": "work_items",
+					"tableTo": "goals",
+					"columnsFrom": ["goal_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"work_items_parent_id_work_items_id_fk": {
+					"name": "work_items_parent_id_work_items_id_fk",
+					"tableFrom": "work_items",
+					"tableTo": "work_items",
+					"columnsFrom": ["parent_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"work_items_depth_check": {
+					"name": "work_items_depth_check",
+					"value": "\"work_items\".\"depth\" BETWEEN 0 AND 2"
+				},
+				"work_items_status_check": {
+					"name": "work_items_status_check",
+					"value": "\"work_items\".\"status\" IN ('todo','doing','done')"
+				},
+				"work_items_function_check": {
+					"name": "work_items_function_check",
+					"value": "\"work_items\".\"function\" IN ('product','design','engineering','marketing','sales','ops')"
+				},
+				"work_items_priority_check": {
+					"name": "work_items_priority_check",
+					"value": "\"work_items\".\"priority\" IN ('none','low','medium','high','urgent')"
+				}
+			},
+			"isRLSEnabled": false
+		}
+	},
+	"enums": {},
+	"schemas": {},
+	"sequences": {},
+	"roles": {},
+	"policies": {},
+	"views": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	}
+}

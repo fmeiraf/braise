@@ -8,6 +8,7 @@ import { AppError } from "./errors.ts";
 import { handlers } from "./handlers.ts";
 import type { HintHub } from "./hints.ts";
 import { executeCommand, type Services } from "./pipeline.ts";
+import { getInbox, getProposal } from "./proposal-queries.ts";
 import {
 	getCockpit,
 	getEvents,
@@ -153,6 +154,16 @@ export function createApp({ db, hub, services }: { db: Database; hub: HintHub; s
 		if (!id.success) throw new AppError("not_found", "Thread not found", { threadId: c.req.param("id") });
 
 		return c.json(await getThread(db, id.data));
+	});
+
+	app.get("/inbox", async (c) => c.json(await getInbox(db)));
+
+	app.get("/proposals/:id", async (c) => {
+		const id = z.uuid().safeParse(c.req.param("id"));
+
+		if (!id.success) throw new AppError("not_found", "Proposal not found", { proposalId: c.req.param("id") });
+
+		return c.json(await getProposal(db, id.data));
 	});
 
 	app.get("/runs/active", async (c) => c.json({ runs: await getActiveRuns(db) }));

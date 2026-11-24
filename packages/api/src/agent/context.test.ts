@@ -9,6 +9,7 @@ const base = {
 	links: [],
 	transcript: [],
 	message: "What should we do next?",
+	pendingProposals: [],
 } satisfies RunContext;
 
 describe("renderSystemPrompt", () => {
@@ -51,6 +52,14 @@ describe("renderSystemPrompt", () => {
 		expect(prompt).toContain("- Diagnosis: (none)\n- Guiding policy: Local first");
 
 		expect(prompt).toContain('- work item "Bake sourdough" (id w-1, venture Corner Bakery)');
+	});
+
+	it("lists the thread's pending proposals", () => {
+		expect(renderSystemPrompt(base)).toContain("No proposals from this thread are waiting");
+
+		expect(
+			renderSystemPrompt({ ...base, pendingProposals: [{ id: "p-1", title: "Loyalty card", changeCount: 3 }] }),
+		).toContain('- "Loyalty card" (id p-1, 3 changes)');
 	});
 });
 

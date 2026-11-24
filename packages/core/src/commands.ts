@@ -15,6 +15,19 @@ export const threadLinkTypes = ["work_item", "goal", "bet", "venture"] as const;
 export const runStatuses = ["queued", "running", "succeeded", "failed", "cancelled", "interrupted"] as const;
 export const activeRunStatuses = ["queued", "running"] as const;
 export const maxThreadLinks = 20;
+
+export const proposableCommands = [
+	"strategy.revise",
+	"bet.create",
+	"bet.update",
+	"bet.set_status",
+	"goal.create",
+	"goal.update",
+] as const;
+
+export const proposalStatuses = ["pending", "approved", "rejected"] as const;
+export const maxProposalChanges = 10;
+export const proposalTitleLength = 120;
 export const threadTitleLength = 80;
 
 export const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
@@ -24,6 +37,12 @@ const ventureScoped = { ventureId: id };
 const threadLink = z.strictObject({ type: z.enum(threadLinkTypes), id });
 
 const messageBody = text.max(20_000);
+
+const changePayload = z.record(z.string(), z.unknown());
+
+const proposalChange = z.strictObject({ command: z.enum(proposableCommands), payload: changePayload });
+
+const note = z.string().trim().min(1).max(2_000);
 
 export const commandSchemas = {
 	"venture.create": z.strictObject({
@@ -144,6 +163,23 @@ export const commandSchemas = {
 	"thread.archive": z.strictObject({ threadId: id }),
 	"run.cancel": z.strictObject({ runId: id }),
 	"run.retry": z.strictObject({ runId: id }),
+	"proposal.create": z.strictObject({
+		...ventureScoped,
+		threadId: id,
+		title: text.max(proposalTitleLength),
+		reason: text.max(2_000),
+		changes: z.array(proposalChange).min(1).max(maxProposalChanges),
+	}),
+	"proposal.approve": z.strictObject({
+		...ventureScoped,
+		proposalId: id,
+		changes: z
+			.array(z.strictObject({ payload: changePayload }).nullable())
+			.min(1)
+			.max(maxProposalChanges),
+		note: note.optional(),
+	}),
+	"proposal.reject": z.strictObject({ ...ventureScoped, proposalId: id, note: note.optional() }),
 };
 
 export type CommandName = keyof typeof commandSchemas;
@@ -152,7 +188,9 @@ export type CommandInput<Name extends CommandName> = z.input<(typeof commandSche
 
 export type CommandPayload<Name extends CommandName> = z.output<(typeof commandSchemas)[Name]>;
 
-export const commandsRequiringReason = new Set<CommandName>(["strategy.revise"]);
+export type ProposableCommand = (typeof proposableCommands)[number];
+
+export const commandsRequiringReason = new Set<CommandName>(["strategy.revise", "proposal.approve"]);
 
 export const threadCommands = new Set<CommandName>([
 	"thread.start",
@@ -172,9 +210,12 @@ export const agentCommands = new Set<CommandName>([
 	"work.move",
 	"thread.link",
 	"thread.unlink",
+	"proposal.create",
 ]);
 
 export const agentActorPrefix = "agent:";
+
+export const systemAuthor = "braise";
 
 export function isAgentActor(actor: string) {
 	return actor.startsWith(agentActorPrefix);

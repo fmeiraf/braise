@@ -5,6 +5,7 @@ import type { Transaction } from "./db/client.ts";
 import { bets, goals, strategyVersions, ventures, workItems } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 import type { HandlerContext, Handlers, VentureRow } from "./pipeline.ts";
+import { proposalHandlers } from "./proposal-handlers.ts";
 import { threadHandlers } from "./thread-handlers.ts";
 
 function requireVenture(context: HandlerContext) {
@@ -192,7 +193,7 @@ async function reloadWorkItem(tx: Transaction, workItemId: string) {
 	return item;
 }
 
-export const handlers = {
+const domainHandlers = {
 	...threadHandlers,
 	"venture.create": async ({ tx, actor }, payload) => {
 		const slug = payload.slug ?? slugify(payload.name);
@@ -715,4 +716,6 @@ export const handlers = {
 			events: [{ type: "work.archived", subject: `work:${item.id}`, payload: { title: item.title, archivedIds } }],
 		};
 	},
-} satisfies Handlers;
+} satisfies Omit<Handlers, "proposal.create" | "proposal.approve" | "proposal.reject">;
+
+export const handlers = { ...domainHandlers, ...proposalHandlers(domainHandlers) } satisfies Handlers;
