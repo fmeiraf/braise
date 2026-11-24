@@ -5,7 +5,7 @@ import { braiseTools, maxQueryRows, readOnly } from "../src/agent/tools.ts";
 import { claimRun, recoverRuns } from "../src/agent/worker.ts";
 import { deltaChannel } from "../src/channels.ts";
 import { commands, events, workItems } from "../src/db/schema.ts";
-import { createVenture, freshKey, openTestDatabase } from "./database.test-utils.ts";
+import { createVenture, freshKey, openTestDatabase, testUrl } from "./database.test-utils.ts";
 
 const database = await openTestDatabase();
 
@@ -243,6 +243,22 @@ describe("runs", () => {
 		expect(await refused("run.retry", { runId: retried.run.id })).toMatchObject({ rule: "run_not_retryable" });
 	});
 
+	it("records a cancel request on a running run and refuses it once finished", async () => {
+		const started = await ok<Started>("thread.start", { body: "Running cancel" });
+
+		await claimRun(database.db, started.run.id);
+
+		const requested = await ok<{ run: Run }>("run.cancel", { runId: started.run.id });
+
+		expect(requested.run.status).toBe("running");
+
+		expect(requested.run.cancelRequestedAt).not.toBeNull();
+
+		await recoverRuns(database.db, database.services);
+
+		expect(await refused("run.cancel", { runId: started.run.id })).toMatchObject({ rule: "run_not_active" });
+	});
+
 	it("lists active runs across braise", async () => {
 		const started = await ok<Started>("thread.start", { body: "Active run" });
 
@@ -264,6 +280,7 @@ describe("agent tools", () => {
 
 		const tools = braiseTools({
 			db: database.db,
+			reader: database.reader,
 			services: database.services,
 			actor: "agent:claude",
 			runId: started.run.id,
@@ -299,6 +316,13 @@ describe("agent tools", () => {
 			text: expect.stringContaining("permission denied"),
 		});
 
+		const appUser = new URL(testUrl()).username;
+
+		expect(await call("query", { sql: `SELECT set_config('role', '${appUser}', true) AS escaped` })).toMatchObject({
+			isError: true,
+			text: expect.stringContaining("permission denied"),
+		});
+
 		const schema = await call("describe_schema", {});
 
 		expect(schema.text).toContain("work_items(id uuid");
@@ -307,7 +331,7 @@ describe("agent tools", () => {
 	});
 
 	it("runs reads read-only with a statement timeout", async () => {
-		const settings = await readOnly(database.db, async (client) => {
+		const settings = await readOnly(database.reader, async (client) => {
 			const timeout = await client.query<{ statement_timeout: string }>("SHOW statement_timeout");
 
 			const readOnlyMode = await client.query<{ transaction_read_only: string }>("SHOW transaction_read_only");
@@ -324,7 +348,7 @@ describe("agent tools", () => {
 		expect(settings).toEqual(["5s", "on", "braise_agent_reader"]);
 	});
 
-	it("writes work items as the agent, recording the run, idempotently per call", async () => {
+	it("writes work items as the agent, recording the run, and applies repeated calls", async () => {
 		const { call, item, venture, started } = await toolsFor();
 
 		const args = { parentId: item.id, title: "Shape the loaves" };
@@ -335,33 +359,44 @@ describe("agent tools", () => {
 
 		expect(first.isError).toBe(false);
 
-		expect(JSON.parse(again.text)).toEqual(JSON.parse(first.text));
+		expect(JSON.parse(again.text).id).not.toBe(JSON.parse(first.text).id);
 
 		const children = await database.db
 			.select({ id: workItems.id })
 			.from(workItems)
 			.where(and(eq(workItems.parentId, item.id), eq(workItems.title, "Shape the loaves")));
 
-		expect(children).toHaveLength(1);
+		expect(children).toHaveLength(2);
 
 		await call("set_work_item_status", { workItemId: item.id, status: "doing" });
+
+		await call("set_work_item_status", { workItemId: item.id, status: "todo" });
+
+		const repeated = await call("set_work_item_status", { workItemId: item.id, status: "doing" });
+
+		expect(JSON.parse(repeated.text)).toMatchObject({ status: "doing" });
 
 		const agentEvents = await database.db
 			.select({ type: events.type, actor: events.actor, runId: events.runId })
 			.from(events)
 			.where(and(eq(events.ventureId, venture.id), eq(events.runId, started.run.id)));
 
-		expect(agentEvents).toEqual([
-			{ type: "work.created", actor: "agent:claude", runId: started.run.id },
-			{ type: "work.status_set", actor: "agent:claude", runId: started.run.id },
+		expect(agentEvents.map((event) => event.type)).toEqual([
+			"work.created",
+			"work.created",
+			"work.status_set",
+			"work.status_set",
+			"work.status_set",
 		]);
+
+		expect(agentEvents.every((event) => event.actor === "agent:claude" && event.runId === started.run.id)).toBe(true);
 
 		const recorded = await database.db
 			.select({ runId: commands.runId })
 			.from(commands)
 			.where(eq(commands.runId, started.run.id));
 
-		expect(recorded).toHaveLength(2);
+		expect(recorded).toHaveLength(5);
 	});
 
 	it("links its own thread and reports API errors as tool errors", async () => {

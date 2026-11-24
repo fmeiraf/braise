@@ -81,8 +81,8 @@ export function createTranslator() {
 				const signals: RunSignal[] = [];
 
 				for (const block of message.message.content) {
-					if (block.type === "text" && block.text.trim() !== "") {
-						signals.push({ type: "message", block: nextBlock, text: block.text });
+					if (block.type === "text") {
+						if (block.text.trim() !== "") signals.push({ type: "message", block: nextBlock, text: block.text });
 
 						nextBlock += 1;
 

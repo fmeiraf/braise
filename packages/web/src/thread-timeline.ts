@@ -139,12 +139,18 @@ export function liveTail(live: LiveRuns, run: Run, segments: Segment[]) {
 	return saved ? null : block;
 }
 
-function parsed(output: string) {
+export function parseJson(text: string) {
 	try {
-		return JSON.parse(output) as unknown;
-	} catch {
-		return null;
+		return { ok: true, value: JSON.parse(text) as unknown } as const;
+	} catch (error) {
+		return { ok: false, error } as const;
 	}
+}
+
+function parsed(output: string) {
+	const result = parseJson(output);
+
+	return result.ok ? result.value : null;
 }
 
 function field(value: unknown, key: string) {

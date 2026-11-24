@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { claudeRuntime } from "./agent/claude.ts";
 import { runQueueServices, startBoss } from "./agent/queue.ts";
+import { openReader } from "./agent/reader.ts";
 import { createAgentWorker } from "./agent/worker.ts";
 import { createApp } from "./app.ts";
 import { createDatabase, migrateDatabase } from "./db/client.ts";
@@ -20,7 +21,10 @@ export async function startServer() {
 	const boss = await startBoss(env.DATABASE_URL);
 
 	const services = runQueueServices(boss);
-	const worker = createAgentWorker({ db, hub, boss, services, runtime: claudeRuntime });
+
+	const reader = await openReader(db, env.DATABASE_URL);
+
+	const worker = createAgentWorker({ db, reader, hub, boss, services, runtime: claudeRuntime });
 
 	await worker.start();
 
@@ -36,7 +40,7 @@ export async function startServer() {
 
 		worker
 			.stop()
-			.then(() => Promise.all([hub.close(), pool.end()]))
+			.then(() => Promise.all([hub.close(), reader.end(), pool.end()]))
 			.then(
 				() => process.exit(0),
 				(error: unknown) => {

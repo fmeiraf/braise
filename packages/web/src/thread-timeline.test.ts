@@ -31,6 +31,7 @@ const run = {
 	createdAt: at,
 	startedAt: at,
 	finishedAt: at,
+	cancelRequestedAt: null,
 } satisfies Run;
 
 const events = [

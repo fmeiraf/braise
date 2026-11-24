@@ -325,20 +325,26 @@ export const threadHandlers = {
 		if (run.status === "queued") {
 			const [cancelled] = await tx
 				.update(runs)
-				.set({ status: "cancelled", finishedAt: sql`now()` })
-				.where(eq(runs.id, run.id))
+				.set({ status: "cancelled", finishedAt: sql`now()`, cancelRequestedAt: sql`now()` })
+				.where(and(eq(runs.id, run.id), eq(runs.status, "queued")))
 				.returning();
 
-			return threadOutcome(thread, thread.lastSeq, { run: cancelled });
+			if (cancelled !== undefined) return threadOutcome(thread, thread.lastSeq, { run: cancelled });
 		}
 
-		if (run.status !== "running") {
+		const [requested] = await tx
+			.update(runs)
+			.set({ cancelRequestedAt: sql`now()` })
+			.where(and(eq(runs.id, run.id), eq(runs.status, "running")))
+			.returning();
+
+		if (requested === undefined) {
 			throw new AppError("rule_violated", "The run is not active", { rule: "run_not_active", runId: run.id });
 		}
 
 		await tx.execute(sql`SELECT pg_notify(${runControlChannel}, ${run.id})`);
 
-		return threadOutcome(thread, thread.lastSeq, { run });
+		return threadOutcome(thread, thread.lastSeq, { run: requested });
 	},
 	"run.retry": async (context, payload) => {
 		const { run, thread } = await lockRun(context.tx, payload.runId);

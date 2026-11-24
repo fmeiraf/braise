@@ -7,6 +7,8 @@ const maxTurns = 30;
 export const claudeRuntime = {
 	name: "claude-agent-sdk",
 	async run(input, onSignal, abort) {
+		if (abort.aborted) return;
+
 		const controller = new AbortController();
 
 		abort.addEventListener("abort", () => controller.abort(), { once: true });

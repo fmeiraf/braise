@@ -32,6 +32,12 @@ describe("splitDelta", () => {
 		]);
 	});
 
+	it("keeps every escaped piece under the 8000-byte NOTIFY limit", () => {
+		const worst = splitDelta(delta(0, 0, "\u0001".repeat(maxDeltaLength * 3)));
+
+		expect(Math.max(...worst.map((piece) => Buffer.byteLength(JSON.stringify(piece))))).toBeLessThan(8_000);
+	});
+
 	it("never cuts a surrogate pair in half", () => {
 		const text = `${"x".repeat(maxDeltaLength - 1)}🍞tail`;
 		const pieces = splitDelta(delta(0, 0, text));

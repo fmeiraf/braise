@@ -1,4 +1,5 @@
 import { runQueueServices, startBoss } from "../src/agent/queue.ts";
+import { openReader } from "../src/agent/reader.ts";
 import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/client.ts";
 import { assertLocalDatabase, resetDatabase } from "../src/db/reset.ts";
@@ -30,6 +31,9 @@ export async function openTestDatabase() {
 	const boss = await startBoss(testUrl());
 
 	const services = runQueueServices(boss);
+
+	const reader = await openReader(db, testUrl());
+
 	const app = createApp({ db, hub, services });
 
 	return {
@@ -38,6 +42,7 @@ export async function openTestDatabase() {
 		hub,
 		boss,
 		services,
+		reader,
 		app,
 		command(name: string, body: Record<string, unknown>, actor = "owner") {
 			return executeCommand(db, handlers, services, { name, body, actor });
@@ -51,6 +56,8 @@ export async function openTestDatabase() {
 		},
 		async close() {
 			await boss.stop({ graceful: false });
+
+			await reader.end();
 
 			await hub.close();
 

@@ -138,6 +138,7 @@ function toRun(row: RunRow) {
 		createdAt: row.createdAt.toISOString(),
 		startedAt: row.startedAt?.toISOString() ?? null,
 		finishedAt: row.finishedAt?.toISOString() ?? null,
+		cancelRequestedAt: row.cancelRequestedAt?.toISOString() ?? null,
 	} satisfies Run;
 }
 

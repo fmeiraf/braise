@@ -237,6 +237,7 @@ export interface Run {
 	createdAt: string;
 	startedAt: string | null;
 	finishedAt: string | null;
+	cancelRequestedAt: string | null;
 }
 
 export type RunEventPayload =

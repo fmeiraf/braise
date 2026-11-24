@@ -1,8 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { RunDelta, RunStatus, RunUsage } from "@braise/core";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { activeRunStatuses, type RunDelta, type RunStatus, type RunUsage } from "@braise/core";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
 import { deltaChannel } from "../channels.ts";
 import type { Database } from "../db/client.ts";
@@ -13,6 +13,7 @@ import { appendMessage, lockThread } from "../thread-handlers.ts";
 import { loadRunContext, renderPrompt, renderSystemPrompt } from "./context.ts";
 import { createDeltaPublisher } from "./deltas.ts";
 import { runQueue } from "./queue.ts";
+import type { Reader } from "./reader.ts";
 import type { AgentRuntime, RunSignal } from "./runtime.ts";
 import { braiseTools } from "./tools.ts";
 
@@ -90,6 +91,21 @@ export async function recoverRuns(db: Database, services: Services) {
 	return { interrupted: interrupted.length, requeued: queued.length };
 }
 
+async function cancelRequested(db: Database, runId: string) {
+	const [row] = await db.select({ cancelRequestedAt: runs.cancelRequestedAt }).from(runs).where(eq(runs.id, runId));
+
+	return row?.cancelRequestedAt !== null && row?.cancelRequestedAt !== undefined;
+}
+
+async function failRun(db: Database, runId: string, thread: { id: string; ventureId: string | null }, message: string) {
+	await db
+		.update(runs)
+		.set({ status: "failed", error: { message }, finishedAt: sql`now()` })
+		.where(and(eq(runs.id, runId), inArray(runs.status, [...activeRunStatuses])));
+
+	await notifyThread(db, thread);
+}
+
 export async function claimRun(db: Database, runId: string) {
 	const [claimed] = await db
 		.update(runs)
@@ -106,12 +122,13 @@ function errorMessage(error: unknown) {
 
 export function createAgentWorker(deps: {
 	db: Database;
+	reader: Reader;
 	hub: HintHub;
 	boss: PgBoss;
 	services: Services;
 	runtime: AgentRuntime;
 }) {
-	const { db, hub, boss, services, runtime } = deps;
+	const { db, reader, hub, boss, services, runtime } = deps;
 	const active = new Map<string, { controller: AbortController; reason: "cancel" | "shutdown" | null }>();
 
 	const unsubscribe = hub.subscribe((message) => {
@@ -150,21 +167,29 @@ export function createAgentWorker(deps: {
 			await db.execute(sql`SELECT pg_notify(${deltaChannel}, ${JSON.stringify(delta)})`);
 		});
 
-		const workDir = await mkdtemp(join(tmpdir(), "braise-run-"));
+		let workDir: string | null = null;
 
 		try {
+			workDir = await mkdtemp(join(tmpdir(), "braise-run-"));
+
 			const context = await loadRunContext(db, run);
 
 			thread.ventureId = context.scope?.id ?? null;
 
 			await append("run.started", { model: run.model });
 
+			if (await cancelRequested(db, run.id)) {
+				entry.reason = "cancel";
+
+				entry.controller.abort();
+			}
+
 			await runtime.run(
 				{
 					model: run.model,
 					systemPrompt: renderSystemPrompt(context),
 					prompt: renderPrompt(context),
-					tools: braiseTools({ db, services, actor: run.actor, runId: run.id, threadId: run.threadId }),
+					tools: braiseTools({ db, reader, services, actor: run.actor, runId: run.id, threadId: run.threadId }),
 					workDir,
 				},
 				async (signal) => {
@@ -211,14 +236,10 @@ export function createAgentWorker(deps: {
 
 			await deltas.drained();
 
-			await rm(workDir, { recursive: true, force: true });
+			if (workDir !== null) await rm(workDir, { recursive: true, force: true });
 		}
 
 		const { finished, partial } = result;
-
-		if (entry.controller.signal.aborted && partial !== null && partial.text.trim() !== "") {
-			await append("message", { block: partial.block, text: partial.text, partial: true });
-		}
 
 		const outcome: Outcome =
 			entry.reason === "cancel"
@@ -227,7 +248,17 @@ export function createAgentWorker(deps: {
 					? { status: "interrupted", usage: finished?.usage ?? null, error: interruptedMessage }
 					: (finished ?? { status: "failed", usage: null, error: "The agent stopped without a result" });
 
-		await finishRun(db, run.id, outcome);
+		try {
+			if (entry.controller.signal.aborted && partial !== null && partial.text.trim() !== "") {
+				await append("message", { block: partial.block, text: partial.text, partial: true });
+			}
+
+			await finishRun(db, run.id, outcome);
+		} catch (error) {
+			console.error(`agent: finishing run ${run.id} failed; marking it failed`, error);
+
+			await failRun(db, run.id, thread, `braise could not save the run's end: ${errorMessage(error)}`);
+		}
 	}
 
 	return {

@@ -37,6 +37,7 @@ import {
 	type LiveBlock,
 	type LiveRuns,
 	liveTail,
+	parseJson,
 	plainSnippet,
 	type Segment,
 	summarizeTools,
@@ -1150,11 +1151,9 @@ function formatJson(value: unknown) {
 }
 
 function prettyOutput(output: string) {
-	try {
-		return JSON.stringify(JSON.parse(output), null, 2);
-	} catch {
-		return output;
-	}
+	const result = parseJson(output);
+
+	return result.ok ? JSON.stringify(result.value, null, 2) : output;
 }
 
 function ToolRow({ call }: { call: ToolCall }) {

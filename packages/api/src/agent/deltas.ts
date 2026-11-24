@@ -1,6 +1,6 @@
 import type { RunDelta } from "@braise/core";
 
-export const maxDeltaLength = 1_500;
+export const maxDeltaLength = 1_000;
 
 export function mergeDeltas(deltas: RunDelta[]) {
 	const merged: RunDelta[] = [];
@@ -63,6 +63,8 @@ export function createDeltaPublisher(publish: (delta: RunDelta) => Promise<void>
 
 			flushing ??= flush().catch((error: unknown) => {
 				flushing = null;
+
+				buffer = [];
 
 				console.error("agent: publishing a live delta failed", error);
 			});

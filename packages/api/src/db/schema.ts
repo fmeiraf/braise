@@ -234,6 +234,7 @@ export const runs = pgTable(
 		createdAt: createdAt(),
 		startedAt: timestamp("started_at", { withTimezone: true }),
 		finishedAt: timestamp("finished_at", { withTimezone: true }),
+		cancelRequestedAt: timestamp("cancel_requested_at", { withTimezone: true }),
 	},
 	(table) => [
 		foreignKey({ columns: [table.retryOf], foreignColumns: [table.id] }),

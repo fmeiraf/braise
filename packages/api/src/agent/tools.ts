@@ -8,18 +8,16 @@ import { goals, workItems } from "../db/schema.ts";
 import { AppError } from "../errors.ts";
 import { handlers } from "../handlers.ts";
 import { executeCommand, type Services } from "../pipeline.ts";
+import { type Reader, readerStatementTimeoutMs } from "./reader.ts";
 import type { AgentTool, ToolOutput } from "./runtime.ts";
-
-export const readerRole = "braise_agent_reader";
 
 export const maxQueryRows = 200;
 
 const maxOutputLength = 60_000;
 
-const statementTimeout = "5s";
-
 export interface ToolScope {
 	db: Database;
+	reader: Reader;
 	services: Services;
 	actor: string;
 	runId: string;
@@ -54,21 +52,25 @@ function failure(error: unknown) {
 	return { text: error instanceof Error ? error.message : String(error), isError: true };
 }
 
-export async function readOnly<Result>(db: Database, work: (client: pg.PoolClient) => Promise<Result>) {
-	const client = await db.$client.connect();
+export async function readOnly<Result>(reader: Reader, work: (client: pg.PoolClient) => Promise<Result>) {
+	const client = await reader.connect();
+
+	let broken: Error | undefined;
 
 	try {
 		await client.query("BEGIN READ ONLY");
 
-		await client.query(`SET LOCAL ROLE ${readerRole}`);
-
-		await client.query(`SET LOCAL statement_timeout = '${statementTimeout}'`);
-
 		return await work(client);
 	} finally {
-		await client.query("ROLLBACK");
+		try {
+			await client.query("ROLLBACK");
+		} catch (error) {
+			broken = error instanceof Error ? error : new Error(String(error));
 
-		client.release();
+			console.error("agent: read-only rollback failed; discarding the connection", broken);
+		} finally {
+			client.release(broken);
+		}
 	}
 }
 
@@ -78,8 +80,8 @@ export function wrapQuery(statement: string) {
 	return `SELECT * FROM (${trimmed}\n) AS result LIMIT $1`;
 }
 
-export async function runReadQuery(db: Database, statement: string) {
-	const result = await readOnly(db, (client) =>
+export async function runReadQuery(reader: Reader, statement: string) {
+	const result = await readOnly(reader, (client) =>
 		client.query<Record<string, unknown>>(wrapQuery(statement), [maxQueryRows + 1]),
 	);
 
@@ -88,8 +90,8 @@ export async function runReadQuery(db: Database, statement: string) {
 	return { rows: result.rows.slice(0, maxQueryRows), rowCount: Math.min(result.rows.length, maxQueryRows), truncated };
 }
 
-export async function describeSchema(db: Database) {
-	const result = await readOnly(db, (client) =>
+export async function describeSchema(reader: Reader) {
+	const result = await readOnly(reader, (client) =>
 		client.query<{ table_name: string; column_name: string; data_type: string; is_nullable: string }>(
 			`SELECT table_name, column_name, data_type, is_nullable
 			 FROM information_schema.columns
@@ -128,10 +130,10 @@ async function ventureOfGoal(db: Database, goalId: string) {
 	return goal.ventureId;
 }
 
-export function toolIdempotencyKey(runId: string, name: string, payload: unknown) {
+export function toolIdempotencyKey(runId: string, call: number, name: string, payload: unknown) {
 	const digest = createHash("sha256").update(JSON.stringify({ name, payload })).digest("hex").slice(0, 32);
 
-	return `run:${runId}:${digest}`;
+	return `run:${runId}:${call}:${digest}`;
 }
 
 const linkShape = {
@@ -140,15 +142,21 @@ const linkShape = {
 };
 
 const sqlDescription = `Run one read-only SQL SELECT against braise's Postgres database and get the rows as JSON.
-Use describe_schema first to see the tables. At most ${maxQueryRows} rows come back; the query times out after ${statementTimeout}.
+Use describe_schema first to see the tables. At most ${maxQueryRows} rows come back; the query times out after ${readerStatementTimeoutMs / 1000}s.
 Rows with archived_at set are archived. The active strategy of a venture has status 'active'.`;
 
 export function braiseTools(scope: ToolScope) {
+	let calls = 0;
+
 	const command = async (name: CommandName, payload: Record<string, unknown>) => {
+		calls += 1;
+
+		const call = calls;
+
 		try {
 			const response = await executeCommand(scope.db, handlers, scope.services, {
 				name,
-				body: { payload, idempotencyKey: toolIdempotencyKey(scope.runId, name, payload) },
+				body: { payload, idempotencyKey: toolIdempotencyKey(scope.runId, call, name, payload) },
 				actor: scope.actor,
 				runId: scope.runId,
 			});
@@ -172,13 +180,13 @@ export function braiseTools(scope: ToolScope) {
 			name: "describe_schema",
 			description: "List the tables and columns of braise's database that the query tool can read.",
 			input: {},
-			execute: () => attempt(async () => ok(await describeSchema(scope.db))),
+			execute: () => attempt(async () => ok(await describeSchema(scope.reader))),
 		}),
 		defineTool({
 			name: "query",
 			description: sqlDescription,
 			input: { sql: z.string().min(1).max(10_000).describe("One SELECT statement, without a trailing semicolon") },
-			execute: ({ sql }) => attempt(async () => ok(await runReadQuery(scope.db, sql))),
+			execute: ({ sql }) => attempt(async () => ok(await runReadQuery(scope.reader, sql))),
 		}),
 		defineTool({
 			name: "create_work_item",
