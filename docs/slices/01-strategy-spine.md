@@ -1,6 +1,6 @@
 # Slice 1: Strategy spine
 
-Status: **specified**, not started. This is the build spec; the rules in
+Status: **landed** 2026-11-24. This is the build spec; the rules in
 `docs/architecture.md` apply throughout.
 
 ## Goal
@@ -11,7 +11,7 @@ venture → strategy (versioned) → bets → goals.
 
 ## Demo scenario (acceptance)
 
-1. `npm run db:up`, `npm run dev`, then open the app.
+1. `docker compose up -d`, `npm run dev`, then open http://127.0.0.1:5400.
 2. First run: the empty state is the create-venture form. Create a venture with name,
    kind, why and what (diagnosis and guiding policy may be left empty).
 3. Revise the strategy with a reason. Strategy history shows v1 → v2 with a

@@ -18,9 +18,29 @@ npm test
 `npm run prepare` enables the pre-commit lint and typecheck locally. CI installs with lifecycle
 scripts disabled.
 
+## Run it locally
+
+```sh
+cp .env.example .env
+docker compose up -d        # Postgres 17 on 127.0.0.1:54329 (braise + braise_test)
+npm run dev                 # API on :4400 (migrates on start) + web on http://127.0.0.1:5400
+```
+
+Database tasks run through the `braise` bin from `@braise/api`:
+
+- `npx braise migrate`: apply pending migrations.
+- `npx braise reset`: drop and re-create the local schema, without seed data.
+- `npx braise seed`: add the labelled example venture (safe to rerun).
+
+`npm test` needs the Postgres container: the API suites run against `braise_test`.
+
 ## Structure
 
-- `packages/core/src/index.ts`: empty entry point for `@braise/core`.
+- `packages/core`: `@braise/core`, command schemas (zod) and shared types; no I/O.
+- `packages/api`: `@braise/api`, the Hono API, command pipeline, Drizzle schema and
+  migrations (`drizzle/`), SSE hints and the `braise` bin.
+- `packages/web`: `@braise/web`, the Vite + React SPA. It talks to the API over HTTP
+  only.
 - `tsconfig.base.json`: shared compiler settings.
 - `tsconfig.json`: type checking for source, tests, and test configuration.
 - `packages/core/tsconfig.build.json`: JavaScript, declarations, and source maps in `dist/`.

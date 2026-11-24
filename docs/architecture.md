@@ -111,7 +111,13 @@ Planned (order may change):
 Milestone: braise manages itself as a venture (dogfooding).
 
 ### Slice log
-_None landed yet._
+- **Slice 1, Strategy spine** (2026-11-24): ventures, versioned strategy, bets, goals;
+  the command pipeline (idempotency on `commands`, venture row lock, gapless `seq`,
+  NOTIFY in the transaction); reads; SSE hints; the web app (Holding table, cockpit,
+  strategy history with word diff, activity). Demo scenario 1–7 verified in the
+  running app; the spec's tests pass against real Postgres.
+  Rule review (process rule 3): the invariants and process rules held unchanged. The
+  decisions dated 2026-11-24 below record what the slice settled.
 
 ## Decisions log
 
@@ -138,3 +144,26 @@ _None landed yet._
   alongside Biome, with `--deny-warnings`. oxlint's built-in rules are off, because
   Biome owns general linting. Scripts renamed to standard names: `check` → `lint` +
   `typecheck`, and `test:watch` dropped (use `npx vitest`).
+- 2026-11-24: Local ports: Postgres `127.0.0.1:54329`, API `4400`, web `5400`
+  (strict). `3000` and `5173` are taken by other local projects.
+- 2026-11-24: Operational tasks live in a `braise` bin shipped by `@braise/api`
+  (`serve [--watch]`, `migrate`, `reset`, `seed`), not in package scripts, so
+  landmines `package-scripts` stays at its defaults. `reset` refuses non-local hosts;
+  `seed` goes through the command pipeline with fixed idempotency keys, so rerunning
+  it is a no-op.
+- 2026-11-24: Postgres suites in `packages/api/test/` are named
+  `*.integration.test.ts` / `*.e2e.test.ts`, which landmines
+  `test-dir-only-cross-functional` recognises as cross-functional.
+- 2026-11-24: `bet.archive` is refused (422 `bet_has_goals`) while the bet has live
+  goals; archive or move them first, so no goal points at an archived bet.
+- 2026-11-24: `GET /api/events?limit=` returns recent events across ventures, for
+  the Holding-scope Activity view.
+- 2026-11-24: The SSE stream sends a `ping` every 15s; the client treats 35s of
+  silence as down and reopens the stream itself when the browser gives up, so the
+  reconnect indicator is truthful behind proxies.
+- 2026-11-24: The web app uses native controls (select, radio groups, plain
+  disclosure) instead of Radix or Base UI; slice 1 needs no headless primitives.
+- 2026-11-24: Visual direction for the app pinned by the owner: Linear and Slack
+  craft level on the braise.exe brand kit (charcoal rail, near-cream work area, ember
+  for actions/selection/state, pixel-square status markers, the strategy spine).
+  Contract: `packages/web/.impeccable/surfaces/index-html.md`.
