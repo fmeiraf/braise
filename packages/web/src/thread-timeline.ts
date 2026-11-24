@@ -208,6 +208,14 @@ export function describeCall(call: ToolCall) {
 			return { action: "Linked this thread", detail: null };
 		case "unlink_thread":
 			return { action: "Removed a link from this thread", detail: null };
+		case "propose_changes": {
+			const changes = field(call.input, "changes");
+
+			return {
+				action: `Proposed ${typeof field(call.input, "title") === "string" ? quoted(field(call.input, "title")) : "changes"}`,
+				detail: Array.isArray(changes) ? `${changes.length} ${changes.length === 1 ? "change" : "changes"}` : null,
+			};
+		}
 		default:
 			return { action: `Used ${call.name}`, detail: null };
 	}
@@ -225,8 +233,34 @@ export function summarizeTools(calls: ToolCall[]) {
 	return parts.join(" · ");
 }
 
+export function proposalsOf(segments: Segment[]) {
+	return segments.flatMap((segment) =>
+		segment.kind === "tools"
+			? segment.calls.flatMap((call) => {
+					if (call.name !== "propose_changes" || call.result === null || call.result.isError) return [];
+
+					const id = field(parsed(call.result.output), "proposalId");
+					const title = field(call.input, "title");
+					const changes = field(call.input, "changes");
+
+					return typeof id === "string"
+						? [
+								{
+									id,
+									title: typeof title === "string" ? title : "Proposal",
+									changeCount: Array.isArray(changes) ? changes.length : 0,
+								},
+							]
+						: [];
+				})
+			: [],
+	);
+}
+
 export function actorName(actor: string) {
 	if (actor === "owner") return "You";
+
+	if (actor === "braise") return "braise";
 
 	if (actor === "agent:claude") return "Claude";
 

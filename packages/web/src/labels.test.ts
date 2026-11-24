@@ -53,3 +53,21 @@ describe("labelEvent", () => {
 		});
 	});
 });
+
+describe("proposal labels", () => {
+	it("names a proposal and what its approval applied", () => {
+		expect(labelEvent({ type: "proposal.created", payload: { title: "Loyalty", changeCount: 3 } })).toEqual({
+			action: "proposed changes",
+			subject: "Loyalty",
+			detail: "3 changes",
+		});
+
+		expect(
+			labelEvent({ type: "proposal.approved", payload: { title: "Loyalty", applied: 2, edited: 1, dropped: 1 } }),
+		).toEqual({
+			action: "approved a proposal",
+			subject: "Loyalty",
+			detail: "2 changes applied, 1 edited, 1 dropped",
+		});
+	});
+});

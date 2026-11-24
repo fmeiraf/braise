@@ -9,6 +9,10 @@ interface FeedEvent extends DomainEvent {
 	ventureName?: string;
 }
 
+function appliedByProposal(event: Pick<DomainEvent, "type" | "payload">) {
+	return typeof event.payload.proposalId === "string" && !event.type.startsWith("proposal.");
+}
+
 export function EventItem({
 	event,
 	fresh = false,
@@ -43,7 +47,7 @@ export function EventItem({
 					) : null}
 				</p>
 				{label.detail === null ? null : <p className="feed-detail">{label.detail}</p>}
-				{event.reason === null ? null : <p className="feed-reason">{event.reason}</p>}
+				{event.reason === null || appliedByProposal(event) ? null : <p className="feed-reason">{event.reason}</p>}
 				{full ? null : (
 					<p className="feed-meta">
 						<time dateTime={event.createdAt} title={formatDateTime(event.createdAt)}>

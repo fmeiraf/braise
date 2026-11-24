@@ -7,6 +7,7 @@ import {
 	describeCall,
 	liveTail,
 	plainSnippet,
+	proposalsOf,
 	runSegments,
 	summarizeTools,
 } from "./thread-timeline.ts";
@@ -174,5 +175,37 @@ describe("plainSnippet", () => {
 		expect(plainSnippet("**Edge cases**\n\n- The *cutoff* at `9pm`\n1. See [the bet](/v/x)")).toBe(
 			"Edge cases The cutoff at 9pm See the bet",
 		);
+	});
+});
+
+describe("proposals", () => {
+	const proposeEvents = [
+		event(0, {
+			type: "tool.call",
+			payload: {
+				toolUseId: "p",
+				name: "propose_changes",
+				input: { title: "Loyalty", changes: [{ command: "bet.create" }, { command: "goal.create" }] },
+			},
+		}),
+		event(1, {
+			type: "tool.result",
+			payload: { toolUseId: "p", output: JSON.stringify({ proposalId: "prop-1" }), isError: false },
+		}),
+		event(2, { type: "tool.call", payload: { toolUseId: "q", name: "propose_changes", input: { title: "Bad" } } }),
+		event(3, { type: "tool.result", payload: { toolUseId: "q", output: "{}", isError: true } }),
+	];
+
+	it("names a proposal call and links only successful ones", () => {
+		const [segment] = runSegments(proposeEvents);
+		const calls = segment?.kind === "tools" ? segment.calls : [];
+
+		expect(calls.map(describeCall)[0]).toEqual({ action: "Proposed “Loyalty”", detail: "2 changes" });
+
+		expect(proposalsOf(runSegments(proposeEvents))).toEqual([{ id: "prop-1", title: "Loyalty", changeCount: 2 }]);
+	});
+
+	it("names braise system lines", () => {
+		expect(actorName("braise")).toBe("braise");
 	});
 });

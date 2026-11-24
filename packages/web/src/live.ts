@@ -17,6 +17,8 @@ export const keys = {
 		["threads", "list", scope.ventureId ?? "holding", scope.subject ?? "all"] as const,
 	thread: (id: string) => ["threads", "detail", id] as const,
 	activeRuns: ["runs", "active"] as const,
+	inbox: ["inbox"] as const,
+	proposal: (id: string) => ["proposal", id] as const,
 };
 
 export const queries = {
@@ -30,6 +32,8 @@ export const queries = {
 		queryOptions({ queryKey: keys.threadList(scope), queryFn: () => api.threads(scope) }),
 	thread: (id: string) => queryOptions({ queryKey: keys.thread(id), queryFn: () => api.thread(id) }),
 	activeRuns: () => queryOptions({ queryKey: keys.activeRuns, queryFn: api.activeRuns }),
+	inbox: () => queryOptions({ queryKey: keys.inbox, queryFn: api.inbox }),
+	proposal: (id: string) => queryOptions({ queryKey: keys.proposal(id), queryFn: () => api.proposal(id) }),
 };
 
 export function applyThreadHint(client: QueryClient, hint: ThreadHint) {
@@ -83,6 +87,10 @@ export function applyHint(client: QueryClient, hint: StreamHint) {
 
 	void client.invalidateQueries({ queryKey: keys.holdingWork });
 
+	void client.invalidateQueries({ queryKey: keys.inbox });
+
+	void client.invalidateQueries({ queryKey: ["proposal"] });
+
 	for (const listener of freshListeners) listener(hint.ventureId);
 }
 
@@ -106,6 +114,8 @@ export function refreshVenture(client: QueryClient, venture: { id: string; slug:
 		client.invalidateQueries({ queryKey: keys.holdingWork }),
 		client.invalidateQueries({ queryKey: keys.ventures }),
 		client.invalidateQueries({ queryKey: keys.recent }),
+		client.invalidateQueries({ queryKey: keys.inbox }),
+		client.invalidateQueries({ queryKey: ["proposal"] }),
 	]);
 }
 
@@ -131,6 +141,10 @@ export function updateCockpit(client: QueryClient, slug: string, seq: number, up
 	void client.invalidateQueries({ queryKey: keys.work(slug) });
 
 	void client.invalidateQueries({ queryKey: keys.holdingWork });
+
+	void client.invalidateQueries({ queryKey: keys.inbox });
+
+	void client.invalidateQueries({ queryKey: ["proposal"] });
 }
 
 export type StreamState = "connecting" | "live" | "down";

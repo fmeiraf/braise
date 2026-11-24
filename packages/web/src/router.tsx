@@ -5,6 +5,7 @@ import { CockpitPage } from "./cockpit.tsx";
 import { CreateVenture } from "./create-venture.tsx";
 import { HistoryPage } from "./history.tsx";
 import { HoldingPage, PageError } from "./holding.tsx";
+import { InboxPage } from "./inbox.tsx";
 import { Shell } from "./shell.tsx";
 import { HoldingThreadsPage, VentureThreadsPage } from "./threads.tsx";
 import { HoldingWorkPage, VentureWorkPage } from "./work.tsx";
@@ -45,6 +46,13 @@ const holdingThreadsRoute = createRoute({
 	path: "/threads",
 	validateSearch: threadsSearch,
 	component: HoldingThreadsPage,
+});
+
+const inboxRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/inbox",
+	validateSearch: z.object({ proposal: z.string().optional() }),
+	component: InboxPage,
 });
 
 const ventureRoute = createRoute({ getParentRoute: () => rootRoute, path: "/v/$slug" });
@@ -89,6 +97,7 @@ const routeTree = rootRoute.addChildren([
 	holdingActivityRoute,
 	holdingWorkRoute,
 	holdingThreadsRoute,
+	inboxRoute,
 	ventureRoute.addChildren([cockpitRoute, historyRoute, ventureWorkRoute, ventureThreadsRoute, ventureActivityRoute]),
 ]);
 

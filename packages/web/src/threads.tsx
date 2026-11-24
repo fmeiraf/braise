@@ -3,6 +3,7 @@ import {
 	type LinkTarget,
 	type Run,
 	type RunStatus,
+	systemAuthor,
 	type ThreadDetail,
 	type ThreadLink,
 	type ThreadLinkType,
@@ -11,7 +12,7 @@ import {
 } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ArrowUp, ChevronRight, Link2, Plus, RotateCcw, Square, X } from "lucide-react";
+import { ArrowUp, ChevronRight, Inbox, Link2, Plus, RotateCcw, Square, X } from "lucide-react";
 import {
 	type ChangeEvent,
 	type KeyboardEvent,
@@ -39,6 +40,7 @@ import {
 	liveTail,
 	parseJson,
 	plainSnippet,
+	proposalsOf,
 	type Segment,
 	summarizeTools,
 	type ToolCall,
@@ -448,7 +450,11 @@ function Timeline({ detail, live }: { detail: ThreadDetail; live: LiveRuns }) {
 			<ol className="timeline" ref={scroll.content}>
 				{timeline.map((entry) =>
 					entry.kind === "message" ? (
-						<OwnerMessage key={entry.message.id} message={entry.message} />
+						entry.message.author === systemAuthor ? (
+							<SystemLine key={entry.message.id} message={entry.message} />
+						) : (
+							<OwnerMessage key={entry.message.id} message={entry.message} />
+						)
 					) : (
 						<RunEntry
 							key={entry.run.id}
@@ -982,6 +988,41 @@ function MessageHead({
 	);
 }
 
+function SystemLine({ message }: { message: ThreadMessage }) {
+	return (
+		<li className="system-line">
+			<p>
+				{message.body}{" "}
+				<time className="message-time data" dateTime={message.createdAt} title={formatDateTime(message.createdAt)}>
+					{clock.format(new Date(message.createdAt))}
+				</time>
+			</p>
+		</li>
+	);
+}
+
+function ProposalLinks({ segments }: { segments: Segment[] }) {
+	const proposals = proposalsOf(segments);
+
+	if (proposals.length === 0) return null;
+
+	return (
+		<ul className="proposal-links">
+			{proposals.map((proposal) => (
+				<li key={proposal.id}>
+					<Link to="/inbox" search={{ proposal: proposal.id }} className="proposal-link">
+						<Inbox aria-hidden />
+						<span className="proposal-link-title">{proposal.title}</span>
+						<span className="proposal-link-meta">
+							{proposal.changeCount} {proposal.changeCount === 1 ? "change" : "changes"} · review in the inbox
+						</span>
+					</Link>
+				</li>
+			))}
+		</ul>
+	);
+}
+
 function OwnerMessage({ message }: { message: ThreadMessage }) {
 	return (
 		<li className="message">
@@ -1066,6 +1107,7 @@ function RunEntry({
 						{segments.length === 0 ? "Thinking…" : "Working…"}
 					</p>
 				) : null}
+				<ProposalLinks segments={segments} />
 				{active ? null : <RunFoot run={run} latest={latest} />}
 			</div>
 		</li>

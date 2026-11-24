@@ -11,7 +11,9 @@ import type {
 	Goal,
 	HoldingRow,
 	HoldingWork,
+	Inbox,
 	LinkTarget,
+	ProposalDetail,
 	StrategyVersion,
 	ThreadDetail,
 	ThreadSummary,
@@ -85,6 +87,8 @@ export const api = {
 	},
 	thread: (id: string) => request<ThreadDetail>(`/api/threads/${encodeURIComponent(id)}`),
 	activeRuns: () => request<{ runs: ActiveRun[] }>("/api/runs/active"),
+	inbox: () => request<Inbox>("/api/inbox"),
+	proposal: (id: string) => request<ProposalDetail>(`/api/proposals/${encodeURIComponent(id)}`),
 	linkTargets: (query: string, ventureId: string | null) =>
 		request<{ targets: LinkTarget[] }>(
 			`/api/link-targets?q=${encodeURIComponent(query)}${ventureId === null ? "" : `&ventureId=${ventureId}`}`,

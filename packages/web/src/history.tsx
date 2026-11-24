@@ -145,7 +145,7 @@ function diffParts(before: string, after: string) {
 	});
 }
 
-function DiffField({ label, before, after }: { label: string; before: string | null; after: string }) {
+export function DiffField({ label, before, after }: { label: string; before: string | null; after: string }) {
 	const same = before !== null && before === after;
 
 	return (

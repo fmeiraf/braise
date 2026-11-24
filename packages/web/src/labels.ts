@@ -69,6 +69,20 @@ function movedAction(payload: Record<string, unknown>) {
 	return changes?.goalId === undefined ? "reordered work" : "moved work to another goal";
 }
 
+export function plural(count: number, noun: string) {
+	return `${count} ${count === 1 ? noun : `${noun}s`}`;
+}
+
+function approvalDetail(payload: Record<string, unknown>) {
+	const parts = [
+		typeof payload.applied === "number" ? `${plural(payload.applied, "change")} applied` : null,
+		typeof payload.edited === "number" && payload.edited > 0 ? `${payload.edited} edited` : null,
+		typeof payload.dropped === "number" && payload.dropped > 0 ? `${payload.dropped} dropped` : null,
+	].filter((part) => part !== null);
+
+	return parts.length === 0 ? null : parts.join(", ");
+}
+
 export function labelEvent(event: Pick<DomainEvent, "type" | "payload">) {
 	const { payload } = event;
 
@@ -135,6 +149,20 @@ export function labelEvent(event: Pick<DomainEvent, "type" | "payload">) {
 				subject: text(payload, "title"),
 				detail: archivedCount(payload),
 			} satisfies EventLabel;
+		case "proposal.created":
+			return {
+				action: "proposed changes",
+				subject: text(payload, "title"),
+				detail: typeof payload.changeCount === "number" ? plural(payload.changeCount, "change") : null,
+			} satisfies EventLabel;
+		case "proposal.approved":
+			return {
+				action: "approved a proposal",
+				subject: text(payload, "title"),
+				detail: approvalDetail(payload),
+			} satisfies EventLabel;
+		case "proposal.rejected":
+			return { action: "rejected a proposal", subject: text(payload, "title"), detail: null } satisfies EventLabel;
 		default:
 			return { action: event.type, subject: null, detail: null } satisfies EventLabel;
 	}

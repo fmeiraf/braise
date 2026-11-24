@@ -10,6 +10,7 @@ import { EventItem } from "./feed.tsx";
 import { focusOnMount } from "./focus.ts";
 import { useFreshIds } from "./fresh.ts";
 import { PageError } from "./holding.tsx";
+import { NeedsYou } from "./inbox.tsx";
 import { kindLabel } from "./labels.ts";
 import { keys, queries, rememberVenture, updateCockpit } from "./live.ts";
 import { CoreSample, Progress, ringColor } from "./rings.tsx";
@@ -163,6 +164,7 @@ function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 				</div>
 
 				<aside className="cockpit-aside" aria-labelledby="recent-heading">
+					<NeedsYou ventureId={venture.id} />
 					<RecentActivity slug={slug} ventureId={venture.id} lastSeq={venture.lastSeq} />
 				</aside>
 			</div>

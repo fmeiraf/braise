@@ -109,7 +109,9 @@ Planned (order may change):
    tags, manual order, the Work view. Spec: `docs/slices/02-work-items.md`.
 3. **Agent threads, streaming live (Claude Agent SDK):** threads linked to work, runs
    and run events, the Claude runner. Spec: `docs/slices/03-agent-threads.md`.
-4. Agent proposal → inbox → owner approves.
+4. **Agent proposal → inbox → owner approves:** agent change sets for strategy, bets
+   and goals, the global inbox, owner edits, staleness. Spec:
+   `docs/slices/04-proposals-inbox.md`.
 5. Grants and access requests; Pi runner as the second adapter.
 
 Milestone: braise manages itself as a venture (dogfooding).
@@ -143,6 +145,21 @@ Milestone: braise manages itself as a venture (dogfooding).
   command allowlist enforced in the pipeline until grants (slice 5) and proposals
   (slice 4) replace it. Invariant 7 holds through the runtime contract
   (`packages/api/src/agent/runtime.ts`). The process rules held unchanged.
+- **Slice 4, Proposals and the inbox** (2026-11-24): `proposals` (a change set of
+  `strategy.revise`, `bet.*` and `goal.*` commands with a base per change); commands
+  `proposal.create` (agent, dry-run in a savepoint), `proposal.approve` (owner edits
+  and drops, applied atomically through the existing handlers, stale changes refused)
+  and `proposal.reject`; decision lines in the proposing thread; the agent's
+  `propose_changes` tool; the Inbox view, the rail's pending count and the cockpit's
+  Needs you list. Demo scenario 1–6 verified in the running app with real Claude runs;
+  the spec's tests pass against real Postgres.
+  Rule review (process rule 3): invariant 5 now holds through proposals rather than
+  only by refusal; agents still can't apply strategy, bet or goal changes, and
+  `proposal.approve`/`reject` are owner-only in the pipeline. Invariant 6 holds:
+  applied changes are recorded under the owner with the approve command's reason, and
+  their events carry `proposalId`, which leads back to the agent's run. Invariant 2
+  holds: approve is one command, so the applied events share one transaction and
+  one `seq` range. The process rules held unchanged.
 
 ## Decisions log
 
@@ -250,3 +267,22 @@ Milestone: braise manages itself as a venture (dogfooding).
 - 2026-11-24: Threads UI: a Threads rail entry with a list and a Slack-style
   conversation; each round of tool calls folds into one collapsed toggle before the
   reply text; live state uses a slow ember pulse on square pixels.
+- 2026-11-24: Proposals (owner): agents propose `strategy.revise`, `bet.create/update/
+  set_status` and `goal.create/update` as one change set per venture; work item writes
+  stay direct; archives and venture fields stay owner-only. The owner approves (editing
+  fields or dropping changes, never adding) or rejects, with an optional note. A goal
+  may test a new bet of the same proposal through `{ "ref": <index> }`.
+- 2026-11-24: Each proposed change records its base (strategy version, or the bet's or
+  goal's `updated_at`), set by the API. A change whose base moved is stale, and approve
+  refuses it (422 `proposal_stale`); there is no rebase.
+- 2026-11-24: `proposal.create` dry-runs the changes through the real handlers in a
+  savepoint and rolls back, so the agent gets rule errors when it proposes, not at approval.
+- 2026-11-24: `proposal.approve` requires a reason (prefilled from the agent's), which
+  becomes the strategy revision's reason. Applied changes are recorded with actor `owner`, and
+  their events carry `proposalId`.
+- 2026-11-24: Decisions post a thread message with author `braise` (a system line, never
+  an owner message); it starts no run, and the agent reads it in its transcript next
+  time. `needs_input` is deferred.
+- 2026-11-24: Inbox UI: a global `/inbox` list and review pane, a pending count in the
+  rail (a resin badge: the one attention signal in the rail), and a per-venture Needs you
+  list in the cockpit aside.

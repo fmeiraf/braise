@@ -12,6 +12,8 @@ export function Shell() {
 	const stream = useHintStream(client);
 	const ventures = useQuery(queries.ventures());
 	const activeRuns = useQuery(queries.activeRuns());
+	const inbox = useQuery(queries.inbox());
+	const waiting = inbox.data?.pending.length ?? 0;
 	const fresh = useFreshVentures();
 	const { slug } = useParams({ strict: false });
 	const now = Date.now();
@@ -41,11 +43,15 @@ export function Shell() {
 				</Link>
 
 				<div className="rail-section">
-					<span className="rail-item" aria-disabled="true" title="The inbox arrives with agent proposals">
+					<Link
+						to="/inbox"
+						className="rail-item"
+						title={waiting === 0 ? "Nothing needs you" : `${waiting} waiting for your decision`}
+					>
 						<Inbox aria-hidden />
 						<span className="rail-label">Inbox</span>
-						<span className="rail-count">soon</span>
-					</span>
+						{waiting === 0 ? null : <span className="rail-count is-waiting">{waiting}</span>}
+					</Link>
 					{oldestRun === undefined ? (
 						<span className="rail-item" aria-disabled="true" title="No agent is working right now">
 							<CircleDot aria-hidden />
