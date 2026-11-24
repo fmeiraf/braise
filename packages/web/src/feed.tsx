@@ -41,7 +41,7 @@ export function EventItem({
 						</>
 					) : null}
 				</p>
-				{label.detail === null ? null : <p className="feed-detail">Changed {label.detail}</p>}
+				{label.detail === null ? null : <p className="feed-detail">{label.detail}</p>}
 				{event.reason === null ? null : <p className="feed-reason">{event.reason}</p>}
 				{full ? null : (
 					<p className="feed-meta">

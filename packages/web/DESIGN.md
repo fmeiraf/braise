@@ -139,6 +139,16 @@ components:
     height: "40px"
   table-row-hover:
     backgroundColor: "{colors.ground-sunk}"
+  work-row:
+    backgroundColor: "transparent"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    padding: "0 8px 0 0"
+    height: "34px"
+  work-row-hover:
+    backgroundColor: "{colors.ground-sunk}"
+  work-row-selected:
+    backgroundColor: "{colors.line}"
 ---
 
 # Design System: braise
@@ -217,8 +227,10 @@ A two-column app shell: a 232px rail and a fluid work area. The work area carrie
 - **Cockpit:** main column plus a 300px activity aside (240px below 1280px, where main padding drops to 24px). Main padding 24px top, 32px sides, 48px bottom; 32px between blocks.
 - **History:** 260px versions list beside a diff page capped at 960px.
 - **First run:** a single 560px column, centered, 48px top.
-- **Definition grids:** 128px label column for the kernel and diff fields; 96px for bet fields.
-- **Spacing scale:** 4 / 8 / 12 / 16 / 24 / 32 / 48. Rows are 28px (rail, controls), 32px (inputs, table headers), 36px (goal rows) and 40px (table rows).
+- **Work:** a main column capped at 1104px (cockpit padding, 32px between goal sections). Selecting an item opens a 360px detail pane at the right (320px below 1280px, where the keyboard hint in the title row is hidden). The pane is sticky under the top bar, full height, sunk ground with a left hairline, 16px padding. It reads top-down: kind tag and an Ink 3 "in <parent>" path with a close button; the 14px/600 title, editable in place; a 76px-label field grid (status as a compact segmented control with 24px segments carrying their markers, function and priority selects at 28px, goal for initiatives only, order as "n of m" with up/down icon buttons); the description below a hairline; and a foot pinned to the bottom with the added/edited line and a secondary Archive button that opens an inline confirm (ground fill on the sunk pane, no border) naming the item count.
+- **Holding work:** the same page across ventures, each venture a 14px/600 section with its item count, divided by hairlines.
+- **Definition grids:** 128px label column for the kernel and diff fields; 96px for bet fields; 76px for the work pane.
+- **Spacing scale:** 4 / 8 / 12 / 16 / 24 / 32 / 48. Rows are 28px (rail, controls), 32px (inputs, table headers, work goal heads), 34px (work rows), 36px (goal rows) and 40px (table rows).
 
 No mobile layout exists; `body` holds a 1024px minimum width.
 
@@ -237,7 +249,7 @@ Flat. Depth comes from tone, not shadow: the charcoal rail, the cream ground, th
 
 ## Shapes
 
-Small, uniform corners: 6px on every control, rail item and reveal panel; 4px on tags, status pills and the editable hover; 8px on the segmented control track; 2px on diff insertions. Status markers are hard squares with no radius: 6px pixels, 7px spine nodes, 5px goal nodes. Hollow markers use a 1.5px inset stroke. Icons are Lucide strokes at 14-16px (1.75 stroke, 2 in buttons).
+Small, uniform corners: 6px on every control, rail item and reveal panel; 4px on tags, status pills and the editable hover; 8px on the segmented control track; 2px on diff insertions. Status markers are hard squares with no radius: 6px pixels, 7px spine nodes and work markers, 5px goal nodes. Hollow markers use a 1.5px inset stroke. Icons are Lucide strokes at 14-16px (1.75 stroke, 2 in buttons).
 
 ## Components
 
@@ -272,8 +284,19 @@ Compact and quiet; ember earns attention by being rare.
 A 1px Line Strong vertical line runs down the left of the cockpit, 28px gutter, joining the strategy, every bet and the detached "Not tied to a bet" group.
 - **Nodes:** 7px squares cut from the line by a 3px ground gap. Charcoal for strategy, ember for open bets, Won Green for won, hollow Ink 3 for settled bets and the loose group.
 - **Bets:** rows separated by hairlines; 14px/500 title, a 96px-label definition grid (action, kill criteria) in Ink 2, row actions revealed on hover or focus.
-- **Goals:** a five-column grid (marker, outcome, signal, horizon in mono, actions) with 5px hollow markers, 36px rows and sunk hover.
+- **Goals:** a six-column grid (marker, outcome, signal, horizon in mono, work, actions) with 5px hollow markers, 36px rows and sunk hover. The 76px work column is a right-aligned 12px Ink 3 "n/m done" link to the goal's section on the Work page (Line fill on hover); empty when the goal has no work.
 - **Fresh:** a node arriving from elsewhere simmers (scales up from below in ember light and settles over 1.8s) while its row flashes ember wash.
+
+### Work Tree
+Linear-like rows under one section per goal (goals tied to bets first, then loose ones). No cards, no columns.
+- **Goal head:** 32px, a hairline below. A 5px goal node (filled Ink 3; hollow when the goal is not tied to a bet), the outcome at 13px/600, the horizon in mono Ink 3, then right-aligned "n/m done" in 12px Ink 3 tabular and an add-initiative icon button. Arriving via a link flashes the outcome in ember wash (1.8s).
+- **Rows:** 34px min, a hairline below, 6px gaps, 100ms sunk hover. Indent 22px per depth (initiative, task, subtask). From the left: a 16px disclosure chevron (13px Lucide, Ink 3, rotates 90deg open over 120ms; an empty slot on leaves), a 20px status button holding the marker, the title, then fixed meta slots.
+- **Status markers:** 7px squares. To do is hollow (1.5px inset Ink 3), doing is ember fill, done is Ink 3 fill. Clicking the button cycles to do, doing, done; its hover fills Line Strong. The same markers lead the pane's status segments.
+- **Titles:** 13px, ellipsized on one line; initiatives at 500. Done rows turn the title Ink 3.
+- **Meta slots:** a 40px right-aligned tabular "n/m" of descendants done (empty on leaves); a 96px right-aligned slot for the function tag, shown on roots and only on children whose function differs from the parent; a 15px priority slot with Lucide signal-low, signal-medium, signal-high in Ink 3 and octagon-alert in ink for urgent; a 22px add-child icon button revealed on hover or focus.
+- **Selected:** Line fill. **Keyboard focus:** a 1px inset ember ring with square corners, replacing the global focus ring. Arrows select and fold, Enter renames in place, Alt+arrows reorder.
+- **Empty goal:** one line, 22px in, Ink 3 "No work yet." followed by an underlined Ink 2 "Add the first initiative".
+- **Add:** an "Add initiative" add-row under the tree; the inline add form replaces it as a hairline-ruled row (28px compact input, a 140px function select on roots, primary and ghost buttons) with a hollow marker leading, revealing over 200ms.
 
 ### Table (Holding)
 - Full width, hairline rows 40px tall, 12px cell padding. Sticky headers sit under the top bar: 32px, 12px/500 Ink 3, sortable buttons that turn ink when hovered or sorted.
@@ -295,7 +318,7 @@ A 1px Line Strong vertical line runs down the left of the cockpit, 28px gutter, 
 - **Loading:** 12px shimmer bars (Line to sunk ground, 1.4s linear) in 12px-gap stacks.
 - **Empty:** a single line of Ink 3 text in place, no illustration.
 - **Reveal panels:** reason and settle rows open in sunk ground with a 220ms rise (4px, ember-out easing).
-- **Reduced motion:** simmer, flash, reveal, shimmer and blink are removed; the strategy collapse chevron stops rotating.
+- **Reduced motion:** simmer, flash, reveal, shimmer and blink are removed; the strategy collapse chevron stops rotating. On the Work page the add-form reveal and the target-goal flash are removed and the fold chevron stops rotating.
 
 ## Do's and Don'ts
 
@@ -306,6 +329,7 @@ A 1px Line Strong vertical line runs down the left of the cockpit, 28px gutter, 
 - **Do** set seq numbers, slugs, dates and versions in monospace at 12px with tabular numerals, and nothing else.
 - **Do** hang new strategy-derived content off the spine: kernel, bets, goals, top-down on one line.
 - **Do** show liveness with the 1.8s simmer on what changed, and the reconnect pixel only while the stream is down.
+- **Do** keep work markers neutral: ember fills a work marker only while the item is doing.
 - **Do** honor reduced motion by removing every animation listed under States.
 
 ### Don't:

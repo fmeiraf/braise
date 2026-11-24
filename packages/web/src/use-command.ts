@@ -1,23 +1,26 @@
 import type { CommandInput, CommandName, CommandResponse } from "@braise/core";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef } from "react";
 import { api } from "./api.ts";
 
-function newKey() {
-	return crypto.randomUUID();
-}
+type CommandRequest<Name extends CommandName> = { payload: CommandInput<Name>; reason?: string };
 
 export function useCommand<Name extends CommandName, Result>(
 	name: Name,
 	onSuccess: (response: CommandResponse<Result>) => void,
 ) {
-	const [idempotencyKey, setIdempotencyKey] = useState(newKey);
+	const intent = useRef<{ key: string; body: string } | null>(null);
 
 	const mutation = useMutation({
-		mutationFn: (input: { payload: CommandInput<Name>; reason?: string }) =>
-			api.command<Name, Result>(name, { ...input, idempotencyKey }),
+		mutationFn: (input: CommandRequest<Name>) => {
+			const body = JSON.stringify(input);
+
+			if (intent.current?.body !== body) intent.current = { key: crypto.randomUUID(), body };
+
+			return api.command<Name, Result>(name, { ...input, idempotencyKey: intent.current.key });
+		},
 		onSuccess: (response) => {
-			setIdempotencyKey(newKey());
+			intent.current = null;
 
 			onSuccess(response);
 		},

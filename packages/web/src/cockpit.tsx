@@ -1,9 +1,9 @@
-import type { Bet, BetStatus, Cockpit, Goal, StrategyVersion } from "@braise/core";
+import type { Bet, BetStatus, Cockpit, Goal, StrategyVersion, WorkProgress } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { Archive, ChevronDown, ChevronRight, History, Pencil, Plus } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
-import { api, type SetStatusResult } from "./api.ts";
+import { ApiRequestError, api, type SetStatusResult } from "./api.ts";
 import { Editable } from "./editable.tsx";
 import { describeError } from "./errors.ts";
 import { EventItem } from "./feed.tsx";
@@ -48,7 +48,7 @@ export function CockpitPage() {
 }
 
 function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
-	const { venture, strategy, bets, goals } = cockpit;
+	const { venture, strategy, bets, goals, workProgress } = cockpit;
 	const freshBets = useFreshIds(venture.id, bets);
 	const freshGoals = useFreshIds(venture.id, goals);
 	const [adding, setAdding] = useState(false);
@@ -115,6 +115,7 @@ function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 											goals={goals.filter((goal) => goal.betId === bet.id)}
 											fresh={freshBets.has(bet.id)}
 											freshGoals={freshGoals}
+											progress={workProgress}
 										/>
 									))}
 								</ol>
@@ -134,6 +135,7 @@ function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 								goals={looseGoals}
 								bets={bets}
 								fresh={freshGoals}
+								progress={workProgress}
 								loose
 							/>
 						</section>
@@ -357,6 +359,7 @@ function BetItem(props: {
 	goals: Goal[];
 	fresh: boolean;
 	freshGoals: ReadonlySet<string>;
+	progress: Record<string, WorkProgress>;
 }) {
 	const { slug, bet, goals } = props;
 	const client = useQueryClient();
@@ -534,6 +537,7 @@ function BetItem(props: {
 				goals={goals}
 				bets={props.bets}
 				fresh={props.freshGoals}
+				progress={props.progress}
 			/>
 		</li>
 	);
@@ -587,6 +591,7 @@ function GoalList(props: {
 	goals: Goal[];
 	bets: Bet[];
 	fresh: ReadonlySet<string>;
+	progress: Record<string, WorkProgress>;
 	loose?: boolean;
 }) {
 	const [adding, setAdding] = useState(false);
@@ -594,7 +599,14 @@ function GoalList(props: {
 	return (
 		<ul className={props.loose === true ? "goals is-loose" : "goals"}>
 			{props.goals.map((goal) => (
-				<GoalRow key={goal.id} slug={props.slug} goal={goal} bets={props.bets} fresh={props.fresh.has(goal.id)} />
+				<GoalRow
+					key={goal.id}
+					slug={props.slug}
+					goal={goal}
+					bets={props.bets}
+					fresh={props.fresh.has(goal.id)}
+					progress={props.progress[goal.id]}
+				/>
 			))}
 			{props.goals.length === 0 && !adding ? (
 				<li className="goal-empty">
@@ -620,7 +632,8 @@ function GoalList(props: {
 	);
 }
 
-function GoalRow({ slug, goal, bets, fresh }: { slug: string; goal: Goal; bets: Bet[]; fresh: boolean }) {
+function GoalRow(props: { slug: string; goal: Goal; bets: Bet[]; fresh: boolean; progress: WorkProgress | undefined }) {
+	const { slug, goal, bets, fresh, progress } = props;
 	const client = useQueryClient();
 
 	const storeGoal = (seq: number, next: Goal) =>
@@ -669,6 +682,19 @@ function GoalRow({ slug, goal, bets, fresh }: { slug: string; goal: Goal; bets: 
 					save={(value) => update.mutateAsync({ payload: { ...base, horizon: value === "" ? null : value } })}
 				/>
 			</span>
+			<span className="goal-work">
+				{progress === undefined ? null : (
+					<Link
+						to="/v/$slug/work"
+						params={{ slug }}
+						hash={`goal-${goal.id}`}
+						className="num"
+						title="Open this goal's work"
+					>
+						{progress.done}/{progress.total} done
+					</Link>
+				)}
+			</span>
 			<span className="row-actions">
 				<label className="visually-hidden" htmlFor={`bet-of-${goal.id}`}>
 					Bet this goal tests
@@ -703,6 +729,14 @@ function GoalRow({ slug, goal, bets, fresh }: { slug: string; goal: Goal; bets: 
 			{update.isError || archive.isError ? (
 				<span className="error-text goal-error" role="alert">
 					{describeError(update.error ?? archive.error)}
+					{archive.error instanceof ApiRequestError && archive.error.details.rule === "goal_has_work" ? (
+						<>
+							{". "}
+							<Link to="/v/$slug/work" params={{ slug }} hash={`goal-${goal.id}`} className="inline-link">
+								Open its work
+							</Link>
+						</>
+					) : null}
 				</span>
 			) : null}
 		</li>

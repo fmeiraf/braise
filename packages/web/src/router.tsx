@@ -6,6 +6,7 @@ import { CreateVenture } from "./create-venture.tsx";
 import { HistoryPage } from "./history.tsx";
 import { HoldingPage, PageError } from "./holding.tsx";
 import { Shell } from "./shell.tsx";
+import { HoldingWorkPage, VentureWorkPage } from "./work.tsx";
 
 const rootRoute = createRootRoute({ component: Shell });
 
@@ -21,6 +22,15 @@ const holdingActivityRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/activity",
 	component: HoldingActivityPage,
+});
+
+const workSearch = z.object({ item: z.string().optional() });
+
+const holdingWorkRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/work",
+	validateSearch: workSearch,
+	component: HoldingWorkPage,
 });
 
 const ventureRoute = createRoute({ getParentRoute: () => rootRoute, path: "/v/$slug" });
@@ -45,11 +55,19 @@ const ventureActivityRoute = createRoute({
 	component: VentureActivityPage,
 });
 
+const ventureWorkRoute = createRoute({
+	getParentRoute: () => ventureRoute,
+	path: "/work",
+	validateSearch: workSearch,
+	component: VentureWorkPage,
+});
+
 const routeTree = rootRoute.addChildren([
 	holdingRoute,
 	newVentureRoute,
 	holdingActivityRoute,
-	ventureRoute.addChildren([cockpitRoute, historyRoute, ventureActivityRoute]),
+	holdingWorkRoute,
+	ventureRoute.addChildren([cockpitRoute, historyRoute, ventureWorkRoute, ventureActivityRoute]),
 ]);
 
 export const router = createRouter({

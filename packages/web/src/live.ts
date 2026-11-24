@@ -1,4 +1,4 @@
-import type { Cockpit, StreamHint } from "@braise/core";
+import type { Cockpit, HoldingWork, StreamHint, VentureWork, WorkItem } from "@braise/core";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "./api.ts";
@@ -6,10 +6,12 @@ import { api } from "./api.ts";
 export const keys = {
 	ventures: ["ventures"] as const,
 	recent: ["recent-events"] as const,
+	holdingWork: ["work"] as const,
 	venture: (slug: string) => ["venture", slug] as const,
 	cockpit: (slug: string) => ["venture", slug, "cockpit"] as const,
 	versions: (slug: string) => ["venture", slug, "versions"] as const,
 	events: (slug: string) => ["venture", slug, "events"] as const,
+	work: (slug: string) => ["venture", slug, "work"] as const,
 };
 
 export const queries = {
@@ -17,6 +19,8 @@ export const queries = {
 	recent: () => queryOptions({ queryKey: keys.recent, queryFn: () => api.recentEvents() }),
 	cockpit: (slug: string) => queryOptions({ queryKey: keys.cockpit(slug), queryFn: () => api.cockpit(slug) }),
 	versions: (slug: string) => queryOptions({ queryKey: keys.versions(slug), queryFn: () => api.versions(slug) }),
+	work: (slug: string) => queryOptions({ queryKey: keys.work(slug), queryFn: () => api.work(slug) }),
+	holdingWork: () => queryOptions({ queryKey: keys.holdingWork, queryFn: api.holdingWork }),
 };
 
 const knownSeq = new Map<string, number>();
@@ -60,7 +64,32 @@ export function applyHint(client: QueryClient, hint: StreamHint) {
 
 	void client.invalidateQueries({ queryKey: keys.recent });
 
+	void client.invalidateQueries({ queryKey: keys.holdingWork });
+
 	for (const listener of freshListeners) listener(hint.ventureId);
+}
+
+export function patchWork(client: QueryClient, slug: string, update: (items: WorkItem[]) => WorkItem[]) {
+	client.setQueryData<VentureWork>(keys.work(slug), (current) =>
+		current === undefined ? current : { ...current, workItems: update(current.workItems) },
+	);
+
+	client.setQueryData<HoldingWork>(keys.holdingWork, (current) =>
+		current === undefined ? current : { ...current, workItems: update(current.workItems) },
+	);
+}
+
+export function refreshVenture(client: QueryClient, venture: { id: string; slug: string }, seq: number) {
+	for (const listener of localListeners) listener();
+
+	rememberVenture(venture.id, venture.slug, seq);
+
+	return Promise.all([
+		client.invalidateQueries({ queryKey: keys.venture(venture.slug) }),
+		client.invalidateQueries({ queryKey: keys.holdingWork }),
+		client.invalidateQueries({ queryKey: keys.ventures }),
+		client.invalidateQueries({ queryKey: keys.recent }),
+	]);
 }
 
 export function updateCockpit(client: QueryClient, slug: string, seq: number, update: (cockpit: Cockpit) => Cockpit) {
@@ -81,6 +110,10 @@ export function updateCockpit(client: QueryClient, slug: string, seq: number, up
 	void client.invalidateQueries({ queryKey: keys.events(slug) });
 
 	void client.invalidateQueries({ queryKey: keys.versions(slug) });
+
+	void client.invalidateQueries({ queryKey: keys.work(slug) });
+
+	void client.invalidateQueries({ queryKey: keys.holdingWork });
 }
 
 export type StreamState = "connecting" | "live" | "down";

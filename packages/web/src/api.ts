@@ -9,7 +9,10 @@ import type {
 	ErrorCode,
 	Goal,
 	HoldingRow,
+	HoldingWork,
 	StrategyVersion,
+	VentureWork,
+	WorkItem,
 } from "@braise/core";
 
 export class ApiRequestError extends Error {
@@ -64,6 +67,8 @@ export const api = {
 		request<{ ventureId: string; lastSeq: number; events: DomainEvent[] }>(
 			`/api/ventures/${encodeURIComponent(slug)}/events?limit=${limit}${before === null ? "" : `&before=${before}`}`,
 		),
+	work: (slug: string) => request<VentureWork>(`/api/ventures/${encodeURIComponent(slug)}/work`),
+	holdingWork: () => request<HoldingWork>("/api/work"),
 	recentEvents: (limit = 100) => request<{ events: RecentEvent[] }>(`/api/events?limit=${limit}`),
 	command<Name extends CommandName, Result>(
 		name: Name,
@@ -78,5 +83,7 @@ export const api = {
 };
 
 export type CreatedVenture = Pick<Cockpit, "venture" | "strategy">;
+
+export type ArchiveWorkResult = { workItem: WorkItem; archivedIds: string[] };
 
 export type SetStatusResult = { bet: Bet; archivedGoals: Goal[] };

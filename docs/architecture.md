@@ -103,7 +103,8 @@ Stores finished messages and tool calls; token deltas are live-only or batched.
 Planned (order may change):
 1. **Strategy spine:** venture → strategy (versioned) → bets → goals; command
    pipeline, event log, live updates, history. Spec: `docs/slices/01-strategy-spine.md`.
-2. Work items under goals.
+2. **Work items under goals:** initiative → task → subtask under goals, function
+   tags, manual order, the Work view. Spec: `docs/slices/02-work-items.md`.
 3. Agent thread on a work item, streaming live (Claude Agent SDK).
 4. Agent proposal → inbox → owner approves.
 5. Grants and access requests; Pi runner as the second adapter.
@@ -118,6 +119,15 @@ Milestone: braise manages itself as a venture (dogfooding).
   running app; the spec's tests pass against real Postgres.
   Rule review (process rule 3): the invariants and process rules held unchanged. The
   decisions dated 2026-11-24 below record what the slice settled.
+- **Slice 2, Work items under goals** (2026-11-24): `work_items` (at most three
+  levels under a goal, fixed function list, priority, dense manual order); commands
+  `work.create/update/set_status/move/archive` through the unchanged pipeline;
+  `goal_has_work`; the Work view (venture and Holding scope, keyboard tree, detail
+  pane) and goal progress in the cockpit. Demo scenario 1–7 verified in the running
+  app; the spec's tests pass against real Postgres.
+  Rule review (process rule 3): the invariants and process rules held unchanged; the
+  slice added only handlers, events and one table. The decisions below record what it
+  settled.
 
 ## Decisions log
 
@@ -167,3 +177,17 @@ Milestone: braise manages itself as a venture (dogfooding).
   craft level on the braise.exe brand kit (charcoal rail, near-cream work area, ember
   for actions/selection/state, pixel-square status markers, the strategy spine).
   Contract: `packages/web/.impeccable/surfaces/index-html.md`.
+- 2026-11-24: Work item model, chosen by the owner: status `todo`/`doing`/`done` set
+  by hand (parents show derived progress, no roll-up); a root names a goal and
+  children inherit it; at most three levels, kind named by depth; one function from a
+  fixed list (children default to the parent's); priority; manual order.
+- 2026-11-24: Every work item stores its root's `goal_id`, a fixed `depth` and a dense
+  sibling `position`. Children are never reparented in slice 2, so depth never changes;
+  moving a root to another goal moves its subtree in the same command.
+- 2026-11-24: `goal.archive` is refused (422 `goal_has_work`) while the goal has live
+  work. `work.archive` archives the item's subtree and emits one `work.archived`
+  event carrying the archived ids.
+- 2026-11-24: Web clients derive the idempotency key from the user's intent: the
+  key is kept while the same payload is retried and replaced when the payload
+  changes or the command succeeds. It lives in a ref, not React state, so two quick
+  commands never share a key.

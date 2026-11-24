@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useParams } from "@tanstack/react-router";
-import { Activity, CircleDot, Inbox, Layers, PanelsTopLeft, Plus } from "lucide-react";
+import { Activity, CircleDot, Inbox, Layers, ListTree, PanelsTopLeft, Plus } from "lucide-react";
 import wordmark from "../../../assets/svg/braise-exe-wordmark-light.svg";
 import { useFreshVentures } from "./fresh.ts";
 import { queries, rememberVenture, useHintStream } from "./live.ts";
@@ -20,6 +20,7 @@ export function Shell() {
 	const scopeSlug = slug ?? null;
 	const overviewPath = scopeSlug === null ? "/" : `/v/${scopeSlug}`;
 	const activityPath = scopeSlug === null ? "/activity" : `/v/${scopeSlug}/activity`;
+	const workPath = scopeSlug === null ? "/work" : `/v/${scopeSlug}/work`;
 
 	return (
 		<div className="shell">
@@ -87,6 +88,10 @@ export function Shell() {
 					<Link to={overviewPath} className="rail-item" activeOptions={{ exact: true }}>
 						<PanelsTopLeft aria-hidden />
 						<span className="rail-label">Overview</span>
+					</Link>
+					<Link to={workPath} className="rail-item" activeOptions={{ exact: true, includeSearch: false }}>
+						<ListTree aria-hidden />
+						<span className="rail-label">Work</span>
 					</Link>
 					<Link to={activityPath} className="rail-item" activeOptions={{ exact: true }}>
 						<Activity aria-hidden />

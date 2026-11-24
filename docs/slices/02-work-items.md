@@ -1,6 +1,6 @@
 # Slice 2: Work items under goals
 
-Status: **draft**. This is the build spec; the rules in `docs/architecture.md` apply
+Status: **landed** 2026-11-24. This is the build spec; the rules in `docs/architecture.md` apply
 throughout.
 
 ## Goal
