@@ -1,11 +1,11 @@
 import { eq } from "drizzle-orm";
 import pg from "pg";
 import { afterAll, describe, expect, it } from "vitest";
+import { notifyChannel } from "../src/channels.ts";
 import { commands, events, goals } from "../src/db/schema.ts";
-import { notifyChannel } from "../src/pipeline.ts";
 import { createVenture, freshKey, openTestDatabase, testUrl } from "./database.test-utils.ts";
 
-const database = openTestDatabase();
+const database = await openTestDatabase();
 
 afterAll(() => database.close());
 

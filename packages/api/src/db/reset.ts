@@ -12,6 +12,8 @@ export function assertLocalDatabase(connectionString: string) {
 export async function resetDatabase(db: Database) {
 	await db.execute(sql`DROP SCHEMA IF EXISTS drizzle CASCADE`);
 
+	await db.execute(sql`DROP SCHEMA IF EXISTS pgboss CASCADE`);
+
 	await db.execute(sql`DROP SCHEMA public CASCADE`);
 
 	await db.execute(sql`CREATE SCHEMA public`);

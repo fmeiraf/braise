@@ -1,0 +1,344 @@
+import {
+	type ActiveRun,
+	activeRunStatuses,
+	type LinkTarget,
+	type Run,
+	type RunEvent,
+	type ThreadDetail,
+	type ThreadLink,
+	type ThreadLinkType,
+	type ThreadSummary,
+} from "@braise/core";
+import { and, asc, desc, eq, ilike, inArray, isNull, type SQL } from "drizzle-orm";
+import type { Database } from "./db/client.ts";
+import {
+	bets,
+	goals,
+	runEvents,
+	runs,
+	threadLinks,
+	threadMessages,
+	threads,
+	ventures,
+	workItems,
+} from "./db/schema.ts";
+import { AppError } from "./errors.ts";
+
+type LinkRow = { threadId: string; subjectType: ThreadLinkType; subjectId: string };
+
+type ThreadRow = typeof threads.$inferSelect;
+
+type RunRow = typeof runs.$inferSelect;
+
+const workKinds = ["Initiative", "Task", "Subtask"];
+
+const ventureColumns = { ventureId: ventures.id, ventureSlug: ventures.slug, ventureName: ventures.name };
+
+function idsOf(rows: LinkRow[], type: ThreadLinkType) {
+	return rows.filter((row) => row.subjectType === type).map((row) => row.subjectId);
+}
+
+async function linkLabels(db: Database, rows: LinkRow[]) {
+	const labels = new Map<string, Omit<ThreadLink, "type" | "id">>();
+	const workIds = idsOf(rows, "work_item");
+	const goalIds = idsOf(rows, "goal");
+	const betIds = idsOf(rows, "bet");
+	const ventureIds = idsOf(rows, "venture");
+
+	const [work, goalRows, betRows, ventureRows] = await Promise.all([
+		workIds.length === 0
+			? []
+			: db
+					.select({
+						id: workItems.id,
+						label: workItems.title,
+						archivedAt: workItems.archivedAt,
+						...ventureColumns,
+					})
+					.from(workItems)
+					.innerJoin(ventures, eq(ventures.id, workItems.ventureId))
+					.where(inArray(workItems.id, workIds)),
+		goalIds.length === 0
+			? []
+			: db
+					.select({ id: goals.id, label: goals.outcome, archivedAt: goals.archivedAt, ...ventureColumns })
+					.from(goals)
+					.innerJoin(ventures, eq(ventures.id, goals.ventureId))
+					.where(inArray(goals.id, goalIds)),
+		betIds.length === 0
+			? []
+			: db
+					.select({ id: bets.id, label: bets.hypothesis, archivedAt: bets.archivedAt, ...ventureColumns })
+					.from(bets)
+					.innerJoin(ventures, eq(ventures.id, bets.ventureId))
+					.where(inArray(bets.id, betIds)),
+		ventureIds.length === 0
+			? []
+			: db
+					.select({ id: ventures.id, label: ventures.name, archivedAt: ventures.archivedAt, ...ventureColumns })
+					.from(ventures)
+					.where(inArray(ventures.id, ventureIds)),
+	]);
+
+	for (const [type, found] of [
+		["work_item", work],
+		["goal", goalRows],
+		["bet", betRows],
+		["venture", ventureRows],
+	] as const) {
+		for (const row of found) {
+			labels.set(`${type}:${row.id}`, {
+				label: row.label,
+				ventureId: row.ventureId,
+				ventureSlug: row.ventureSlug,
+				ventureName: row.ventureName,
+				archived: row.archivedAt !== null,
+			});
+		}
+	}
+
+	return labels;
+}
+
+async function linksByThread(db: Database, threadIds: string[]) {
+	const grouped = new Map<string, ThreadLink[]>();
+
+	if (threadIds.length === 0) return grouped;
+
+	const rows = await db
+		.select({
+			threadId: threadLinks.threadId,
+			subjectType: threadLinks.subjectType,
+			subjectId: threadLinks.subjectId,
+		})
+		.from(threadLinks)
+		.where(inArray(threadLinks.threadId, threadIds))
+		.orderBy(asc(threadLinks.createdAt));
+
+	const labels = await linkLabels(db, rows);
+
+	for (const row of rows) {
+		const label = labels.get(`${row.subjectType}:${row.subjectId}`);
+
+		if (label === undefined) continue;
+
+		grouped.set(row.threadId, [
+			...(grouped.get(row.threadId) ?? []),
+			{ type: row.subjectType, id: row.subjectId, ...label },
+		]);
+	}
+
+	return grouped;
+}
+
+function toRun(row: RunRow) {
+	return {
+		...row,
+		usage: row.usage as Run["usage"],
+		createdAt: row.createdAt.toISOString(),
+		startedAt: row.startedAt?.toISOString() ?? null,
+		finishedAt: row.finishedAt?.toISOString() ?? null,
+	} satisfies Run;
+}
+
+function toThread(row: ThreadRow) {
+	return {
+		...row,
+		createdAt: row.createdAt.toISOString(),
+		updatedAt: row.updatedAt.toISOString(),
+		archivedAt: row.archivedAt?.toISOString() ?? null,
+	};
+}
+
+export async function listThreads(
+	db: Database,
+	filter: { ventureId: string | null; subject: { type: ThreadLinkType; id: string } | null },
+) {
+	const conditions: SQL[] = [isNull(threads.archivedAt)];
+
+	if (filter.ventureId !== null) conditions.push(eq(threads.ventureId, filter.ventureId));
+
+	if (filter.subject !== null) {
+		conditions.push(
+			inArray(
+				threads.id,
+				db
+					.select({ id: threadLinks.threadId })
+					.from(threadLinks)
+					.where(
+						and(eq(threadLinks.subjectType, filter.subject.type), eq(threadLinks.subjectId, filter.subject.id)),
+					),
+			),
+		);
+	}
+
+	const rows = await db
+		.select()
+		.from(threads)
+		.where(and(...conditions))
+		.orderBy(desc(threads.updatedAt))
+		.limit(200);
+
+	const ids = rows.map((row) => row.id);
+
+	if (ids.length === 0) return [];
+
+	const [links, lastMessages, active] = await Promise.all([
+		linksByThread(db, ids),
+		db
+			.selectDistinctOn([threadMessages.threadId], {
+				threadId: threadMessages.threadId,
+				author: threadMessages.author,
+				body: threadMessages.body,
+				createdAt: threadMessages.createdAt,
+			})
+			.from(threadMessages)
+			.where(inArray(threadMessages.threadId, ids))
+			.orderBy(threadMessages.threadId, desc(threadMessages.seq)),
+		db
+			.select({ id: runs.id, threadId: runs.threadId, status: runs.status })
+			.from(runs)
+			.where(and(inArray(runs.threadId, ids), inArray(runs.status, [...activeRunStatuses]))),
+	]);
+
+	const lastByThread = new Map(lastMessages.map((message) => [message.threadId, message]));
+	const activeByThread = new Map(active.map((run) => [run.threadId, run]));
+
+	return rows.map((row) => {
+		const last = lastByThread.get(row.id);
+		const run = activeByThread.get(row.id);
+
+		return {
+			...toThread(row),
+			links: links.get(row.id) ?? [],
+			lastMessage:
+				last === undefined
+					? null
+					: { author: last.author, body: last.body.slice(0, 280), createdAt: last.createdAt.toISOString() },
+			activeRun: run === undefined ? null : { id: run.id, status: run.status },
+		} satisfies ThreadSummary;
+	});
+}
+
+export async function getThread(db: Database, threadId: string) {
+	const [row] = await db.select().from(threads).where(eq(threads.id, threadId));
+
+	if (row === undefined) throw new AppError("not_found", "Thread not found", { threadId });
+
+	const [venture, links, messages, runRows] = await Promise.all([
+		row.ventureId === null
+			? undefined
+			: db
+					.select({ id: ventures.id, slug: ventures.slug, name: ventures.name })
+					.from(ventures)
+					.where(eq(ventures.id, row.ventureId))
+					.then(([found]) => found),
+		linksByThread(db, [row.id]),
+		db.select().from(threadMessages).where(eq(threadMessages.threadId, row.id)).orderBy(asc(threadMessages.seq)),
+		db.select().from(runs).where(eq(runs.threadId, row.id)).orderBy(asc(runs.createdAt), asc(runs.id)),
+	]);
+
+	const eventRows =
+		runRows.length === 0
+			? []
+			: await db
+					.select()
+					.from(runEvents)
+					.where(
+						inArray(
+							runEvents.runId,
+							runRows.map((run) => run.id),
+						),
+					)
+					.orderBy(asc(runEvents.runId), asc(runEvents.seq));
+
+	return {
+		thread: toThread(row),
+		venture: venture ?? null,
+		links: links.get(row.id) ?? [],
+		messages: messages.map((message) => ({ ...message, createdAt: message.createdAt.toISOString() })),
+		runs: runRows.map((run) => ({
+			...toRun(run),
+			events: eventRows
+				.filter((event) => event.runId === run.id)
+				.map((event) => ({ ...event, createdAt: event.createdAt.toISOString() }) as RunEvent),
+		})),
+	} satisfies ThreadDetail;
+}
+
+export async function getActiveRuns(db: Database) {
+	const rows = await db
+		.select({
+			id: runs.id,
+			threadId: runs.threadId,
+			threadTitle: threads.title,
+			ventureSlug: ventures.slug,
+			status: runs.status,
+			createdAt: runs.createdAt,
+			startedAt: runs.startedAt,
+		})
+		.from(runs)
+		.innerJoin(threads, eq(threads.id, runs.threadId))
+		.leftJoin(ventures, eq(ventures.id, threads.ventureId))
+		.where(inArray(runs.status, [...activeRunStatuses]))
+		.orderBy(asc(runs.createdAt));
+
+	return rows.map(
+		(row) =>
+			({
+				...row,
+				createdAt: row.createdAt.toISOString(),
+				startedAt: row.startedAt?.toISOString() ?? null,
+			}) satisfies ActiveRun,
+	);
+}
+
+function likePattern(query: string) {
+	return `%${query.replaceAll(/[\\%_]/gu, (character) => `\\${character}`)}%`;
+}
+
+export async function getLinkTargets(db: Database, filter: { query: string; ventureId: string | null }) {
+	const pattern = likePattern(filter.query.trim());
+
+	const inScope = (column: typeof ventures.id) =>
+		filter.ventureId === null
+			? isNull(ventures.archivedAt)
+			: and(isNull(ventures.archivedAt), eq(column, filter.ventureId));
+
+	const [work, goalRows, betRows, ventureRows] = await Promise.all([
+		db
+			.select({ id: workItems.id, label: workItems.title, depth: workItems.depth, ...ventureColumns })
+			.from(workItems)
+			.innerJoin(ventures, eq(ventures.id, workItems.ventureId))
+			.where(and(isNull(workItems.archivedAt), ilike(workItems.title, pattern), inScope(ventures.id)))
+			.orderBy(desc(workItems.updatedAt))
+			.limit(8),
+		db
+			.select({ id: goals.id, label: goals.outcome, ...ventureColumns })
+			.from(goals)
+			.innerJoin(ventures, eq(ventures.id, goals.ventureId))
+			.where(and(isNull(goals.archivedAt), ilike(goals.outcome, pattern), inScope(ventures.id)))
+			.orderBy(desc(goals.updatedAt))
+			.limit(4),
+		db
+			.select({ id: bets.id, label: bets.hypothesis, ...ventureColumns })
+			.from(bets)
+			.innerJoin(ventures, eq(ventures.id, bets.ventureId))
+			.where(and(isNull(bets.archivedAt), ilike(bets.hypothesis, pattern), inScope(ventures.id)))
+			.orderBy(desc(bets.updatedAt))
+			.limit(3),
+		db
+			.select({ id: ventures.id, label: ventures.name, ...ventureColumns })
+			.from(ventures)
+			.where(and(ilike(ventures.name, pattern), inScope(ventures.id)))
+			.orderBy(asc(ventures.name))
+			.limit(3),
+	]);
+
+	return [
+		...work.map(({ depth, ...row }) => ({ type: "work_item" as const, ...row, detail: workKinds[depth] ?? "Work" })),
+		...goalRows.map((row) => ({ type: "goal" as const, ...row, detail: "Goal" })),
+		...betRows.map((row) => ({ type: "bet" as const, ...row, detail: "Bet" })),
+		...ventureRows.map((row) => ({ type: "venture" as const, ...row, detail: "Venture" })),
+	] satisfies LinkTarget[];
+}

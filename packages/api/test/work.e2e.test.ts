@@ -2,7 +2,7 @@ import type { Cockpit, HoldingWork, VentureWork, WorkItem } from "@braise/core";
 import { afterAll, describe, expect, it } from "vitest";
 import { createVenture, freshKey, openTestDatabase } from "./database.test-utils.ts";
 
-const database = openTestDatabase();
+const database = await openTestDatabase();
 
 afterAll(() => database.close());
 

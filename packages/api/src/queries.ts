@@ -166,6 +166,7 @@ export async function getEvents(db: Database, slug: string, page: { before: numb
 			subject: events.subject,
 			payload: events.payload,
 			actor: events.actor,
+			runId: events.runId,
 			reason: commands.reason,
 			createdAt: events.createdAt,
 		})
@@ -189,6 +190,7 @@ export async function getRecentEvents(db: Database, limit: number) {
 			subject: events.subject,
 			payload: events.payload,
 			actor: events.actor,
+			runId: events.runId,
 			reason: commands.reason,
 			createdAt: events.createdAt,
 		})

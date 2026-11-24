@@ -5,6 +5,7 @@ import type { Transaction } from "./db/client.ts";
 import { bets, goals, strategyVersions, ventures, workItems } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 import type { HandlerContext, Handlers, VentureRow } from "./pipeline.ts";
+import { threadHandlers } from "./thread-handlers.ts";
 
 function requireVenture(context: HandlerContext) {
 	if (context.venture === null) throw new AppError("internal_error", "Command ran without a venture lock");
@@ -192,6 +193,7 @@ async function reloadWorkItem(tx: Transaction, workItemId: string) {
 }
 
 export const handlers = {
+	...threadHandlers,
 	"venture.create": async ({ tx, actor }, payload) => {
 		const slug = payload.slug ?? slugify(payload.name);
 

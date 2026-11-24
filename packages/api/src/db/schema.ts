@@ -157,6 +157,7 @@ export const commands = pgTable("commands", {
 	payload: jsonb("payload").notNull(),
 	payloadHash: text("payload_hash").notNull(),
 	result: jsonb("result"),
+	runId: uuid("run_id"),
 	createdAt: createdAt(),
 });
 
@@ -170,6 +171,7 @@ export const events = pgTable(
 		subject: text("subject").notNull(),
 		payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
 		actor: text("actor").notNull(),
+		runId: uuid("run_id"),
 		createdAt: createdAt(),
 	},
 	(table) => [
@@ -177,4 +179,99 @@ export const events = pgTable(
 		foreignKey({ columns: [table.ventureId], foreignColumns: [ventures.id] }),
 		foreignKey({ columns: [table.commandId], foreignColumns: [commands.id] }),
 	],
+);
+
+export const threads = pgTable(
+	"threads",
+	{
+		id: uuid("id").primaryKey(),
+		ventureId: uuid("venture_id").references(() => ventures.id),
+		title: text("title").notNull(),
+		lastSeq: bigint("last_seq", { mode: "number" }).notNull().default(0),
+		createdBy: text("created_by").notNull(),
+		createdAt: createdAt(),
+		updatedAt: updatedAt(),
+		archivedAt: archivedAt(),
+	},
+	(table) => [index("threads_venture_updated_idx").on(table.ventureId, table.updatedAt.desc())],
+);
+
+export const threadLinks = pgTable(
+	"thread_links",
+	{
+		threadId: uuid("thread_id")
+			.notNull()
+			.references(() => threads.id),
+		subjectType: text("subject_type", { enum: ["work_item", "goal", "bet", "venture"] }).notNull(),
+		subjectId: uuid("subject_id").notNull(),
+		createdBy: text("created_by").notNull(),
+		createdAt: createdAt(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.threadId, table.subjectType, table.subjectId] }),
+		index("thread_links_subject_idx").on(table.subjectType, table.subjectId),
+		check("thread_links_subject_type_check", sql`${table.subjectType} IN ('work_item','goal','bet','venture')`),
+	],
+);
+
+export const runs = pgTable(
+	"runs",
+	{
+		id: uuid("id").primaryKey(),
+		threadId: uuid("thread_id")
+			.notNull()
+			.references(() => threads.id),
+		messageId: uuid("message_id").notNull(),
+		retryOf: uuid("retry_of"),
+		runtime: text("runtime").notNull(),
+		model: text("model").notNull(),
+		actor: text("actor").notNull(),
+		status: text("status", {
+			enum: ["queued", "running", "succeeded", "failed", "cancelled", "interrupted"],
+		}).notNull(),
+		error: jsonb("error").$type<{ message: string }>(),
+		usage: jsonb("usage").$type<Record<string, number>>(),
+		createdAt: createdAt(),
+		startedAt: timestamp("started_at", { withTimezone: true }),
+		finishedAt: timestamp("finished_at", { withTimezone: true }),
+	},
+	(table) => [
+		foreignKey({ columns: [table.retryOf], foreignColumns: [table.id] }),
+		index("runs_thread_idx").on(table.threadId),
+		uniqueIndex("runs_one_active_per_thread").on(table.threadId).where(sql`${table.status} IN ('queued','running')`),
+		check(
+			"runs_status_check",
+			sql`${table.status} IN ('queued','running','succeeded','failed','cancelled','interrupted')`,
+		),
+	],
+);
+
+export const threadMessages = pgTable(
+	"thread_messages",
+	{
+		id: uuid("id").primaryKey(),
+		threadId: uuid("thread_id")
+			.notNull()
+			.references(() => threads.id),
+		seq: bigint("seq", { mode: "number" }).notNull(),
+		author: text("author").notNull(),
+		runId: uuid("run_id").references(() => runs.id),
+		body: text("body").notNull(),
+		createdAt: createdAt(),
+	},
+	(table) => [unique("thread_messages_thread_seq_unique").on(table.threadId, table.seq)],
+);
+
+export const runEvents = pgTable(
+	"run_events",
+	{
+		runId: uuid("run_id")
+			.notNull()
+			.references(() => runs.id),
+		seq: integer("seq").notNull(),
+		type: text("type").notNull(),
+		payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+		createdAt: createdAt(),
+	},
+	(table) => [primaryKey({ columns: [table.runId, table.seq] })],
 );

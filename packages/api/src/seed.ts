@@ -1,12 +1,18 @@
 import type { CommandResponse } from "@braise/core";
 import type { Database } from "./db/client.ts";
 import { handlers } from "./handlers.ts";
-import { executeCommand } from "./pipeline.ts";
+import { executeCommand, type Services } from "./pipeline.ts";
 
 const actor = "owner";
 
+const seedServices = {
+	enqueueRun() {
+		return Promise.reject(new Error("The seed does not start agent runs"));
+	},
+} satisfies Services;
+
 function send(db: Database, name: string, key: string, payload: Record<string, unknown>, reason?: string) {
-	return executeCommand(db, handlers, {
+	return executeCommand(db, handlers, seedServices, {
 		name,
 		body: { payload, idempotencyKey: `seed:example:${key}`, reason },
 		actor,

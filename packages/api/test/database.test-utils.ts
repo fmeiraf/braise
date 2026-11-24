@@ -1,3 +1,4 @@
+import { runQueueServices, startBoss } from "../src/agent/queue.ts";
 import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/client.ts";
 import { assertLocalDatabase, resetDatabase } from "../src/db/reset.ts";
@@ -22,18 +23,24 @@ export async function setup() {
 	await pool.end();
 }
 
-export function openTestDatabase() {
+export async function openTestDatabase() {
 	const { db, pool } = createDatabase(testUrl(), { max: 20 });
 	const hub = createHintHub(testUrl());
-	const app = createApp({ db, hub });
+
+	const boss = await startBoss(testUrl());
+
+	const services = runQueueServices(boss);
+	const app = createApp({ db, hub, services });
 
 	return {
 		db,
 		pool,
 		hub,
+		boss,
+		services,
 		app,
-		command(name: string, body: Record<string, unknown>) {
-			return executeCommand(db, handlers, { name, body, actor: "owner" });
+		command(name: string, body: Record<string, unknown>, actor = "owner") {
+			return executeCommand(db, handlers, services, { name, body, actor });
 		},
 		post(name: string, body: Record<string, unknown>) {
 			return app.request(`/api/commands/${name}`, {
@@ -43,6 +50,8 @@ export function openTestDatabase() {
 			});
 		},
 		async close() {
+			await boss.stop({ graceful: false });
+
 			await hub.close();
 
 			await pool.end();
@@ -50,7 +59,7 @@ export function openTestDatabase() {
 	};
 }
 
-export type TestDatabase = ReturnType<typeof openTestDatabase>;
+export type TestDatabase = Awaited<ReturnType<typeof openTestDatabase>>;
 
 let keyCounter = 0;
 

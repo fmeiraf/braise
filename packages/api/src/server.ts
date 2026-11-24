@@ -1,4 +1,7 @@
 import { serve } from "@hono/node-server";
+import { claudeRuntime } from "./agent/claude.ts";
+import { runQueueServices, startBoss } from "./agent/queue.ts";
+import { createAgentWorker } from "./agent/worker.ts";
 import { createApp } from "./app.ts";
 import { createDatabase, migrateDatabase } from "./db/client.ts";
 import { readEnv } from "./env.ts";
@@ -14,21 +17,34 @@ export async function startServer() {
 
 	await hub.start();
 
-	const server = serve({ fetch: createApp({ db, hub }).fetch, port: env.PORT, hostname: "127.0.0.1" }, (info) => {
-		console.log(`braise api listening on http://127.0.0.1:${info.port}`);
-	});
+	const boss = await startBoss(env.DATABASE_URL);
+
+	const services = runQueueServices(boss);
+	const worker = createAgentWorker({ db, hub, boss, services, runtime: claudeRuntime });
+
+	await worker.start();
+
+	const server = serve(
+		{ fetch: createApp({ db, hub, services }).fetch, port: env.PORT, hostname: "127.0.0.1" },
+		(info) => {
+			console.log(`braise api listening on http://127.0.0.1:${info.port}`);
+		},
+	);
 
 	const shutdown = () => {
 		server.close();
 
-		Promise.all([hub.close(), pool.end()]).then(
-			() => process.exit(0),
-			(error: unknown) => {
-				console.error(error);
+		worker
+			.stop()
+			.then(() => Promise.all([hub.close(), pool.end()]))
+			.then(
+				() => process.exit(0),
+				(error: unknown) => {
+					console.error(error);
 
-				process.exit(1);
-			},
-		);
+					process.exit(1);
+				},
+			);
 	};
 
 	process.once("SIGINT", shutdown);

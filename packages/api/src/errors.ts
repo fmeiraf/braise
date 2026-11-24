@@ -6,6 +6,7 @@ const statusByCode = {
 	not_found: 404,
 	idempotency_conflict: 409,
 	rule_violated: 422,
+	not_granted: 403,
 	internal_error: 500,
 } as const satisfies Record<ErrorCode, ContentfulStatusCode>;
 

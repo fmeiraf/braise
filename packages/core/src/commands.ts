@@ -11,10 +11,19 @@ export const workStatuses = ["todo", "doing", "done"] as const;
 export const workFunctions = ["product", "design", "engineering", "marketing", "sales", "ops"] as const;
 export const workPriorities = ["none", "low", "medium", "high", "urgent"] as const;
 export const maxWorkDepth = 2;
+export const threadLinkTypes = ["work_item", "goal", "bet", "venture"] as const;
+export const runStatuses = ["queued", "running", "succeeded", "failed", "cancelled", "interrupted"] as const;
+export const activeRunStatuses = ["queued", "running"] as const;
+export const maxThreadLinks = 20;
+export const threadTitleLength = 80;
 
 export const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 const ventureScoped = { ventureId: id };
+
+const threadLink = z.strictObject({ type: z.enum(threadLinkTypes), id });
+
+const messageBody = text.max(20_000);
 
 export const commandSchemas = {
 	"venture.create": z.strictObject({
@@ -119,6 +128,22 @@ export const commandSchemas = {
 		goalId: id.optional(),
 	}),
 	"work.archive": z.strictObject({ ...ventureScoped, workItemId: id }),
+	"thread.start": z.strictObject({
+		ventureId: id.optional(),
+		body: messageBody,
+		links: z.array(threadLink).max(maxThreadLinks).default([]),
+	}),
+	"thread.post": z.strictObject({
+		threadId: id,
+		body: messageBody,
+		links: z.array(threadLink).max(maxThreadLinks).default([]),
+	}),
+	"thread.link": z.strictObject({ threadId: id, link: threadLink }),
+	"thread.unlink": z.strictObject({ threadId: id, link: threadLink }),
+	"thread.rename": z.strictObject({ threadId: id, title: text.max(threadTitleLength) }),
+	"thread.archive": z.strictObject({ threadId: id }),
+	"run.cancel": z.strictObject({ runId: id }),
+	"run.retry": z.strictObject({ runId: id }),
 };
 
 export type CommandName = keyof typeof commandSchemas;
@@ -128,6 +153,44 @@ export type CommandInput<Name extends CommandName> = z.input<(typeof commandSche
 export type CommandPayload<Name extends CommandName> = z.output<(typeof commandSchemas)[Name]>;
 
 export const commandsRequiringReason = new Set<CommandName>(["strategy.revise"]);
+
+export const threadCommands = new Set<CommandName>([
+	"thread.start",
+	"thread.post",
+	"thread.link",
+	"thread.unlink",
+	"thread.rename",
+	"thread.archive",
+	"run.cancel",
+	"run.retry",
+]);
+
+export const agentCommands = new Set<CommandName>([
+	"work.create",
+	"work.update",
+	"work.set_status",
+	"work.move",
+	"thread.link",
+	"thread.unlink",
+]);
+
+export const agentActorPrefix = "agent:";
+
+export function isAgentActor(actor: string) {
+	return actor.startsWith(agentActorPrefix);
+}
+
+export function threadTitle(body: string) {
+	const firstLine = body.trim().split("\n", 1)[0]?.trim() ?? "";
+	const characters = [...firstLine];
+
+	if (characters.length <= threadTitleLength) return firstLine;
+
+	return `${characters
+		.slice(0, threadTitleLength - 1)
+		.join("")
+		.trimEnd()}…`;
+}
 
 export const commandEnvelope = z.strictObject({
 	payload: z.unknown(),

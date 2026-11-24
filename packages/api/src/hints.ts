@@ -1,8 +1,58 @@
-import type { StreamHint } from "@braise/core";
+import type { RunDelta, StreamHint, ThreadHint } from "@braise/core";
 import pg from "pg";
-import { notifyChannel } from "./pipeline.ts";
+import { z } from "zod";
+import { deltaChannel, notifyChannel, runControlChannel, threadChannel } from "./channels.ts";
 
-export type HubMessage = ({ type: "hint" } & StreamHint) | { type: "reset" };
+export type HubMessage =
+	| ({ type: "hint" } & StreamHint)
+	| ({ type: "thread" } & ThreadHint)
+	| ({ type: "delta" } & RunDelta)
+	| { type: "control"; runId: string }
+	| { type: "reset" };
+
+const threadHint = z.object({ threadId: z.uuid(), ventureId: z.uuid().nullable() });
+
+const runDelta = z.object({
+	threadId: z.uuid(),
+	runId: z.uuid(),
+	block: z.number().int().min(0),
+	offset: z.number().int().min(0),
+	text: z.string(),
+});
+
+function parseJson(payload: string) {
+	try {
+		return JSON.parse(payload) as unknown;
+	} catch (error) {
+		console.error("hint stream: notification is not JSON", payload, error);
+
+		return null;
+	}
+}
+
+export function parseHubMessage(channel: string, payload: string) {
+	switch (channel) {
+		case notifyChannel: {
+			const hint = parseNotification(payload);
+
+			return hint === null ? null : ({ type: "hint", ...hint } satisfies HubMessage);
+		}
+		case threadChannel: {
+			const parsed = threadHint.safeParse(parseJson(payload));
+
+			return parsed.success ? ({ type: "thread", ...parsed.data } satisfies HubMessage) : null;
+		}
+		case deltaChannel: {
+			const parsed = runDelta.safeParse(parseJson(payload));
+
+			return parsed.success ? ({ type: "delta", ...parsed.data } satisfies HubMessage) : null;
+		}
+		case runControlChannel:
+			return z.uuid().safeParse(payload).success ? ({ type: "control", runId: payload } satisfies HubMessage) : null;
+		default:
+			return null;
+	}
+}
 
 type Listener = (message: HubMessage) => void;
 
@@ -48,15 +98,15 @@ export function createHintHub(connectionString: string) {
 		const next = new pg.Client({ connectionString });
 
 		next.on("notification", (message) => {
-			const hint = message.payload === undefined ? null : parseNotification(message.payload);
+			const parsed = message.payload === undefined ? null : parseHubMessage(message.channel, message.payload);
 
-			if (hint === null) {
-				console.error("hint stream: ignored malformed notification", message.payload);
+			if (parsed === null) {
+				console.error("hint stream: ignored malformed notification", message.channel, message.payload);
 
 				return;
 			}
 
-			broadcast({ type: "hint", ...hint });
+			broadcast(parsed);
 		});
 
 		next.on("error", (error) => {
@@ -71,7 +121,9 @@ export function createHintHub(connectionString: string) {
 
 		await next.connect();
 
-		await next.query(`LISTEN ${notifyChannel}`);
+		for (const channel of [notifyChannel, threadChannel, deltaChannel, runControlChannel]) {
+			await next.query(`LISTEN ${channel}`);
+		}
 
 		client = next;
 	};

@@ -1,21 +1,26 @@
 import { createHash } from "node:crypto";
 import {
+	agentCommands,
 	type CommandName,
 	type CommandPayload,
 	type CommandResponse,
 	commandEnvelope,
 	commandSchemas,
 	commandsRequiringReason,
+	isAgentActor,
 	isCommandName,
 } from "@braise/core";
 import { eq, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import type { z } from "zod";
+import { notifyChannel, threadChannel } from "./channels.ts";
 import type { Database, Transaction } from "./db/client.ts";
 import { commands, events, ventures } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 
-export const notifyChannel = "venture_events";
+export interface Services {
+	enqueueRun(runId: string): Promise<void>;
+}
 
 export type VentureRow = typeof ventures.$inferSelect;
 
@@ -29,14 +34,23 @@ export interface HandlerContext {
 	tx: Transaction;
 	actor: string;
 	reason: string | null;
+	runId: string | null;
 	venture: VentureRow | null;
+	queueRun(runId: string): void;
 }
 
-export interface HandlerOutcome {
+export interface VentureOutcome {
 	ventureId: string;
 	result: unknown;
 	events: PendingEvent[];
 }
+
+export interface ThreadOutcome {
+	thread: { id: string; ventureId: string | null; seq: number };
+	result: unknown;
+}
+
+export type HandlerOutcome = VentureOutcome | ThreadOutcome;
 
 export type Handler<Name extends CommandName> = (
 	context: HandlerContext,
@@ -49,6 +63,7 @@ export interface CommandRequest {
 	name: string;
 	body: unknown;
 	actor: string;
+	runId?: string | null;
 }
 
 function validationError(error: z.ZodError, scope: string) {
@@ -99,12 +114,73 @@ async function lockVenture(tx: Transaction, ventureId: string) {
 	return venture;
 }
 
-async function run<Name extends CommandName>(db: Database, handlers: Handlers, name: Name, request: CommandRequest) {
+async function finishVentureCommand(
+	tx: Transaction,
+	commandId: string,
+	request: CommandRequest,
+	outcome: VentureOutcome,
+) {
+	const [sequenced] = await tx
+		.update(ventures)
+		.set({ lastSeq: sql`${ventures.lastSeq} + ${outcome.events.length}`, updatedAt: sql`now()` })
+		.where(eq(ventures.id, outcome.ventureId))
+		.returning({ lastSeq: ventures.lastSeq });
+
+	if (sequenced === undefined) throw new AppError("internal_error", "Venture disappeared during the command");
+
+	const firstSeq = sequenced.lastSeq - outcome.events.length + 1;
+
+	await tx.insert(events).values(
+		outcome.events.map((event, index) => ({
+			ventureId: outcome.ventureId,
+			seq: firstSeq + index,
+			commandId,
+			type: event.type,
+			subject: event.subject,
+			payload: event.payload,
+			actor: request.actor,
+			runId: request.runId ?? null,
+		})),
+	);
+
+	await tx.execute(sql`SELECT pg_notify(${notifyChannel}, ${`${outcome.ventureId}:${sequenced.lastSeq}`})`);
+
+	return { ventureId: outcome.ventureId, seq: sequenced.lastSeq };
+}
+
+export function notifyThread(tx: Transaction | Database, thread: { id: string; ventureId: string | null }) {
+	return tx.execute(
+		sql`SELECT pg_notify(${threadChannel}, ${JSON.stringify({ threadId: thread.id, ventureId: thread.ventureId })})`,
+	);
+}
+
+async function finishThreadCommand(tx: Transaction, outcome: ThreadOutcome) {
+	await notifyThread(tx, outcome.thread);
+
+	return { ventureId: outcome.thread.ventureId, seq: outcome.thread.seq };
+}
+
+function assertGranted(name: CommandName, actor: string) {
+	if (isAgentActor(actor) && !agentCommands.has(name)) {
+		throw new AppError("not_granted", "Agents may not run this command", { command: name, actor });
+	}
+}
+
+async function run<Name extends CommandName>(
+	db: Database,
+	handlers: Handlers,
+	services: Services,
+	name: Name,
+	request: CommandRequest,
+) {
+	assertGranted(name, request.actor);
+
 	const { payload, idempotencyKey, reason } = parse(name, request.body);
 	const payloadHash = hashCommand(name, payload, reason);
 	const targetVentureId = ventureIdOf(payload);
+	const queuedRuns: string[] = [];
 
-	return db.transaction(async (tx) => {
+	const response = await db.transaction(async (tx) => {
 		const commandId = uuidv7();
 
 		const inserted = await tx
@@ -118,6 +194,7 @@ async function run<Name extends CommandName>(db: Database, handlers: Handlers, n
 				reason,
 				payload,
 				payloadHash,
+				runId: request.runId ?? null,
 			})
 			.onConflictDoNothing({ target: commands.idempotencyKey })
 			.returning({ id: commands.id });
@@ -139,49 +216,44 @@ async function run<Name extends CommandName>(db: Database, handlers: Handlers, n
 
 		const venture = targetVentureId === null ? null : await lockVenture(tx, targetVentureId);
 
-		const outcome = await handlers[name]({ tx, actor: request.actor, reason, venture }, payload);
-
-		const [sequenced] = await tx
-			.update(ventures)
-			.set({ lastSeq: sql`${ventures.lastSeq} + ${outcome.events.length}`, updatedAt: sql`now()` })
-			.where(eq(ventures.id, outcome.ventureId))
-			.returning({ lastSeq: ventures.lastSeq });
-
-		if (sequenced === undefined) throw new AppError("internal_error", "Venture disappeared during the command");
-
-		const firstSeq = sequenced.lastSeq - outcome.events.length + 1;
-
-		await tx.insert(events).values(
-			outcome.events.map((event, index) => ({
-				ventureId: outcome.ventureId,
-				seq: firstSeq + index,
-				commandId,
-				type: event.type,
-				subject: event.subject,
-				payload: event.payload,
+		const outcome = await handlers[name](
+			{
+				tx,
 				actor: request.actor,
-			})),
+				reason,
+				runId: request.runId ?? null,
+				venture,
+				queueRun: (runId) => queuedRuns.push(runId),
+			},
+			payload,
 		);
 
+		const finished =
+			"thread" in outcome
+				? await finishThreadCommand(tx, outcome)
+				: await finishVentureCommand(tx, commandId, request, outcome);
+
 		const response = JSON.parse(
-			JSON.stringify({ result: outcome.result, seq: sequenced.lastSeq } satisfies CommandResponse),
+			JSON.stringify({ result: outcome.result, seq: finished.seq } satisfies CommandResponse),
 		) as CommandResponse;
 
 		await tx
 			.update(commands)
-			.set({ result: response, ventureId: outcome.ventureId })
+			.set({ result: response, ventureId: finished.ventureId })
 			.where(eq(commands.id, commandId));
-
-		await tx.execute(sql`SELECT pg_notify(${notifyChannel}, ${`${outcome.ventureId}:${sequenced.lastSeq}`})`);
 
 		return response;
 	});
+
+	for (const runId of queuedRuns) await services.enqueueRun(runId);
+
+	return response;
 }
 
-export function executeCommand(db: Database, handlers: Handlers, request: CommandRequest) {
+export function executeCommand(db: Database, handlers: Handlers, services: Services, request: CommandRequest) {
 	if (!isCommandName(request.name)) {
 		throw new AppError("not_found", `Unknown command ${request.name}`, { command: request.name });
 	}
 
-	return run(db, handlers, request.name, request);
+	return run(db, handlers, services, request.name, request);
 }

@@ -1,4 +1,12 @@
-import type { betStatuses, ventureKinds, workFunctions, workPriorities, workStatuses } from "./commands.ts";
+import type {
+	betStatuses,
+	runStatuses,
+	threadLinkTypes,
+	ventureKinds,
+	workFunctions,
+	workPriorities,
+	workStatuses,
+} from "./commands.ts";
 
 export type VentureKind = (typeof ventureKinds)[number];
 
@@ -11,6 +19,10 @@ export type WorkFunction = (typeof workFunctions)[number];
 export type WorkPriority = (typeof workPriorities)[number];
 
 export type StrategyStatus = "draft" | "active" | "superseded";
+
+export type ThreadLinkType = (typeof threadLinkTypes)[number];
+
+export type RunStatus = (typeof runStatuses)[number];
 
 export interface Venture {
 	id: string;
@@ -128,6 +140,7 @@ export interface DomainEvent {
 	payload: Record<string, unknown>;
 	actor: string;
 	reason: string | null;
+	runId: string | null;
 	createdAt: string;
 }
 
@@ -141,6 +154,7 @@ export const errorCodes = [
 	"not_found",
 	"idempotency_conflict",
 	"rule_violated",
+	"not_granted",
 	"internal_error",
 ] as const;
 
@@ -153,4 +167,117 @@ export interface ApiError {
 export interface StreamHint {
 	ventureId: string;
 	seq: number;
+}
+
+export interface ThreadHint {
+	threadId: string;
+	ventureId: string | null;
+}
+
+export interface RunDelta {
+	threadId: string;
+	runId: string;
+	block: number;
+	offset: number;
+	text: string;
+}
+
+export interface Thread {
+	id: string;
+	ventureId: string | null;
+	title: string;
+	lastSeq: number;
+	createdBy: string;
+	createdAt: string;
+	updatedAt: string;
+	archivedAt: string | null;
+}
+
+export interface ThreadLink {
+	type: ThreadLinkType;
+	id: string;
+	label: string;
+	ventureId: string;
+	ventureSlug: string;
+	ventureName: string;
+	archived: boolean;
+}
+
+export interface ThreadMessage {
+	id: string;
+	threadId: string;
+	seq: number;
+	author: string;
+	runId: string | null;
+	body: string;
+	createdAt: string;
+}
+
+export interface RunUsage {
+	inputTokens: number;
+	outputTokens: number;
+	cacheReadTokens: number;
+	cacheCreationTokens: number;
+	costUsd: number;
+	durationMs: number;
+	turns: number;
+}
+
+export interface Run {
+	id: string;
+	threadId: string;
+	messageId: string;
+	retryOf: string | null;
+	runtime: string;
+	model: string;
+	actor: string;
+	status: RunStatus;
+	error: { message: string } | null;
+	usage: RunUsage | null;
+	createdAt: string;
+	startedAt: string | null;
+	finishedAt: string | null;
+}
+
+export type RunEventPayload =
+	| { type: "run.started"; payload: { model: string } }
+	| { type: "message"; payload: { block: number; text: string } }
+	| { type: "tool.call"; payload: { toolUseId: string; name: string; input: unknown } }
+	| { type: "tool.result"; payload: { toolUseId: string; output: string; isError: boolean } }
+	| { type: "run.finished"; payload: { status: RunStatus } };
+
+export type RunEvent = RunEventPayload & { runId: string; seq: number; createdAt: string };
+
+export interface ThreadSummary extends Thread {
+	links: ThreadLink[];
+	lastMessage: { author: string; body: string; createdAt: string } | null;
+	activeRun: { id: string; status: RunStatus } | null;
+}
+
+export interface ThreadDetail {
+	thread: Thread;
+	venture: { id: string; slug: string; name: string } | null;
+	links: ThreadLink[];
+	messages: ThreadMessage[];
+	runs: (Run & { events: RunEvent[] })[];
+}
+
+export interface ActiveRun {
+	id: string;
+	threadId: string;
+	threadTitle: string;
+	ventureSlug: string | null;
+	status: RunStatus;
+	createdAt: string;
+	startedAt: string | null;
+}
+
+export interface LinkTarget {
+	type: ThreadLinkType;
+	id: string;
+	label: string;
+	detail: string;
+	ventureId: string;
+	ventureSlug: string;
+	ventureName: string;
 }
