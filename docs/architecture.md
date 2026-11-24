@@ -135,7 +135,7 @@ Milestone: braise manages itself as a venture (dogfooding).
 - 2026-11-23: Idempotency key on `commands` (stores the result for replay; same key +
   different payload → 409), not on `events`.
 - 2026-11-24: The impeccable skill is mandatory for all UI work; it is vendored into the repo
-  (`.agents/skills/impeccable`, v4.8.2, symlinked from `.claude/skills`).
+  (`.agents/skills/impeccable`, v4.10.0, symlinked from `.claude/skills`).
 - 2026-11-24: UI topology: persistent sidebar; scope (Holding or a venture) filters
   views; attention (inbox, live runs) is global and never scoped.
 - 2026-11-24: Local dev: only Postgres runs in Docker; the API and web run natively;

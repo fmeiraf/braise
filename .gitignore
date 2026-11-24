@@ -11,3 +11,5 @@ coverage/
 **/.impeccable/review/
 **/.impeccable/build/
 **/.impeccable/mocks/
+.impeccable/hook.cache.json
+.codex/
