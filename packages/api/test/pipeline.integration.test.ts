@@ -105,6 +105,27 @@ describe("command pipeline", () => {
 		expect(retried.seq).toBe(2);
 	});
 
+	it("refuses to archive a bet that still has live goals", async () => {
+		const venture = await createVenture(database);
+
+		const bet = (await database.command("bet.create", {
+			payload: { ventureId: venture.id, hypothesis: "H", action: "A", killCriteria: "K" },
+			idempotencyKey: freshKey("bet"),
+		})) as { result: { id: string } };
+
+		await database.command("goal.create", {
+			payload: { ventureId: venture.id, betId: bet.result.id, outcome: "O", signal: "S", horizon: null },
+			idempotencyKey: freshKey(),
+		});
+
+		await expect(
+			database.command("bet.archive", {
+				payload: { ventureId: venture.id, betId: bet.result.id },
+				idempotencyKey: freshKey(),
+			}),
+		).rejects.toMatchObject({ code: "rule_violated", details: { rule: "bet_has_goals" } });
+	});
+
 	it("rejects an invalid payload and a missing reason before touching the database", async () => {
 		const venture = await createVenture(database);
 

@@ -160,6 +160,14 @@ describe("slice 1 demo scenario over HTTP", () => {
 			changes: { outcome: { from: "Three pilots", to: "Five pilots" } },
 		});
 
+		const recent = await json<{ events: (DomainEvent & { ventureSlug: string })[] }>(
+			database.app.request("/api/events?limit=200"),
+		);
+
+		expect(recent.body.events.filter((event) => event.ventureSlug === slug).map((event) => event.seq)).toEqual([
+			6, 5, 4, 3, 2, 1,
+		]);
+
 		const page = await json<{ events: DomainEvent[] }>(
 			database.app.request(`/api/ventures/${slug}/events?before=3&limit=1`),
 		);

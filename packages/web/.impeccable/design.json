@@ -1,0 +1,580 @@
+{
+	"schemaVersion": 2,
+	"generatedAt": "2026-11-24T19:12:05+00:00",
+	"title": "Design System: braise",
+	"extensions": {
+		"colorMeta": {
+			"rail": {
+				"role": "neutral",
+				"displayName": "Rail Charcoal",
+				"canonical": "oklch(26.0% 0.002 107)",
+				"tonalRamp": [
+					"oklch(15% 0.002 107)",
+					"oklch(26% 0.002 107)",
+					"oklch(38% 0.002 107)",
+					"oklch(49% 0.002 107)",
+					"oklch(61% 0.002 107)",
+					"oklch(72% 0.002 107)",
+					"oklch(84% 0.002 107)",
+					"oklch(95% 0.002 107)"
+				]
+			},
+			"rail-ink": {
+				"role": "neutral",
+				"displayName": "Cream Ink",
+				"canonical": "oklch(96.2% 0.017 88)",
+				"tonalRamp": [
+					"oklch(15% 0.008 88)",
+					"oklch(26% 0.010 88)",
+					"oklch(38% 0.012 88)",
+					"oklch(49% 0.015 88)",
+					"oklch(61% 0.017 88)",
+					"oklch(72% 0.014 88)",
+					"oklch(84% 0.012 88)",
+					"oklch(95% 0.010 88)"
+				]
+			},
+			"rail-muted": {
+				"role": "neutral",
+				"displayName": "Rail Muted",
+				"canonical": "oklch(74.9% 0.019 86)",
+				"tonalRamp": [
+					"oklch(15% 0.009 86)",
+					"oklch(26% 0.012 86)",
+					"oklch(38% 0.014 86)",
+					"oklch(49% 0.017 86)",
+					"oklch(61% 0.019 86)",
+					"oklch(72% 0.017 86)",
+					"oklch(84% 0.014 86)",
+					"oklch(95% 0.012 86)"
+				]
+			},
+			"rail-dim": {
+				"role": "neutral",
+				"displayName": "Rail Dim",
+				"canonical": "oklch(62.4% 0.017 86)",
+				"tonalRamp": [
+					"oklch(15% 0.008 86)",
+					"oklch(26% 0.010 86)",
+					"oklch(38% 0.012 86)",
+					"oklch(49% 0.015 86)",
+					"oklch(61% 0.017 86)",
+					"oklch(72% 0.014 86)",
+					"oklch(84% 0.012 86)",
+					"oklch(95% 0.010 86)"
+				]
+			},
+			"rail-hover": {
+				"role": "neutral",
+				"displayName": "Rail Hover",
+				"canonical": "oklch(30.4% 0.004 107)",
+				"tonalRamp": [
+					"oklch(15% 0.004 107)",
+					"oklch(26% 0.004 107)",
+					"oklch(38% 0.004 107)",
+					"oklch(49% 0.004 107)",
+					"oklch(61% 0.004 107)",
+					"oklch(72% 0.004 107)",
+					"oklch(84% 0.004 107)",
+					"oklch(95% 0.004 107)"
+				]
+			},
+			"rail-active": {
+				"role": "neutral",
+				"displayName": "Rail Active",
+				"canonical": "oklch(34.4% 0.007 95)",
+				"tonalRamp": [
+					"oklch(15% 0.007 95)",
+					"oklch(26% 0.007 95)",
+					"oklch(38% 0.007 95)",
+					"oklch(49% 0.007 95)",
+					"oklch(61% 0.007 95)",
+					"oklch(72% 0.007 95)",
+					"oklch(84% 0.007 95)",
+					"oklch(95% 0.007 95)"
+				]
+			},
+			"ground": {
+				"role": "neutral",
+				"displayName": "Ground",
+				"canonical": "oklch(98.2% 0.007 89)",
+				"tonalRamp": [
+					"oklch(15% 0.007 89)",
+					"oklch(26% 0.007 89)",
+					"oklch(38% 0.007 89)",
+					"oklch(49% 0.007 89)",
+					"oklch(61% 0.007 89)",
+					"oklch(72% 0.007 89)",
+					"oklch(84% 0.007 89)",
+					"oklch(95% 0.007 89)"
+				]
+			},
+			"ground-sunk": {
+				"role": "neutral",
+				"displayName": "Sunk Ground",
+				"canonical": "oklch(95.9% 0.013 87)",
+				"tonalRamp": [
+					"oklch(15% 0.006 87)",
+					"oklch(26% 0.008 87)",
+					"oklch(38% 0.009 87)",
+					"oklch(49% 0.011 87)",
+					"oklch(61% 0.013 87)",
+					"oklch(72% 0.011 87)",
+					"oklch(84% 0.009 87)",
+					"oklch(95% 0.008 87)"
+				]
+			},
+			"raised": {
+				"role": "neutral",
+				"displayName": "Raised",
+				"canonical": "oklch(99.7% 0.004 91)",
+				"tonalRamp": [
+					"oklch(15% 0.004 91)",
+					"oklch(26% 0.004 91)",
+					"oklch(38% 0.004 91)",
+					"oklch(49% 0.004 91)",
+					"oklch(61% 0.004 91)",
+					"oklch(72% 0.004 91)",
+					"oklch(84% 0.004 91)",
+					"oklch(95% 0.004 91)"
+				]
+			},
+			"ink": {
+				"role": "neutral",
+				"displayName": "Ink",
+				"canonical": "oklch(26.0% 0.002 107)",
+				"tonalRamp": [
+					"oklch(15% 0.002 107)",
+					"oklch(26% 0.002 107)",
+					"oklch(38% 0.002 107)",
+					"oklch(49% 0.002 107)",
+					"oklch(61% 0.002 107)",
+					"oklch(72% 0.002 107)",
+					"oklch(84% 0.002 107)",
+					"oklch(95% 0.002 107)"
+				]
+			},
+			"ink-2": {
+				"role": "neutral",
+				"displayName": "Ink 2",
+				"canonical": "oklch(44.6% 0.012 88)",
+				"tonalRamp": [
+					"oklch(15% 0.006 88)",
+					"oklch(26% 0.007 88)",
+					"oklch(38% 0.009 88)",
+					"oklch(49% 0.010 88)",
+					"oklch(61% 0.012 88)",
+					"oklch(72% 0.010 88)",
+					"oklch(84% 0.009 88)",
+					"oklch(95% 0.007 88)"
+				]
+			},
+			"ink-3": {
+				"role": "neutral",
+				"displayName": "Ink 3",
+				"canonical": "oklch(52.5% 0.013 86)",
+				"tonalRamp": [
+					"oklch(15% 0.006 86)",
+					"oklch(26% 0.008 86)",
+					"oklch(38% 0.010 86)",
+					"oklch(49% 0.012 86)",
+					"oklch(61% 0.013 86)",
+					"oklch(72% 0.011 86)",
+					"oklch(84% 0.010 86)",
+					"oklch(95% 0.008 86)"
+				]
+			},
+			"line": {
+				"role": "neutral",
+				"displayName": "Line",
+				"canonical": "oklch(91.9% 0.017 88)",
+				"tonalRamp": [
+					"oklch(15% 0.008 88)",
+					"oklch(26% 0.010 88)",
+					"oklch(38% 0.013 88)",
+					"oklch(49% 0.015 88)",
+					"oklch(61% 0.017 88)",
+					"oklch(72% 0.015 88)",
+					"oklch(84% 0.012 88)",
+					"oklch(95% 0.010 88)"
+				]
+			},
+			"line-strong": {
+				"role": "neutral",
+				"displayName": "Line Strong",
+				"canonical": "oklch(85.9% 0.025 86)",
+				"tonalRamp": [
+					"oklch(15% 0.012 86)",
+					"oklch(26% 0.015 86)",
+					"oklch(38% 0.018 86)",
+					"oklch(49% 0.022 86)",
+					"oklch(61% 0.024 86)",
+					"oklch(72% 0.021 86)",
+					"oklch(84% 0.018 86)",
+					"oklch(95% 0.015 86)"
+				]
+			},
+			"ember": {
+				"role": "primary",
+				"displayName": "Ember",
+				"canonical": "oklch(67.4% 0.174 39)",
+				"tonalRamp": [
+					"oklch(15% 0.082 39)",
+					"oklch(26% 0.106 39)",
+					"oklch(38% 0.129 39)",
+					"oklch(49% 0.152 39)",
+					"oklch(61% 0.172 39)",
+					"oklch(72% 0.149 39)",
+					"oklch(84% 0.126 39)",
+					"oklch(95% 0.103 39)"
+				]
+			},
+			"ember-deep": {
+				"role": "primary",
+				"displayName": "Ember Deep",
+				"canonical": "oklch(58.9% 0.171 37)",
+				"tonalRamp": [
+					"oklch(15% 0.081 37)",
+					"oklch(26% 0.104 37)",
+					"oklch(38% 0.127 37)",
+					"oklch(49% 0.150 37)",
+					"oklch(61% 0.170 37)",
+					"oklch(72% 0.147 37)",
+					"oklch(84% 0.124 37)",
+					"oklch(95% 0.101 37)"
+				]
+			},
+			"ember-light": {
+				"role": "primary",
+				"displayName": "Ember Light",
+				"canonical": "oklch(74.2% 0.155 45)",
+				"tonalRamp": [
+					"oklch(15% 0.074 45)",
+					"oklch(26% 0.094 45)",
+					"oklch(38% 0.115 45)",
+					"oklch(49% 0.136 45)",
+					"oklch(61% 0.154 45)",
+					"oklch(72% 0.133 45)",
+					"oklch(84% 0.113 45)",
+					"oklch(95% 0.092 45)"
+				]
+			},
+			"ember-wash": {
+				"role": "primary",
+				"displayName": "Ember Wash",
+				"canonical": "oklch(93.9% 0.027 47)",
+				"tonalRamp": [
+					"oklch(15% 0.013 47)",
+					"oklch(26% 0.016 47)",
+					"oklch(38% 0.020 47)",
+					"oklch(49% 0.023 47)",
+					"oklch(61% 0.027 47)",
+					"oklch(72% 0.023 47)",
+					"oklch(84% 0.019 47)",
+					"oklch(95% 0.016 47)"
+				]
+			},
+			"ember-wash-strong": {
+				"role": "primary",
+				"displayName": "Ember Wash Strong",
+				"canonical": "oklch(89.6% 0.047 47)",
+				"tonalRamp": [
+					"oklch(15% 0.022 47)",
+					"oklch(26% 0.028 47)",
+					"oklch(38% 0.035 47)",
+					"oklch(49% 0.041 47)",
+					"oklch(61% 0.046 47)",
+					"oklch(72% 0.040 47)",
+					"oklch(84% 0.034 47)",
+					"oklch(95% 0.028 47)"
+				]
+			},
+			"error": {
+				"role": "semantic",
+				"displayName": "Error Rust",
+				"canonical": "oklch(50.5% 0.151 37)",
+				"tonalRamp": [
+					"oklch(15% 0.072 37)",
+					"oklch(26% 0.092 37)",
+					"oklch(38% 0.112 37)",
+					"oklch(49% 0.133 37)",
+					"oklch(61% 0.150 37)",
+					"oklch(72% 0.130 37)",
+					"oklch(84% 0.110 37)",
+					"oklch(95% 0.090 37)"
+				]
+			},
+			"won": {
+				"role": "semantic",
+				"displayName": "Won Green",
+				"canonical": "oklch(52.6% 0.096 150)",
+				"tonalRamp": [
+					"oklch(15% 0.046 150)",
+					"oklch(26% 0.059 150)",
+					"oklch(38% 0.071 150)",
+					"oklch(49% 0.084 150)",
+					"oklch(61% 0.096 150)",
+					"oklch(72% 0.083 150)",
+					"oklch(84% 0.070 150)",
+					"oklch(95% 0.057 150)"
+				]
+			}
+		},
+		"typographyMeta": {
+			"headline": {
+				"displayName": "Headline",
+				"purpose": "Venture title and first-run heading; one per page."
+			},
+			"title": {
+				"displayName": "Title",
+				"purpose": "Top bar page title and section heads."
+			},
+			"body": {
+				"displayName": "Body",
+				"purpose": "All running text, rail items, table cells, buttons at 500."
+			},
+			"label": {
+				"displayName": "Label",
+				"purpose": "Field labels and rail headings; at 400 for metadata and pills."
+			},
+			"caption": {
+				"displayName": "Caption",
+				"purpose": "Tags, rail counts, keyboard hints."
+			},
+			"data": {
+				"displayName": "Data",
+				"purpose": "Monospace for seq, slugs, dates and versions only."
+			}
+		},
+		"shadows": [
+			{
+				"name": "focus-ring",
+				"value": "0 0 0 2px var(--ground), 0 0 0 4px var(--ember)",
+				"purpose": "Every keyboard focus."
+			},
+			{
+				"name": "field-halo",
+				"value": "0 0 0 3px var(--ember-wash)",
+				"purpose": "Focused inputs, textareas, selects and the slug field."
+			},
+			{
+				"name": "node-gap",
+				"value": "0 0 0 3px var(--ground)",
+				"purpose": "Cuts the spine line around each node."
+			},
+			{
+				"name": "hollow-marker",
+				"value": "inset 0 0 0 1.5px currentColor",
+				"purpose": "Hollow pixel and node markers (settled, loose, goal)."
+			},
+			{
+				"name": "checked-segment",
+				"value": "0 1px 2px rgb(36 36 35 / 0.1), 0 0 0 1px var(--line)",
+				"purpose": "The checked option of the segmented control; the only lift."
+			},
+			{
+				"name": "topbar-glass",
+				"value": "backdrop-filter: blur(8px) over color-mix(in srgb, var(--ground) 92%, transparent)",
+				"purpose": "Sticky 52px top bar."
+			}
+		],
+		"motion": [
+			{
+				"name": "ease-out",
+				"value": "cubic-bezier(0.16, 1, 0.3, 1)",
+				"purpose": "Simmer, reveal and collapse easing."
+			},
+			{
+				"name": "hover",
+				"value": "120ms",
+				"purpose": "Background, border and color transitions on controls and rail; table rows 100ms."
+			},
+			{
+				"name": "collapse",
+				"value": "160ms rotate(-90deg)",
+				"purpose": "Strategy collapse chevron."
+			},
+			{
+				"name": "reveal",
+				"value": "220ms (200ms for inline forms), opacity 0 and translateY(-4px) in",
+				"purpose": "Reason row, settle panel and inline add forms opening."
+			},
+			{
+				"name": "simmer",
+				"value": "1.8s; pixel from translateY(3px) scale(1.6) in ember light, node from translateY(4px) scale(1.8)",
+				"purpose": "A live change arriving: the touched node and its rail pixel pulse once."
+			},
+			{
+				"name": "row-simmer",
+				"value": "1.8s ember-wash to transparent",
+				"purpose": "Fresh row background flash."
+			},
+			{
+				"name": "blink",
+				"value": "1.2s steps(2, jump-none) infinite, opacity 0.2 at 50%",
+				"purpose": "Reconnect pixel while the live stream is down."
+			},
+			{
+				"name": "shimmer",
+				"value": "1.4s linear infinite",
+				"purpose": "Skeleton loading bars."
+			},
+			{
+				"name": "reduced-motion",
+				"value": "prefers-reduced-motion: reduce removes simmer, flash, reveal, shimmer, blink and the chevron rotation",
+				"purpose": "Accessibility floor."
+			}
+		],
+		"breakpoints": [
+			{
+				"name": "min-width",
+				"value": "1024px"
+			},
+			{
+				"name": "compact-cockpit",
+				"value": "max-width: 1279px (aside 240px, main padding 24px)"
+			}
+		]
+	},
+	"components": [
+		{
+			"name": "Primary Button",
+			"kind": "button",
+			"refersTo": "button-primary",
+			"description": "The one ember action per section (Add bet, Create venture).",
+			"html": "<button class=\"ds-btn ds-btn-primary\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Add bet</button>",
+			"css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background-color 120ms, border-color 120ms; } .ds-btn svg { width: 14px; height: 14px; } .ds-btn:focus-visible { box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); outline: none; } .ds-btn-primary { background: var(--ember, #ec693a); border: 1px solid var(--ember, #ec693a); color: #242423; font-weight: 600; } .ds-btn-primary:hover { background: var(--ember-light, #fa8851); border-color: var(--ember-light, #fa8851); } .ds-btn-primary:active { background: var(--ember-deep, #ce4d27); border-color: var(--ember-deep, #ce4d27); color: #f7f2e6; }"
+		},
+		{
+			"name": "Secondary Button",
+			"kind": "button",
+			"refersTo": "button-secondary",
+			"description": "Default action: raised fill, strong hairline border.",
+			"html": "<button class=\"ds-btn ds-btn-secondary\">Cancel</button>",
+			"css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background-color 120ms, border-color 120ms; } .ds-btn svg { width: 14px; height: 14px; } .ds-btn:focus-visible { box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); outline: none; } .ds-btn-secondary { background: var(--raised, #fffefb); border: 1px solid var(--line-strong, #d8d0bf); color: var(--ink, #242423); } .ds-btn-secondary:hover { background: var(--ground-sunk, #f5f1e8); }"
+		},
+		{
+			"name": "Ghost Button",
+			"kind": "button",
+			"refersTo": "button-ghost",
+			"description": "Low-emphasis in-row action (Edit, History).",
+			"html": "<button class=\"ds-btn ds-btn-ghost\">Edit</button>",
+			"css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background-color 120ms, border-color 120ms; } .ds-btn svg { width: 14px; height: 14px; } .ds-btn:focus-visible { box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); outline: none; } .ds-btn-ghost { background: transparent; border: 1px solid transparent; color: var(--ink-2, #57544d); } .ds-btn-ghost:hover { background: var(--ground-sunk, #f5f1e8); color: var(--ink, #242423); }"
+		},
+		{
+			"name": "Text Field",
+			"kind": "input",
+			"refersTo": "input",
+			"description": "Labelled field; ember border and wash halo on focus, rust border when invalid.",
+			"html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Outcome</span><input class=\"ds-input\" placeholder=\"10 users connect a bank\"><span class=\"ds-field-hint\">What changes in the world if this works.</span></label>",
+			"css": ".ds-field { display: flex; flex-direction: column; gap: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-field-label { font-size: 12px; font-weight: 600; color: var(--ink-2, #57544d); } .ds-field-hint { font-size: 12px; color: var(--ink-3, #6e6a62); } .ds-input { min-height: 32px; padding: 6px 10px; border: 1px solid var(--line-strong, #d8d0bf); border-radius: 6px; background: var(--raised, #fffefb); font: inherit; color: inherit; caret-color: var(--ember, #ec693a); transition: border-color 120ms, box-shadow 120ms; } .ds-input::placeholder { color: var(--ink-3, #6e6a62); } .ds-input:focus { outline: none; border-color: var(--ember, #ec693a); box-shadow: 0 0 0 3px var(--ember-wash, #fbe6dc); } .ds-input[aria-invalid='true'] { border-color: var(--error, #a93b19); }"
+		},
+		{
+			"name": "Rail",
+			"kind": "nav",
+			"refersTo": "rail-item",
+			"description": "Charcoal navigation rail with scope, current page and venture pixels.",
+			"html": "<nav class=\"ds-rail\"><a class=\"ds-rail-item ds-is-scope\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z\"/><path d=\"m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65\"/><path d=\"m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65\"/></svg><span>Holding</span></a><div class=\"ds-rail-heading\">Ventures</div><a class=\"ds-rail-item\"><span class=\"ds-pixel ds-is-active\"></span><span>Quiet Ledger</span></a><a class=\"ds-rail-item\" aria-current=\"page\"><span class=\"ds-pixel ds-is-quiet\"></span><span>Corner Bakery</span></a><div class=\"ds-rail-foot\"><span class=\"ds-pixel ds-blink\"></span>Reconnecting to live updates…</div></nav>",
+			"css": ".ds-rail { width: 232px; background: #242423; color: #f7f2e6; padding: 16px 8px 12px; display: flex; flex-direction: column; gap: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; } .ds-rail-item { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; border-radius: 6px; color: #b3ada0; cursor: pointer; transition: background-color 120ms, color 120ms; } .ds-rail-item svg { width: 16px; height: 16px; } .ds-rail-item:hover { background: #2f2f2d; color: #f7f2e6; } .ds-rail-item[aria-current='page'] { background: #3a3935; color: #f7f2e6; } .ds-rail-item.ds-is-scope { color: #f7f2e6; font-weight: 500; } .ds-rail-item:focus-visible { outline: none; box-shadow: 0 0 0 2px #242423, 0 0 0 4px var(--ember, #ec693a); } .ds-rail-heading { padding: 12px 8px 4px; font-size: 12px; font-weight: 600; color: #b3ada0; } .ds-rail-foot { display: flex; align-items: center; gap: 8px; padding: 8px; font-size: 12px; color: var(--ember-light, #fa8851); } .ds-pixel { flex: none; width: 6px; height: 6px; background: currentColor; } .ds-is-active { color: var(--ember, #ec693a); } .ds-is-quiet { color: #5d5a53; } .ds-blink { color: var(--ember, #ec693a); animation: ds-blink 1.2s steps(2, jump-none) infinite; } @keyframes ds-blink { 50% { opacity: 0.2; } } @media (prefers-reduced-motion: reduce) { .ds-blink { animation: none; } }"
+		},
+		{
+			"name": "Pixel Markers",
+			"kind": "custom",
+			"description": "Square status markers from the logo's bubbles: filled, ember, won, hollow, simmering.",
+			"html": "<div class=\"ds-pixels\"><span class=\"ds-px\"></span><span class=\"ds-px ds-px-ember\"></span><span class=\"ds-px ds-px-won\"></span><span class=\"ds-px ds-px-hollow\"></span><span class=\"ds-px ds-px-ember ds-px-simmer\"></span></div>",
+			"css": ".ds-pixels { display: flex; gap: 16px; align-items: center; padding: 12px; background: var(--ground, #fbf9f4); } .ds-px { width: 6px; height: 6px; background: currentColor; color: var(--line-strong, #d8d0bf); } .ds-px-ember { color: var(--ember, #ec693a); } .ds-px-won { color: var(--won, #3d7a4c); } .ds-px-hollow { background: transparent; color: var(--ink-3, #6e6a62); box-shadow: inset 0 0 0 1.5px currentColor; } .ds-px-simmer { animation: ds-simmer 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite; } @keyframes ds-simmer { 0% { transform: translateY(3px) scale(1.6); color: var(--ember-light, #fa8851); } 100% { transform: none; } } @media (prefers-reduced-motion: reduce) { .ds-px-simmer { animation: none; } }"
+		},
+		{
+			"name": "Spine",
+			"kind": "custom",
+			"description": "Signature: a 1px vertical line with square nodes joining strategy, bets and goals.",
+			"html": "<div class=\"ds-trunk\"><div class=\"ds-bet\"><span class=\"ds-node ds-node-strategy\"></span><strong>Strategy</strong> <span class=\"ds-data\">v2</span></div><div class=\"ds-bet\"><span class=\"ds-node\"></span><strong>Freelancers will connect their bank if matching is right 9 times out of 10</strong><dl class=\"ds-fields\"><dt>Action</dt><dd>Ship a read-only matcher to 30 waitlist users</dd></dl></div><div class=\"ds-bet ds-settled\"><span class=\"ds-node\"></span><strong>Settled bet</strong></div></div>",
+			"css": ".ds-trunk { position: relative; padding: 8px 0 8px 28px; background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-trunk::before { content: ''; position: absolute; left: 9px; top: 20px; bottom: 16px; width: 1px; background: var(--line-strong, #d8d0bf); } .ds-bet { position: relative; padding: 12px 0 16px; border-bottom: 1px solid var(--line, #e9e4d8); } .ds-bet:last-child { border-bottom: 0; } .ds-bet strong { font-size: 14px; font-weight: 500; } .ds-node { position: absolute; left: -22px; top: 19px; width: 7px; height: 7px; background: var(--ember, #ec693a); box-shadow: 0 0 0 3px var(--ground, #fbf9f4); } .ds-node-strategy { background: #242423; } .ds-settled .ds-node { background: var(--ground, #fbf9f4); box-shadow: 0 0 0 3px var(--ground, #fbf9f4), inset 0 0 0 1.5px var(--ink-3, #6e6a62); } .ds-settled strong { color: var(--ink-3, #6e6a62); } .ds-fields { display: grid; grid-template-columns: 96px 1fr; gap: 2px 12px; margin: 8px 0 0; color: var(--ink-2, #57544d); } .ds-fields dt { color: var(--ink-3, #6e6a62); } .ds-fields dd { margin: 0; } .ds-data { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 12px; color: var(--ink-3, #6e6a62); }"
+		},
+		{
+			"name": "Status Pill",
+			"kind": "chip",
+			"refersTo": "status-pill",
+			"description": "Bet status select with a leading pixel; ember open, green won, hollow settled.",
+			"html": "<span class=\"ds-pill\"><span class=\"ds-pill-px\"></span>open<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m6 9 6 6 6-6\"/></svg></span> <span class=\"ds-pill ds-pill-won\"><span class=\"ds-pill-px\"></span>won<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m6 9 6 6 6-6\"/></svg></span> <span class=\"ds-tag\">For profit</span>",
+			"css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border: 1px solid var(--line, #e9e4d8); border-radius: 4px; background: var(--raised, #fffefb); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 12px; color: var(--ink-2, #57544d); cursor: pointer; } .ds-pill svg { color: var(--ink-3, #6e6a62); margin-left: -2px; } .ds-pill:hover { border-color: var(--line-strong, #d8d0bf); color: var(--ink, #242423); } .ds-pill:focus-visible { box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); outline: none; } .ds-pill-px { width: 6px; height: 6px; background: var(--ember, #ec693a); } .ds-pill-won .ds-pill-px { background: var(--won, #3d7a4c); } .ds-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; background: var(--ground-sunk, #f5f1e8); color: var(--ink-2, #57544d); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 11px; font-weight: 500; }"
+		},
+		{
+			"name": "Holding Table",
+			"kind": "custom",
+			"refersTo": "table-row",
+			"description": "Hairline table with sortable sticky headers, tabular numerals and sunk row hover.",
+			"html": "<table class=\"ds-table\"><thead><tr><th aria-sort=\"descending\">Venture</th><th class=\"ds-num\">Open bets</th></tr></thead><tbody><tr><td><span class=\"ds-tpx\"></span>Quiet Ledger</td><td class=\"ds-num\">1</td></tr><tr><td><span class=\"ds-tpx ds-quiet\"></span>Corner Bakery</td><td class=\"ds-num\">0</td></tr></tbody></table>",
+			"css": ".ds-table { width: 100%; border-collapse: collapse; background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-table th { height: 32px; padding: 0 12px; text-align: left; font-size: 12px; font-weight: 500; color: var(--ink-3, #6e6a62); border-bottom: 1px solid var(--line, #e9e4d8); } .ds-table th[aria-sort] { color: var(--ink, #242423); } .ds-table td { height: 40px; padding: 0 12px; border-bottom: 1px solid var(--line, #e9e4d8); } .ds-table td:first-child { font-weight: 500; } .ds-num { text-align: right !important; font-variant-numeric: tabular-nums; } .ds-table tbody tr { cursor: pointer; transition: background-color 100ms; } .ds-table tbody tr:hover { background: var(--ground-sunk, #f5f1e8); } .ds-tpx { display: inline-block; width: 6px; height: 6px; margin-right: 8px; background: var(--ember, #ec693a); } .ds-tpx.ds-quiet { background: var(--line-strong, #d8d0bf); }"
+		},
+		{
+			"name": "Activity Feed",
+			"kind": "custom",
+			"description": "Pixel-led event list; ember pixel when fresh, reason on a hairline left rule.",
+			"html": "<ul class=\"ds-feed\"><li class=\"ds-item ds-fresh\"><span class=\"ds-fpx\"></span><div><div class=\"ds-text\"><strong>owner</strong> revised the strategy to <strong>v2</strong></div><div class=\"ds-reason\">Interviews showed it is a full day, not hours</div><div class=\"ds-meta\">8m ago <span class=\"ds-mono\">· #41</span></div></div></li><li class=\"ds-item\"><span class=\"ds-fpx\"></span><div><div class=\"ds-text\"><strong>owner</strong> added a goal <strong>Waitlist reaches 500</strong></div><div class=\"ds-meta\">7m ago</div></div></li></ul>",
+			"css": ".ds-feed { list-style: none; margin: 0; padding: 8px; background: var(--ground-sunk, #f5f1e8); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; line-height: 1.45; } .ds-item { display: grid; grid-template-columns: 6px 1fr; gap: 0 12px; padding: 8px; } .ds-fpx { width: 6px; height: 6px; margin-top: 7px; background: var(--line-strong, #d8d0bf); } .ds-fresh .ds-fpx { background: var(--ember, #ec693a); } .ds-text { color: var(--ink-2, #57544d); } .ds-text strong { color: var(--ink, #242423); font-weight: 500; } .ds-meta { font-size: 12px; color: var(--ink-3, #6e6a62); margin-top: 1px; } .ds-reason { margin-top: 4px; padding-left: 8px; border-left: 1px solid var(--line-strong, #d8d0bf); font-size: 12px; color: var(--ink-2, #57544d); } .ds-mono { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 12px; }"
+		},
+		{
+			"name": "Word Diff",
+			"kind": "custom",
+			"description": "Strategy revision diff: ember-wash insertions with an ember underline, muted strikes.",
+			"html": "<dl class=\"ds-diff\"><dt>Diagnosis</dt><dd>Bank feeds and invoices never share an identifier, so matching takes <ins>a full day</ins><del>hours</del> every month.</dd></dl>",
+			"css": ".ds-diff { display: grid; grid-template-columns: 128px 1fr; gap: 16px; padding: 12px 0; margin: 0; border-bottom: 1px solid var(--line, #e9e4d8); background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-diff dt { color: var(--ink-3, #6e6a62); font-weight: 500; } .ds-diff dd { margin: 0; max-width: 75ch; line-height: 1.6; } .ds-diff ins { text-decoration: none; background: var(--ember-wash-strong, #f8d4c3); box-shadow: inset 0 -1.5px 0 var(--ember, #ec693a); border-radius: 2px; margin-right: 0.3em; } .ds-diff del { color: var(--ink-3, #6e6a62); text-decoration-thickness: 1.5px; text-decoration-color: var(--ink-2, #57544d); }"
+		}
+	],
+	"narrative": {
+		"northStar": "The Holding Console",
+		"overview": "A working console for one expert owner steering several ventures. A committed charcoal rail (Slack's posture) sits beside a Linear-precise work area on a barely-cream ground. Everything reads top-down along one connected line, the spine: strategy kernel, then bets, then the goals testing them. Density is high and quiet: 13px system UI, hairline rules, 28px controls, no decoration that does not carry state.\n\nThe brand's simmering-terminal logo supplies exactly two devices and no more: the pixel-square bubble, which becomes every status and activity marker, and the ember orange, which is reserved for the one thing that matters on a screen. The app must never read as terminal cosplay or kitchen kitsch; monospace appears only where the content is literally data.\n\nLiveness is shown, never claimed. Changes that arrive from elsewhere make the touched node and its rail square simmer once (an ember pulse that settles), and a blinking pixel appears in the rail foot only while the live stream is down.",
+		"keyCharacteristics": [
+			"Charcoal rail (232px) + cream work area; desktop only (1024px minimum width).",
+			"Hairline-ruled rows and definition grids instead of cards.",
+			"Pixel-square markers (5-7px, square, never round) for every status.",
+			"Ember on the primary action, selection and live state only.",
+			"Monospace strictly for data: seq numbers, slugs, dates, versions."
+		],
+		"rules": [
+			{
+				"name": "The One Ember Rule",
+				"body": "Ember marks the primary action, the current selection, or live state. Nothing else. One ember button per view section; never on headings, icons, links or decoration.",
+				"section": "colors"
+			},
+			{
+				"name": "The Quiet Default Rule",
+				"body": "Resting UI is neutral. Ember appears on a pixel only when it means \"active now\" or \"just changed\"; otherwise the pixel is Line Strong, Ink 3 or the quiet rail grey.",
+				"section": "colors"
+			},
+			{
+				"name": "The Data-Only Mono Rule",
+				"body": "Monospace is for machine values: seq, slugs, dates, versions. Never for headings, labels, buttons or prose. If a human wrote it, it is sans.",
+				"section": "typography"
+			},
+			{
+				"name": "The Tabular Numbers Rule",
+				"body": "Numeric table columns are right-aligned with tabular numerals.",
+				"section": "typography"
+			},
+			{
+				"name": "The No Cards Rule",
+				"body": "Content never sits in shadowed, bordered tiles. Group with hairline rules, definition grids and sunk-ground regions. The single bordered box is the transient add-bet form (10px radius) while it is open.",
+				"section": "elevation"
+			}
+		],
+		"dos": [
+			"**Do** keep ember (#ec693a) to the primary action, the current selection and live state; one primary button per section.",
+			"**Do** mark every status and activity with a square pixel (5-7px), filled or hollow (1.5px inset), never a dot or icon.",
+			"**Do** separate content with 1px hairlines (#e9e4d8) and sunk ground (#f5f1e8) instead of containers.",
+			"**Do** set seq numbers, slugs, dates and versions in monospace at 12px with tabular numerals, and nothing else.",
+			"**Do** hang new strategy-derived content off the spine: kernel, bets, goals, top-down on one line.",
+			"**Do** show liveness with the 1.8s simmer on what changed, and the reconnect pixel only while the stream is down.",
+			"**Do** honor reduced motion by removing every animation listed under States."
+		],
+		"donts": [
+			"**Don't** wrap content in cards, tiles or kanban columns; the only bordered box is the transient add-bet form.",
+			"**Don't** use ember for headings, links, icons, borders at rest or decoration.",
+			"**Don't** use monospace for prose, labels or headings; no terminal cosplay or kitchen kitsch.",
+			"**Don't** add shadows for elevation; the focus ring, field halo, node gap and checked segment are the whole vocabulary.",
+			"**Don't** add round status dots; markers are square.",
+			"**Don't** go above 20px type or add a display face."
+		]
+	}
+}

@@ -6,9 +6,11 @@ import { AppError } from "./errors.ts";
 import { handlers } from "./handlers.ts";
 import type { HintHub } from "./hints.ts";
 import { executeCommand } from "./pipeline.ts";
-import { getCockpit, getEvents, getStrategyVersions, listVentures } from "./queries.ts";
+import { getCockpit, getEvents, getRecentEvents, getStrategyVersions, listVentures } from "./queries.ts";
 
 const actor = "owner";
+
+const heartbeatMs = 15_000;
 
 const versionQuery = z.object({ version: z.coerce.number().int().positive().optional() });
 
@@ -59,6 +61,12 @@ export function createApp({ db, hub }: { db: Database; hub: HintHub }) {
 		return c.json(await executeCommand(db, handlers, { name: c.req.param("name"), body, actor }));
 	});
 
+	app.get("/events", async (c) => {
+		const { limit } = parseQuery(eventsQuery, c.req.query());
+
+		return c.json(await getRecentEvents(db, limit));
+	});
+
 	app.get("/ventures", async (c) => c.json({ ventures: await listVentures(db) }));
 
 	app.get("/ventures/:slug", async (c) => c.json(await getCockpit(db, c.req.param("slug"))));
@@ -95,7 +103,15 @@ export function createApp({ db, hub }: { db: Database; hub: HintHub }) {
 
 			await stream.writeSSE({ event: "ready", data: "{}" });
 
+			const heartbeat = setInterval(() => {
+				stream
+					.writeSSE({ event: "ping", data: "{}" })
+					.catch((error: unknown) => console.error("hint stream: ping failed", error));
+			}, heartbeatMs);
+
 			await closed;
+
+			clearInterval(heartbeat);
 
 			unsubscribe();
 		}),

@@ -122,3 +122,26 @@ export async function getEvents(db: Database, slug: string, page: { before: numb
 
 	return { ventureId: venture.id, lastSeq: venture.lastSeq, events: rows };
 }
+
+export async function getRecentEvents(db: Database, limit: number) {
+	const rows = await db
+		.select({
+			ventureId: events.ventureId,
+			ventureSlug: ventures.slug,
+			ventureName: ventures.name,
+			seq: events.seq,
+			type: events.type,
+			subject: events.subject,
+			payload: events.payload,
+			actor: events.actor,
+			reason: commands.reason,
+			createdAt: events.createdAt,
+		})
+		.from(events)
+		.innerJoin(commands, eq(commands.id, events.commandId))
+		.innerJoin(ventures, eq(ventures.id, events.ventureId))
+		.orderBy(desc(events.createdAt), desc(events.seq))
+		.limit(limit);
+
+	return { events: rows };
+}

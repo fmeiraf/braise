@@ -263,6 +263,19 @@ export const handlers = {
 
 		const bet = await liveBet(context.tx, venture, payload.betId);
 
+		const [liveGoalOfBet] = await context.tx
+			.select({ id: goals.id })
+			.from(goals)
+			.where(and(eq(goals.betId, bet.id), isNull(goals.archivedAt)))
+			.limit(1);
+
+		if (liveGoalOfBet !== undefined) {
+			throw new AppError("rule_violated", "Archive or move this bet's goals first", {
+				rule: "bet_has_goals",
+				betId: bet.id,
+			});
+		}
+
 		const [archived] = await context.tx
 			.update(bets)
 			.set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
