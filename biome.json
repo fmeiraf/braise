@@ -21,6 +21,6 @@
 		}
 	},
 	"files": {
-		"includes": ["**", "!!**/dist", "!!**/coverage", "!package-lock.json"]
+		"includes": ["**", "!!**/dist", "!!**/coverage", "!package-lock.json", "!!.agents", "!!.claude"]
 	}
 }

@@ -203,8 +203,14 @@ verification.
   `braise` and `braise_test`. The API and web run natively.
 - Drizzle Kit generates SQL migrations, which are committed and reviewed. Hand-written
   SQL covers partial indexes. The API runs pending migrations at startup in dev.
-- Scripts: `db:up`, `db:migrate`, `db:reset` (clean, no seed), `db:seed` (manual; one
+- Tasks: start the database, migrate, reset (clean, no seed), seed (manual; one
   labelled example venture), `dev` (API watch + Vite, proxying `/api`), `test`.
+  landmines `package-scripts` rejects bespoke names like `db:up`. Prefer the
+  tools' native commands (`docker compose up -d`, `drizzle-kit migrate`). For reset
+  and seed, decide at build time: a standard name, or a recorded `names` allowlist
+  entry.
+- Tests: unit tests sit beside their subject; the Postgres integration and e2e suites
+  go in `packages/api/test/`.
 - `.env` (`DATABASE_URL`, `PORT`) with a committed `.env.example`.
 
 ## Tests (against real Postgres)

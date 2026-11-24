@@ -94,6 +94,9 @@ Stores finished messages and tool calls; token deltas are live-only or batched.
 5. Every UI step (design, structure, code, copy, polish) goes through the
    `impeccable` skill, which is installed in the repo at `.agents/skills/impeccable`.
    It is mandatory; see `AGENTS.md`.
+6. Code must pass the landmines oxlint rules (`recommended`, `restriction`, `style`;
+   warnings fail) in pre-commit and CI. Tests use real implementations, never test
+   doubles. See `AGENTS.md`.
 
 ## Slices
 
@@ -131,3 +134,7 @@ _None landed yet._
   views; attention (inbox, live runs) is global and never scoped.
 - 2026-11-24: Local dev: only Postgres runs in Docker; the API and web run natively;
   seeding is manual.
+- 2026-11-24: oxlint + @interfere/landmines (recommended, restriction, style) runs
+  alongside Biome, with `--deny-warnings`. oxlint's built-in rules are off, because
+  Biome owns general linting. Scripts renamed to standard names: `check` → `lint` +
+  `typecheck`, and `test:watch` dropped (use `npx vitest`).
