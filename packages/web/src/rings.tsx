@@ -36,8 +36,18 @@ export function BraiseMark({ size = 28, live = false }: { size?: number; live?: 
 	);
 }
 
-/** A venture's small ring glyph: its hue, and a turning outer ring while an agent works on it. */
-export function VentureRings({ id, live, quiet }: { id: string; live: boolean; quiet: boolean }) {
+/** A venture's small ring glyph: its hue, one ring per strategy version (up to two), and a turning outer ring while an agent works. */
+export function VentureRings({
+	id,
+	version = 1,
+	live,
+	quiet,
+}: {
+	id: string;
+	version?: number;
+	live: boolean;
+	quiet: boolean;
+}) {
 	const classes = ["venture-rings", live ? "is-live" : "", quiet ? "is-quiet" : ""].join(" ");
 
 	return (
@@ -49,47 +59,72 @@ export function VentureRings({ id, live, quiet }: { id: string; live: boolean; q
 			viewBox="0 0 20 20"
 			aria-hidden="true"
 		>
-			<circle cx="9" cy="11" r="2.2" fill="currentColor" />
-			<circle cx="9.6" cy="10.5" r="5" className="venture-rings-inner" />
+			<circle cx="8.6" cy="11.4" r="2.2" fill="currentColor" />
+			{version >= 2 ? <circle cx="9.3" cy="10.7" r="5" className="venture-rings-inner" /> : null}
 			<circle cx="10" cy="10" r="8.2" className="venture-rings-outer" />
 		</svg>
 	);
 }
 
+const sampleRings = 3;
+
 /**
- * The cockpit's core sample: one ring per strategy version (up to eight), drawn around an
- * off-centre pith in the venture's hue. While an agent works, a resin ring grows around it.
+ * A venture's core sample: one ring per strategy version (up to eight, never fewer than three drawn,
+ * unreached ones as faint ghosts) around an off-centre pith in the venture's hue. While an agent
+ * works, a resin ring grows around it.
  */
-export function CoreSample({ id, version, live }: { id: string; version: number; live: boolean }) {
-	const count = Math.max(1, Math.min(version, 8));
-	const step = 30 / count;
+export function CoreSample({
+	id,
+	version,
+	live,
+	size = 92,
+}: {
+	id: string;
+	version: number;
+	live: boolean;
+	size?: number;
+}) {
+	const reached = Math.max(0, Math.min(version, 8));
+	const count = Math.max(reached, sampleRings);
+	const step = 31 / count;
 
 	return (
 		<svg
 			className={live ? "core-sample is-live" : "core-sample"}
 			style={{ color: ringColor(id) }}
-			width="84"
-			height="84"
+			width={size}
+			height={size}
 			viewBox="0 0 100 100"
 			role="img"
 			aria-label={`Strategy version ${version}${live ? ", an agent is working" : ""}`}
 		>
-			<circle cx="43" cy="56" r="7" fill="currentColor" />
+			<circle cx="39" cy="60" r="7" fill="currentColor" />
 			{Array.from({ length: count }, (_, index) => index + 1).map((ring) => {
 				const t = ring / count;
 
 				return (
 					<circle
 						key={ring}
-						cx={43 + 7 * t}
-						cy={56 - 6 * t}
+						cx={39 + 11 * t}
+						cy={60 - 10 * t}
 						r={7 + step * ring}
-						className="core-ring"
-						opacity={0.35 + 0.6 * t}
+						className={ring <= reached ? "core-ring" : "core-ring is-ghost"}
+						opacity={ring <= reached ? 0.4 + 0.6 * (ring / reached) : undefined}
 					/>
 				);
 			})}
 			<circle cx="50" cy="50" r="45" className="core-growth" pathLength={100} />
 		</svg>
+	);
+}
+
+/** A slim progress bar in the venture's ring hue. */
+export function Progress({ done, total }: { done: number; total: number }) {
+	const share = total === 0 ? 0 : Math.round((done / total) * 100);
+
+	return (
+		<span className="progress" aria-hidden="true">
+			<span className="progress-fill" style={{ width: `${share}%` }} />
+		</span>
 	);
 }

@@ -1,466 +1,610 @@
 {
 	"schemaVersion": 2,
-	"generatedAt": "2026-11-24T21:55:02+00:00",
+	"generatedAt": "2026-11-24T23:03:36+00:00",
 	"title": "Design System: braise",
 	"extensions": {
 		"colorMeta": {
-			"rail": {
+			"pith": {
 				"role": "neutral",
-				"displayName": "Rail Charcoal",
-				"canonical": "oklch(26.0% 0.002 107)",
+				"displayName": "Pith",
+				"canonical": "#131a16",
 				"tonalRamp": [
-					"oklch(15% 0.002 107)",
-					"oklch(26% 0.002 107)",
-					"oklch(38% 0.002 107)",
-					"oklch(49% 0.002 107)",
-					"oklch(61% 0.002 107)",
-					"oklch(72% 0.002 107)",
-					"oklch(84% 0.002 107)",
-					"oklch(95% 0.002 107)"
+					"oklch(15% 0.006 160)",
+					"oklch(26% 0.008 160)",
+					"oklch(38% 0.010 160)",
+					"oklch(49% 0.011 160)",
+					"oklch(61% 0.013 160)",
+					"oklch(72% 0.011 160)",
+					"oklch(84% 0.009 160)",
+					"oklch(95% 0.008 160)"
 				]
 			},
-			"rail-ink": {
+			"pith-2": {
 				"role": "neutral",
-				"displayName": "Cream Ink",
-				"canonical": "oklch(96.2% 0.017 88)",
+				"displayName": "Pith Raised",
+				"canonical": "#1d2721",
 				"tonalRamp": [
-					"oklch(15% 0.008 88)",
-					"oklch(26% 0.010 88)",
-					"oklch(38% 0.012 88)",
-					"oklch(49% 0.015 88)",
-					"oklch(61% 0.017 88)",
-					"oklch(72% 0.014 88)",
-					"oklch(84% 0.012 88)",
-					"oklch(95% 0.010 88)"
-				]
-			},
-			"rail-muted": {
-				"role": "neutral",
-				"displayName": "Rail Muted",
-				"canonical": "oklch(74.9% 0.019 86)",
-				"tonalRamp": [
-					"oklch(15% 0.009 86)",
-					"oklch(26% 0.012 86)",
-					"oklch(38% 0.014 86)",
-					"oklch(49% 0.017 86)",
-					"oklch(61% 0.019 86)",
-					"oklch(72% 0.017 86)",
-					"oklch(84% 0.014 86)",
-					"oklch(95% 0.012 86)"
-				]
-			},
-			"rail-dim": {
-				"role": "neutral",
-				"displayName": "Rail Dim",
-				"canonical": "oklch(62.4% 0.017 86)",
-				"tonalRamp": [
-					"oklch(15% 0.008 86)",
-					"oklch(26% 0.010 86)",
-					"oklch(38% 0.012 86)",
-					"oklch(49% 0.015 86)",
-					"oklch(61% 0.017 86)",
-					"oklch(72% 0.014 86)",
-					"oklch(84% 0.012 86)",
-					"oklch(95% 0.010 86)"
+					"oklch(15% 0.009 159)",
+					"oklch(26% 0.011 159)",
+					"oklch(38% 0.013 159)",
+					"oklch(49% 0.016 159)",
+					"oklch(61% 0.018 159)",
+					"oklch(72% 0.015 159)",
+					"oklch(84% 0.013 159)",
+					"oklch(95% 0.011 159)"
 				]
 			},
 			"rail-hover": {
 				"role": "neutral",
 				"displayName": "Rail Hover",
-				"canonical": "oklch(30.4% 0.004 107)",
+				"canonical": "#1b241f",
 				"tonalRamp": [
-					"oklch(15% 0.004 107)",
-					"oklch(26% 0.004 107)",
-					"oklch(38% 0.004 107)",
-					"oklch(49% 0.004 107)",
-					"oklch(61% 0.004 107)",
-					"oklch(72% 0.004 107)",
-					"oklch(84% 0.004 107)",
-					"oklch(95% 0.004 107)"
+					"oklch(15% 0.008 161)",
+					"oklch(26% 0.010 161)",
+					"oklch(38% 0.012 161)",
+					"oklch(49% 0.014 161)",
+					"oklch(61% 0.016 161)",
+					"oklch(72% 0.014 161)",
+					"oklch(84% 0.012 161)",
+					"oklch(95% 0.009 161)"
 				]
 			},
-			"rail-active": {
+			"rail-line": {
 				"role": "neutral",
-				"displayName": "Rail Active",
-				"canonical": "oklch(34.4% 0.007 95)",
+				"displayName": "Rail Line",
+				"canonical": "#26302a",
 				"tonalRamp": [
-					"oklch(15% 0.007 95)",
-					"oklch(26% 0.007 95)",
-					"oklch(38% 0.007 95)",
-					"oklch(49% 0.007 95)",
-					"oklch(61% 0.007 95)",
-					"oklch(72% 0.007 95)",
-					"oklch(84% 0.007 95)",
-					"oklch(95% 0.007 95)"
+					"oklch(15% 0.008 159)",
+					"oklch(26% 0.011 159)",
+					"oklch(38% 0.013 159)",
+					"oklch(49% 0.015 159)",
+					"oklch(61% 0.017 159)",
+					"oklch(72% 0.015 159)",
+					"oklch(84% 0.013 159)",
+					"oklch(95% 0.010 159)"
+				]
+			},
+			"rail-muted": {
+				"role": "neutral",
+				"displayName": "Rail Muted",
+				"canonical": "#a9b5ad",
+				"tonalRamp": [
+					"oklch(15% 0.008 157)",
+					"oklch(26% 0.011 157)",
+					"oklch(38% 0.013 157)",
+					"oklch(49% 0.015 157)",
+					"oklch(61% 0.017 157)",
+					"oklch(72% 0.015 157)",
+					"oklch(84% 0.013 157)",
+					"oklch(95% 0.010 157)"
+				]
+			},
+			"rail-dim": {
+				"role": "neutral",
+				"displayName": "Rail Dim",
+				"canonical": "#7d8a81",
+				"tonalRamp": [
+					"oklch(15% 0.010 156)",
+					"oklch(26% 0.012 156)",
+					"oklch(38% 0.015 156)",
+					"oklch(49% 0.018 156)",
+					"oklch(61% 0.020 156)",
+					"oklch(72% 0.017 156)",
+					"oklch(84% 0.015 156)",
+					"oklch(95% 0.012 156)"
+				]
+			},
+			"rail-quiet": {
+				"role": "neutral",
+				"displayName": "Rail Quiet",
+				"canonical": "#4d5a52",
+				"tonalRamp": [
+					"oklch(15% 0.010 158)",
+					"oklch(26% 0.013 158)",
+					"oklch(38% 0.015 158)",
+					"oklch(49% 0.018 158)",
+					"oklch(61% 0.021 158)",
+					"oklch(72% 0.018 158)",
+					"oklch(84% 0.015 158)",
+					"oklch(95% 0.012 158)"
+				]
+			},
+			"sage": {
+				"role": "neutral",
+				"displayName": "Sage Ink",
+				"canonical": "#e8ede5",
+				"tonalRamp": [
+					"oklch(15% 0.006 133)",
+					"oklch(26% 0.007 133)",
+					"oklch(38% 0.009 133)",
+					"oklch(49% 0.010 133)",
+					"oklch(61% 0.012 133)",
+					"oklch(72% 0.010 133)",
+					"oklch(84% 0.009 133)",
+					"oklch(95% 0.007 133)"
 				]
 			},
 			"ground": {
 				"role": "neutral",
-				"displayName": "Ground",
-				"canonical": "oklch(98.2% 0.007 89)",
+				"displayName": "Sage-White Ground",
+				"canonical": "#f4f5f1",
 				"tonalRamp": [
-					"oklch(15% 0.007 89)",
-					"oklch(26% 0.007 89)",
-					"oklch(38% 0.007 89)",
-					"oklch(49% 0.007 89)",
-					"oklch(61% 0.007 89)",
-					"oklch(72% 0.007 89)",
-					"oklch(84% 0.007 89)",
-					"oklch(95% 0.007 89)"
+					"oklch(15% 0.003 118)",
+					"oklch(26% 0.003 118)",
+					"oklch(38% 0.004 118)",
+					"oklch(49% 0.005 118)",
+					"oklch(61% 0.005 118)",
+					"oklch(72% 0.005 118)",
+					"oklch(84% 0.004 118)",
+					"oklch(95% 0.003 118)"
 				]
 			},
 			"ground-sunk": {
 				"role": "neutral",
 				"displayName": "Sunk Ground",
-				"canonical": "oklch(95.9% 0.013 87)",
+				"canonical": "#eceee8",
 				"tonalRamp": [
-					"oklch(15% 0.006 87)",
-					"oklch(26% 0.008 87)",
-					"oklch(38% 0.009 87)",
-					"oklch(49% 0.011 87)",
-					"oklch(61% 0.013 87)",
-					"oklch(72% 0.011 87)",
-					"oklch(84% 0.009 87)",
-					"oklch(95% 0.008 87)"
+					"oklch(15% 0.004 122)",
+					"oklch(26% 0.005 122)",
+					"oklch(38% 0.006 122)",
+					"oklch(49% 0.007 122)",
+					"oklch(61% 0.008 122)",
+					"oklch(72% 0.007 122)",
+					"oklch(84% 0.006 122)",
+					"oklch(95% 0.005 122)"
 				]
 			},
-			"raised": {
+			"paper": {
 				"role": "neutral",
-				"displayName": "Raised",
-				"canonical": "oklch(99.7% 0.004 91)",
+				"displayName": "Paper",
+				"canonical": "#ffffff",
 				"tonalRamp": [
-					"oklch(15% 0.004 91)",
-					"oklch(26% 0.004 91)",
-					"oklch(38% 0.004 91)",
-					"oklch(49% 0.004 91)",
-					"oklch(61% 0.004 91)",
-					"oklch(72% 0.004 91)",
-					"oklch(84% 0.004 91)",
-					"oklch(95% 0.004 91)"
+					"oklch(15% 0.000 90)",
+					"oklch(26% 0.000 90)",
+					"oklch(38% 0.000 90)",
+					"oklch(49% 0.000 90)",
+					"oklch(61% 0.000 90)",
+					"oklch(72% 0.000 90)",
+					"oklch(84% 0.000 90)",
+					"oklch(95% 0.000 90)"
 				]
 			},
 			"ink": {
 				"role": "neutral",
 				"displayName": "Ink",
-				"canonical": "oklch(26.0% 0.002 107)",
+				"canonical": "#151b18",
 				"tonalRamp": [
-					"oklch(15% 0.002 107)",
-					"oklch(26% 0.002 107)",
-					"oklch(38% 0.002 107)",
-					"oklch(49% 0.002 107)",
-					"oklch(61% 0.002 107)",
-					"oklch(72% 0.002 107)",
-					"oklch(84% 0.002 107)",
-					"oklch(95% 0.002 107)"
+					"oklch(15% 0.005 164)",
+					"oklch(26% 0.007 164)",
+					"oklch(38% 0.008 164)",
+					"oklch(49% 0.009 164)",
+					"oklch(61% 0.011 164)",
+					"oklch(72% 0.009 164)",
+					"oklch(84% 0.008 164)",
+					"oklch(95% 0.006 164)"
 				]
 			},
 			"ink-2": {
 				"role": "neutral",
-				"displayName": "Ink 2",
-				"canonical": "oklch(44.6% 0.012 88)",
+				"displayName": "Ink Secondary",
+				"canonical": "#47504b",
 				"tonalRamp": [
-					"oklch(15% 0.006 88)",
-					"oklch(26% 0.007 88)",
-					"oklch(38% 0.009 88)",
-					"oklch(49% 0.010 88)",
-					"oklch(61% 0.012 88)",
-					"oklch(72% 0.010 88)",
-					"oklch(84% 0.009 88)",
-					"oklch(95% 0.007 88)"
+					"oklch(15% 0.007 161)",
+					"oklch(26% 0.009 161)",
+					"oklch(38% 0.010 161)",
+					"oklch(49% 0.012 161)",
+					"oklch(61% 0.014 161)",
+					"oklch(72% 0.012 161)",
+					"oklch(84% 0.010 161)",
+					"oklch(95% 0.008 161)"
 				]
 			},
 			"ink-3": {
 				"role": "neutral",
-				"displayName": "Ink 3",
-				"canonical": "oklch(52.5% 0.013 86)",
+				"displayName": "Ink Meta",
+				"canonical": "#5f6963",
 				"tonalRamp": [
-					"oklch(15% 0.006 86)",
-					"oklch(26% 0.008 86)",
-					"oklch(38% 0.010 86)",
-					"oklch(49% 0.012 86)",
-					"oklch(61% 0.013 86)",
-					"oklch(72% 0.011 86)",
-					"oklch(84% 0.010 86)",
-					"oklch(95% 0.008 86)"
+					"oklch(15% 0.007 160)",
+					"oklch(26% 0.009 160)",
+					"oklch(38% 0.011 160)",
+					"oklch(49% 0.013 160)",
+					"oklch(61% 0.015 160)",
+					"oklch(72% 0.013 160)",
+					"oklch(84% 0.011 160)",
+					"oklch(95% 0.009 160)"
 				]
 			},
 			"line": {
 				"role": "neutral",
 				"displayName": "Line",
-				"canonical": "oklch(91.9% 0.017 88)",
+				"canonical": "#e2e5de",
 				"tonalRamp": [
-					"oklch(15% 0.008 88)",
-					"oklch(26% 0.010 88)",
-					"oklch(38% 0.013 88)",
-					"oklch(49% 0.015 88)",
-					"oklch(61% 0.017 88)",
-					"oklch(72% 0.015 88)",
-					"oklch(84% 0.012 88)",
-					"oklch(95% 0.010 88)"
+					"oklch(15% 0.005 126)",
+					"oklch(26% 0.006 126)",
+					"oklch(38% 0.007 126)",
+					"oklch(49% 0.009 126)",
+					"oklch(61% 0.010 126)",
+					"oklch(72% 0.008 126)",
+					"oklch(84% 0.007 126)",
+					"oklch(95% 0.006 126)"
 				]
 			},
 			"line-strong": {
 				"role": "neutral",
 				"displayName": "Line Strong",
-				"canonical": "oklch(85.9% 0.025 86)",
+				"canonical": "#cdd2c9",
 				"tonalRamp": [
-					"oklch(15% 0.012 86)",
-					"oklch(26% 0.015 86)",
-					"oklch(38% 0.018 86)",
-					"oklch(49% 0.022 86)",
-					"oklch(61% 0.024 86)",
-					"oklch(72% 0.021 86)",
-					"oklch(84% 0.018 86)",
-					"oklch(95% 0.015 86)"
+					"oklch(15% 0.006 131)",
+					"oklch(26% 0.008 131)",
+					"oklch(38% 0.010 131)",
+					"oklch(49% 0.012 131)",
+					"oklch(61% 0.013 131)",
+					"oklch(72% 0.011 131)",
+					"oklch(84% 0.010 131)",
+					"oklch(95% 0.008 131)"
 				]
 			},
-			"ember": {
+			"resin": {
 				"role": "primary",
-				"displayName": "Ember",
-				"canonical": "oklch(67.4% 0.174 39)",
+				"displayName": "Resin Amber",
+				"canonical": "#f0a63a",
 				"tonalRamp": [
-					"oklch(15% 0.082 39)",
-					"oklch(26% 0.106 39)",
-					"oklch(38% 0.129 39)",
-					"oklch(49% 0.152 39)",
-					"oklch(61% 0.172 39)",
-					"oklch(72% 0.149 39)",
-					"oklch(84% 0.126 39)",
-					"oklch(95% 0.103 39)"
+					"oklch(15% 0.070 72)",
+					"oklch(26% 0.089 72)",
+					"oklch(38% 0.109 72)",
+					"oklch(49% 0.128 72)",
+					"oklch(61% 0.145 72)",
+					"oklch(72% 0.126 72)",
+					"oklch(84% 0.106 72)",
+					"oklch(95% 0.087 72)"
 				]
 			},
-			"ember-deep": {
+			"resin-light": {
 				"role": "primary",
-				"displayName": "Ember Deep",
-				"canonical": "oklch(58.9% 0.171 37)",
+				"displayName": "Light Resin",
+				"canonical": "#f6c071",
 				"tonalRamp": [
-					"oklch(15% 0.081 37)",
-					"oklch(26% 0.104 37)",
-					"oklch(38% 0.127 37)",
-					"oklch(49% 0.150 37)",
-					"oklch(61% 0.170 37)",
-					"oklch(72% 0.147 37)",
-					"oklch(84% 0.124 37)",
-					"oklch(95% 0.101 37)"
+					"oklch(15% 0.055 76)",
+					"oklch(26% 0.070 76)",
+					"oklch(38% 0.085 76)",
+					"oklch(49% 0.101 76)",
+					"oklch(61% 0.114 76)",
+					"oklch(72% 0.099 76)",
+					"oklch(84% 0.083 76)",
+					"oklch(95% 0.068 76)"
 				]
 			},
-			"ember-light": {
+			"resin-deep": {
 				"role": "primary",
-				"displayName": "Ember Light",
-				"canonical": "oklch(74.2% 0.155 45)",
+				"displayName": "Deep Resin",
+				"canonical": "#b8720f",
 				"tonalRamp": [
-					"oklch(15% 0.074 45)",
-					"oklch(26% 0.094 45)",
-					"oklch(38% 0.115 45)",
-					"oklch(49% 0.136 45)",
-					"oklch(61% 0.154 45)",
-					"oklch(72% 0.133 45)",
-					"oklch(84% 0.113 45)",
-					"oklch(95% 0.092 45)"
+					"oklch(15% 0.063 67)",
+					"oklch(26% 0.080 67)",
+					"oklch(38% 0.098 67)",
+					"oklch(49% 0.115 67)",
+					"oklch(61% 0.131 67)",
+					"oklch(72% 0.113 67)",
+					"oklch(84% 0.096 67)",
+					"oklch(95% 0.078 67)"
 				]
 			},
-			"ember-wash": {
+			"resin-wash": {
 				"role": "primary",
-				"displayName": "Ember Wash",
-				"canonical": "oklch(93.9% 0.027 47)",
+				"displayName": "Resin Wash",
+				"canonical": "#fdf1dd",
 				"tonalRamp": [
-					"oklch(15% 0.013 47)",
-					"oklch(26% 0.016 47)",
-					"oklch(38% 0.020 47)",
-					"oklch(49% 0.023 47)",
-					"oklch(61% 0.027 47)",
-					"oklch(72% 0.023 47)",
-					"oklch(84% 0.019 47)",
-					"oklch(95% 0.016 47)"
+					"oklch(15% 0.014 81)",
+					"oklch(26% 0.018 81)",
+					"oklch(38% 0.022 81)",
+					"oklch(49% 0.026 81)",
+					"oklch(61% 0.029 81)",
+					"oklch(72% 0.025 81)",
+					"oklch(84% 0.021 81)",
+					"oklch(95% 0.017 81)"
 				]
 			},
-			"ember-wash-strong": {
+			"resin-wash-strong": {
 				"role": "primary",
-				"displayName": "Ember Wash Strong",
-				"canonical": "oklch(89.6% 0.047 47)",
+				"displayName": "Resin Wash Strong",
+				"canonical": "#fadfb4",
 				"tonalRamp": [
-					"oklch(15% 0.022 47)",
-					"oklch(26% 0.028 47)",
-					"oklch(38% 0.035 47)",
-					"oklch(49% 0.041 47)",
-					"oklch(61% 0.046 47)",
-					"oklch(72% 0.040 47)",
-					"oklch(84% 0.034 47)",
-					"oklch(95% 0.028 47)"
+					"oklch(15% 0.030 79)",
+					"oklch(26% 0.039 79)",
+					"oklch(38% 0.047 79)",
+					"oklch(49% 0.055 79)",
+					"oklch(61% 0.063 79)",
+					"oklch(72% 0.054 79)",
+					"oklch(84% 0.046 79)",
+					"oklch(95% 0.037 79)"
 				]
 			},
-			"error": {
-				"role": "semantic",
-				"displayName": "Error Rust",
-				"canonical": "oklch(50.5% 0.151 37)",
+			"on-resin": {
+				"role": "primary",
+				"displayName": "On-Resin",
+				"canonical": "#1b1306",
 				"tonalRamp": [
-					"oklch(15% 0.072 37)",
-					"oklch(26% 0.092 37)",
-					"oklch(38% 0.112 37)",
-					"oklch(49% 0.133 37)",
-					"oklch(61% 0.150 37)",
-					"oklch(72% 0.130 37)",
-					"oklch(84% 0.110 37)",
-					"oklch(95% 0.090 37)"
+					"oklch(15% 0.013 79)",
+					"oklch(26% 0.017 79)",
+					"oklch(38% 0.020 79)",
+					"oklch(49% 0.024 79)",
+					"oklch(61% 0.027 79)",
+					"oklch(72% 0.023 79)",
+					"oklch(84% 0.020 79)",
+					"oklch(95% 0.016 79)"
 				]
 			},
-			"won": {
-				"role": "semantic",
-				"displayName": "Won Green",
-				"canonical": "oklch(52.6% 0.096 150)",
+			"moss": {
+				"role": "tertiary",
+				"displayName": "Moss",
+				"canonical": "#4f7a45",
 				"tonalRamp": [
-					"oklch(15% 0.046 150)",
-					"oklch(26% 0.059 150)",
-					"oklch(38% 0.071 150)",
-					"oklch(49% 0.084 150)",
-					"oklch(61% 0.096 150)",
-					"oklch(72% 0.083 150)",
-					"oklch(84% 0.070 150)",
-					"oklch(95% 0.057 150)"
+					"oklch(15% 0.044 140)",
+					"oklch(26% 0.056 140)",
+					"oklch(38% 0.069 140)",
+					"oklch(49% 0.081 140)",
+					"oklch(61% 0.092 140)",
+					"oklch(72% 0.080 140)",
+					"oklch(84% 0.067 140)",
+					"oklch(95% 0.055 140)"
+				]
+			},
+			"bark": {
+				"role": "tertiary",
+				"displayName": "Bark",
+				"canonical": "#b23a24",
+				"tonalRamp": [
+					"oklch(15% 0.076 33)",
+					"oklch(26% 0.097 33)",
+					"oklch(38% 0.118 33)",
+					"oklch(49% 0.140 33)",
+					"oklch(61% 0.158 33)",
+					"oklch(72% 0.137 33)",
+					"oklch(84% 0.116 33)",
+					"oklch(95% 0.095 33)"
+				]
+			},
+			"ring-1": {
+				"role": "secondary",
+				"displayName": "Violet Ring",
+				"canonical": "#7c6cf0",
+				"tonalRamp": [
+					"oklch(15% 0.091 285)",
+					"oklch(26% 0.116 285)",
+					"oklch(38% 0.142 285)",
+					"oklch(49% 0.167 285)",
+					"oklch(61% 0.189 285)",
+					"oklch(72% 0.164 285)",
+					"oklch(84% 0.139 285)",
+					"oklch(95% 0.113 285)"
+				]
+			},
+			"ring-2": {
+				"role": "secondary",
+				"displayName": "Rose Ring",
+				"canonical": "#e0566b",
+				"tonalRamp": [
+					"oklch(15% 0.082 14)",
+					"oklch(26% 0.105 14)",
+					"oklch(38% 0.128 14)",
+					"oklch(49% 0.151 14)",
+					"oklch(61% 0.171 14)",
+					"oklch(72% 0.148 14)",
+					"oklch(84% 0.125 14)",
+					"oklch(95% 0.102 14)"
+				]
+			},
+			"ring-3": {
+				"role": "secondary",
+				"displayName": "Teal Ring",
+				"canonical": "#2fa58a",
+				"tonalRamp": [
+					"oklch(15% 0.052 174)",
+					"oklch(26% 0.067 174)",
+					"oklch(38% 0.082 174)",
+					"oklch(49% 0.097 174)",
+					"oklch(61% 0.110 174)",
+					"oklch(72% 0.095 174)",
+					"oklch(84% 0.080 174)",
+					"oklch(95% 0.065 174)"
+				]
+			},
+			"ring-4": {
+				"role": "secondary",
+				"displayName": "Blue Ring",
+				"canonical": "#3b8fe0",
+				"tonalRamp": [
+					"oklch(15% 0.069 251)",
+					"oklch(26% 0.089 251)",
+					"oklch(38% 0.108 251)",
+					"oklch(49% 0.128 251)",
+					"oklch(61% 0.145 251)",
+					"oklch(72% 0.125 251)",
+					"oklch(84% 0.106 251)",
+					"oklch(95% 0.086 251)"
+				]
+			},
+			"ring-5": {
+				"role": "secondary",
+				"displayName": "Orchid Ring",
+				"canonical": "#b35cc9",
+				"tonalRamp": [
+					"oklch(15% 0.085 319)",
+					"oklch(26% 0.109 319)",
+					"oklch(38% 0.133 319)",
+					"oklch(49% 0.157 319)",
+					"oklch(61% 0.177 319)",
+					"oklch(72% 0.154 319)",
+					"oklch(84% 0.130 319)",
+					"oklch(95% 0.106 319)"
+				]
+			},
+			"ring-6": {
+				"role": "secondary",
+				"displayName": "Leaf Ring",
+				"canonical": "#6e9b2f",
+				"tonalRamp": [
+					"oklch(15% 0.069 129)",
+					"oklch(26% 0.088 129)",
+					"oklch(38% 0.107 129)",
+					"oklch(49% 0.127 129)",
+					"oklch(61% 0.144 129)",
+					"oklch(72% 0.124 129)",
+					"oklch(84% 0.105 129)",
+					"oklch(95% 0.086 129)"
+				]
+			},
+			"ring-7": {
+				"role": "secondary",
+				"displayName": "Indigo Ring",
+				"canonical": "#4f5bd5",
+				"tonalRamp": [
+					"oklch(15% 0.088 274)",
+					"oklch(26% 0.113 274)",
+					"oklch(38% 0.138 274)",
+					"oklch(49% 0.162 274)",
+					"oklch(61% 0.184 274)",
+					"oklch(72% 0.159 274)",
+					"oklch(84% 0.135 274)",
+					"oklch(95% 0.110 274)"
+				]
+			},
+			"ring-8": {
+				"role": "secondary",
+				"displayName": "Magenta Ring",
+				"canonical": "#d14d9b",
+				"tonalRamp": [
+					"oklch(15% 0.088 347)",
+					"oklch(26% 0.112 347)",
+					"oklch(38% 0.137 347)",
+					"oklch(49% 0.162 347)",
+					"oklch(61% 0.183 347)",
+					"oklch(72% 0.159 347)",
+					"oklch(84% 0.134 347)",
+					"oklch(95% 0.109 347)"
 				]
 			}
 		},
 		"typographyMeta": {
+			"display": {
+				"displayName": "Display",
+				"purpose": "Venture title beside its core sample."
+			},
 			"headline": {
 				"displayName": "Headline",
-				"purpose": "Venture title and first-run heading; one per page."
+				"purpose": "Page titles."
+			},
+			"wordmark": {
+				"displayName": "Wordmark",
+				"purpose": "The braise wordmark in the rail."
+			},
+			"venture-name": {
+				"displayName": "Venture Name",
+				"purpose": "Venture names on holding cross-section tiles."
 			},
 			"title": {
 				"displayName": "Title",
-				"purpose": "Top bar page title and section heads."
+				"purpose": "Section heads and topbar titles."
 			},
 			"body": {
 				"displayName": "Body",
-				"purpose": "All running text, rail items, table cells, buttons at 500."
+				"purpose": "All running UI text."
 			},
 			"label": {
 				"displayName": "Label",
-				"purpose": "Field labels and rail headings; at 400 for metadata and pills."
+				"purpose": "Field labels and rail headings."
 			},
 			"caption": {
 				"displayName": "Caption",
-				"purpose": "Tags, rail counts, keyboard hints."
+				"purpose": "Tags, counts, timestamps."
 			},
 			"data": {
 				"displayName": "Data",
-				"purpose": "Monospace for seq, slugs, dates and versions only."
+				"purpose": "Ids, durations, costs and run metadata only."
 			}
 		},
 		"shadows": [
 			{
-				"name": "focus-ring",
-				"value": "0 0 0 2px var(--ground), 0 0 0 4px var(--ember)",
-				"purpose": "Every keyboard focus."
+				"name": "focus",
+				"value": "0 0 0 2px var(--ground), 0 0 0 4px var(--resin)",
+				"purpose": "Every :focus-visible element."
 			},
 			{
-				"name": "field-halo",
-				"value": "0 0 0 3px var(--ember-wash)",
-				"purpose": "Focused inputs, textareas, selects, the slug field and the thread composer (with an ember border)."
+				"name": "input-halo",
+				"value": "0 0 0 3px var(--resin-wash)",
+				"purpose": "Focused inputs and the composer."
 			},
 			{
-				"name": "node-gap",
-				"value": "0 0 0 3px var(--ground)",
-				"purpose": "Cuts the spine line around each node."
+				"name": "primary-lift",
+				"value": "0 1px 2px rgb(120 70 0 / 0.25)",
+				"purpose": "The resin primary button only."
 			},
 			{
-				"name": "hollow-marker",
+				"name": "node-gap-ring",
+				"value": "0 0 0 3px var(--ground), 0 0 0 4px var(--ring)",
+				"purpose": "Bet nodes sitting on the trunk."
+			},
+			{
+				"name": "hollow-stroke",
 				"value": "inset 0 0 0 1.5px currentColor",
-				"purpose": "Hollow pixel and node markers (settled, loose, goal)."
-			},
-			{
-				"name": "checked-segment",
-				"value": "0 1px 2px rgb(36 36 35 / 0.1), 0 0 0 1px var(--line)",
-				"purpose": "The checked option of the segmented control; the only lift."
-			},
-			{
-				"name": "topbar-glass",
-				"value": "backdrop-filter: blur(8px) over color-mix(in srgb, var(--ground) 92%, transparent)",
-				"purpose": "Sticky 52px top bar."
-			},
-			{
-				"name": "work-focus",
-				"value": "inset 0 0 0 1px var(--ember)",
-				"purpose": "Keyboard focus on a work tree row or thread list row; square, replaces the focus ring."
+				"purpose": "Settled, loose and pending markers."
 			}
 		],
 		"motion": [
 			{
 				"name": "ease-out",
 				"value": "cubic-bezier(0.16, 1, 0.3, 1)",
-				"purpose": "Simmer, reveal and collapse easing."
+				"purpose": "Default easing for ring growth, reveals and state transitions."
 			},
 			{
-				"name": "hover",
-				"value": "120ms",
-				"purpose": "Background, border and color transitions on controls and rail; table rows 100ms."
+				"name": "ring-grow",
+				"value": "5s ease-out infinite, stroke-dashoffset 100 to 0 by 78%",
+				"purpose": "Mark outer arc and core sample growth ring while a run is live."
 			},
 			{
-				"name": "collapse",
-				"value": "160ms rotate(-90deg)",
-				"purpose": "Strategy collapse chevron."
+				"name": "ring-turn",
+				"value": "9s linear infinite rotate(360deg)",
+				"purpose": "A venture glyph's dashed outer ring while an agent works on it."
 			},
 			{
-				"name": "reveal",
-				"value": "220ms (200ms for inline forms), opacity 0 and translateY(-4px) in",
-				"purpose": "Reason row, settle panel and inline add forms opening."
-			},
-			{
-				"name": "simmer",
-				"value": "1.8s; pixel from translateY(3px) scale(1.6) in ember light, node from translateY(4px) scale(1.8)",
-				"purpose": "A live change arriving: the touched node and its rail pixel pulse once."
+				"name": "node-simmer",
+				"value": "1.8s ease-out, ring 10px at 35% of --ring to rest",
+				"purpose": "A fresh bet or goal node pulses a ring outward."
 			},
 			{
 				"name": "row-simmer",
-				"value": "1.8s ember-wash to transparent",
-				"purpose": "Fresh row background flash; also the Work goal outcome reached by link."
-			},
-			{
-				"name": "blink",
-				"value": "1.2s steps(2, jump-none) infinite, opacity 0.2 at 50%",
-				"purpose": "Reconnect pixel while the live stream is down, in the rail foot and in a thread's stream-down line."
-			},
-			{
-				"name": "shimmer",
-				"value": "1.4s linear infinite",
-				"purpose": "Skeleton loading bars."
-			},
-			{
-				"name": "fold",
-				"value": "120ms rotate(90deg)",
-				"purpose": "Work tree disclosure chevron opening."
-			},
-			{
-				"name": "tool-fold",
-				"value": "120ms rotate(90deg), ease-out",
-				"purpose": "Tool activity round chevron opening."
+				"value": "1.8s ease-out, resin-wash to transparent",
+				"purpose": "A fresh row flashes and fades."
 			},
 			{
 				"name": "working",
-				"value": "1.6s ease-in-out infinite, opacity 0.35 at 50%",
-				"purpose": "Agent run live: live pixels (rail, thread list, work pane), live author marks, pending tool markers and the streaming caret. Only while a run is active."
+				"value": "1.6s ease-in-out infinite, opacity 1 to 0.35",
+				"purpose": "Live status dots."
+			},
+			{
+				"name": "reveal",
+				"value": "220ms ease-out, 4px slide and fade",
+				"purpose": "Inline rows and forms appearing."
+			},
+			{
+				"name": "state",
+				"value": "120ms",
+				"purpose": "Hover background, colour and border changes."
 			},
 			{
 				"name": "reduced-motion",
-				"value": "prefers-reduced-motion: reduce removes simmer, flash, reveal, shimmer, blink, the work add-form reveal, the target-goal flash, the working pulse (live pixels, live author marks, pending tool markers, streaming caret), the thread stream-down blink, and the strategy, fold and tool chevron rotations",
-				"purpose": "Accessibility floor."
+				"value": "@media (prefers-reduced-motion: reduce)",
+				"purpose": "All animations off; live growth rings rest fully drawn."
 			}
 		],
 		"breakpoints": [
 			{
-				"name": "min-width",
+				"name": "compact",
+				"value": "max-width: 1279px"
+			},
+			{
+				"name": "minimum",
 				"value": "1024px"
-			},
-			{
-				"name": "compact-cockpit",
-				"value": "max-width: 1279px (aside 240px, main padding 24px)"
-			},
-			{
-				"name": "compact-work",
-				"value": "max-width: 1279px (work pane 320px, main padding 24px, keyboard hint hidden with the pane open)"
-			},
-			{
-				"name": "compact-threads",
-				"value": "max-width: 1279px (thread list 280px)"
 			}
 		]
 	},
@@ -469,190 +613,119 @@
 			"name": "Primary Button",
 			"kind": "button",
 			"refersTo": "button-primary",
-			"description": "The one ember action per section (Add bet, Create venture).",
-			"html": "<button class=\"ds-btn ds-btn-primary\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Add bet</button>",
-			"css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background-color 120ms, border-color 120ms; } .ds-btn svg { width: 14px; height: 14px; } .ds-btn:focus-visible { box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); outline: none; } .ds-btn-primary { background: var(--ember, #ec693a); border: 1px solid var(--ember, #ec693a); color: #242423; font-weight: 600; } .ds-btn-primary:hover { background: var(--ember-light, #fa8851); border-color: var(--ember-light, #fa8851); } .ds-btn-primary:active { background: var(--ember-deep, #ce4d27); border-color: var(--ember-deep, #ce4d27); color: #f7f2e6; }"
+			"description": "The single resin action in view (Add bet, Save).",
+			"html": "<button class=\"ds-btn ds-btn-primary\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg>Add bet</button>",
+			"css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid #cdd2c9; background: #ffffff; color: #151b18; font: 500 13px/1 'Geist Variable', system-ui, sans-serif; cursor: pointer; transition: background-color 120ms, border-color 120ms; } .ds-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px #f4f5f1, 0 0 0 4px #f0a63a; } .ds-btn-primary { background: #f0a63a; border-color: #f0a63a; color: #1b1306; font-weight: 600; box-shadow: 0 1px 2px rgb(120 70 0 / 0.25); } .ds-btn-primary:hover { background: #f6c071; border-color: #f6c071; } .ds-btn-primary:active { background: #b8720f; border-color: #b8720f; }"
 		},
 		{
 			"name": "Secondary Button",
 			"kind": "button",
-			"refersTo": "button-secondary",
-			"description": "Default action: raised fill, strong hairline border.",
-			"html": "<button class=\"ds-btn ds-btn-secondary\">Cancel</button>",
-			"css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background-color 120ms, border-color 120ms; } .ds-btn svg { width: 14px; height: 14px; } .ds-btn:focus-visible { box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); outline: none; } .ds-btn-secondary { background: var(--raised, #fffefb); border: 1px solid var(--line-strong, #d8d0bf); color: var(--ink, #242423); } .ds-btn-secondary:hover { background: var(--ground-sunk, #f5f1e8); }"
+			"refersTo": "button",
+			"description": "Default paper button for every non-primary action.",
+			"html": "<button class=\"ds-btn-sec\">New thread</button>",
+			"css": ".ds-btn-sec { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid #cdd2c9; background: #ffffff; color: #151b18; font: 500 13px/1 'Geist Variable', system-ui, sans-serif; cursor: pointer; transition: background-color 120ms; } .ds-btn-sec:hover { background: #eceee8; } .ds-btn-sec:focus-visible { outline: none; box-shadow: 0 0 0 2px #f4f5f1, 0 0 0 4px #f0a63a; }"
 		},
 		{
 			"name": "Ghost Button",
 			"kind": "button",
 			"refersTo": "button-ghost",
-			"description": "Low-emphasis in-row action (Edit, History).",
-			"html": "<button class=\"ds-btn ds-btn-ghost\">Edit</button>",
-			"css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background-color 120ms, border-color 120ms; } .ds-btn svg { width: 14px; height: 14px; } .ds-btn:focus-visible { box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); outline: none; } .ds-btn-ghost { background: transparent; border: 1px solid transparent; color: var(--ink-2, #57544d); } .ds-btn-ghost:hover { background: var(--ground-sunk, #f5f1e8); color: var(--ink, #242423); }"
+			"description": "Borderless low-emphasis action.",
+			"html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+			"css": ".ds-btn-ghost { height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #47504b; font: 500 13px/1 'Geist Variable', system-ui, sans-serif; cursor: pointer; transition: background-color 120ms, color 120ms; } .ds-btn-ghost:hover { background: #eceee8; color: #151b18; } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 2px #f4f5f1, 0 0 0 4px #f0a63a; }"
 		},
 		{
 			"name": "Text Field",
 			"kind": "input",
 			"refersTo": "input",
-			"description": "Labelled field; ember border and wash halo on focus, rust border when invalid.",
-			"html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Outcome</span><input class=\"ds-input\" placeholder=\"10 users connect a bank\"><span class=\"ds-field-hint\">What changes in the world if this works.</span></label>",
-			"css": ".ds-field { display: flex; flex-direction: column; gap: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-field-label { font-size: 12px; font-weight: 600; color: var(--ink-2, #57544d); } .ds-field-hint { font-size: 12px; color: var(--ink-3, #6e6a62); } .ds-input { min-height: 32px; padding: 6px 10px; border: 1px solid var(--line-strong, #d8d0bf); border-radius: 6px; background: var(--raised, #fffefb); font: inherit; color: inherit; caret-color: var(--ember, #ec693a); transition: border-color 120ms, box-shadow 120ms; } .ds-input::placeholder { color: var(--ink-3, #6e6a62); } .ds-input:focus { outline: none; border-color: var(--ember, #ec693a); box-shadow: 0 0 0 3px var(--ember-wash, #fbe6dc); } .ds-input[aria-invalid='true'] { border-color: var(--error, #a93b19); }"
-		},
-		{
-			"name": "Rail",
-			"kind": "nav",
-			"refersTo": "rail-item",
-			"description": "Charcoal navigation rail with scope, current page and venture pixels.",
-			"html": "<nav class=\"ds-rail\"><a class=\"ds-rail-item ds-is-scope\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z\"/><path d=\"m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65\"/><path d=\"m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65\"/></svg><span>Holding</span></a><div class=\"ds-rail-heading\">Ventures</div><a class=\"ds-rail-item\"><span class=\"ds-pixel ds-is-active\"></span><span>Quiet Ledger</span></a><a class=\"ds-rail-item\" aria-current=\"page\"><span class=\"ds-pixel ds-is-quiet\"></span><span>Corner Bakery</span></a><div class=\"ds-rail-foot\"><span class=\"ds-pixel ds-blink\"></span>Reconnecting to live updates…</div></nav>",
-			"css": ".ds-rail { width: 232px; background: #242423; color: #f7f2e6; padding: 16px 8px 12px; display: flex; flex-direction: column; gap: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; } .ds-rail-item { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; border-radius: 6px; color: #b3ada0; cursor: pointer; transition: background-color 120ms, color 120ms; } .ds-rail-item svg { width: 16px; height: 16px; } .ds-rail-item:hover { background: #2f2f2d; color: #f7f2e6; } .ds-rail-item[aria-current='page'] { background: #3a3935; color: #f7f2e6; } .ds-rail-item.ds-is-scope { color: #f7f2e6; font-weight: 500; } .ds-rail-item:focus-visible { outline: none; box-shadow: 0 0 0 2px #242423, 0 0 0 4px var(--ember, #ec693a); } .ds-rail-heading { padding: 12px 8px 4px; font-size: 12px; font-weight: 600; color: #b3ada0; } .ds-rail-foot { display: flex; align-items: center; gap: 8px; padding: 8px; font-size: 12px; color: var(--ember-light, #fa8851); } .ds-pixel { flex: none; width: 6px; height: 6px; background: currentColor; } .ds-is-active { color: var(--ember, #ec693a); } .ds-is-quiet { color: #5d5a53; } .ds-blink { color: var(--ember, #ec693a); animation: ds-blink 1.2s steps(2, jump-none) infinite; } @keyframes ds-blink { 50% { opacity: 0.2; } } @media (prefers-reduced-motion: reduce) { .ds-blink { animation: none; } }"
-		},
-		{
-			"name": "Pixel Markers",
-			"kind": "custom",
-			"description": "Square status markers from the logo's bubbles: filled, ember, won, hollow, simmering.",
-			"html": "<div class=\"ds-pixels\"><span class=\"ds-px\"></span><span class=\"ds-px ds-px-ember\"></span><span class=\"ds-px ds-px-won\"></span><span class=\"ds-px ds-px-hollow\"></span><span class=\"ds-px ds-px-ember ds-px-simmer\"></span></div>",
-			"css": ".ds-pixels { display: flex; gap: 16px; align-items: center; padding: 12px; background: var(--ground, #fbf9f4); } .ds-px { width: 6px; height: 6px; background: currentColor; color: var(--line-strong, #d8d0bf); } .ds-px-ember { color: var(--ember, #ec693a); } .ds-px-won { color: var(--won, #3d7a4c); } .ds-px-hollow { background: transparent; color: var(--ink-3, #6e6a62); box-shadow: inset 0 0 0 1.5px currentColor; } .ds-px-simmer { animation: ds-simmer 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite; } @keyframes ds-simmer { 0% { transform: translateY(3px) scale(1.6); color: var(--ember-light, #fa8851); } 100% { transform: none; } } @media (prefers-reduced-motion: reduce) { .ds-px-simmer { animation: none; } }"
-		},
-		{
-			"name": "Spine",
-			"kind": "custom",
-			"description": "Signature: a 1px vertical line with square nodes joining strategy, bets and goals.",
-			"html": "<div class=\"ds-trunk\"><div class=\"ds-bet\"><span class=\"ds-node ds-node-strategy\"></span><strong>Strategy</strong> <span class=\"ds-data\">v2</span></div><div class=\"ds-bet\"><span class=\"ds-node\"></span><strong>Freelancers will connect their bank if matching is right 9 times out of 10</strong><dl class=\"ds-fields\"><dt>Action</dt><dd>Ship a read-only matcher to 30 waitlist users</dd></dl></div><div class=\"ds-bet ds-settled\"><span class=\"ds-node\"></span><strong>Settled bet</strong></div></div>",
-			"css": ".ds-trunk { position: relative; padding: 8px 0 8px 28px; background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-trunk::before { content: ''; position: absolute; left: 9px; top: 20px; bottom: 16px; width: 1px; background: var(--line-strong, #d8d0bf); } .ds-bet { position: relative; padding: 12px 0 16px; border-bottom: 1px solid var(--line, #e9e4d8); } .ds-bet:last-child { border-bottom: 0; } .ds-bet strong { font-size: 14px; font-weight: 500; } .ds-node { position: absolute; left: -22px; top: 19px; width: 7px; height: 7px; background: var(--ember, #ec693a); box-shadow: 0 0 0 3px var(--ground, #fbf9f4); } .ds-node-strategy { background: #242423; } .ds-settled .ds-node { background: var(--ground, #fbf9f4); box-shadow: 0 0 0 3px var(--ground, #fbf9f4), inset 0 0 0 1.5px var(--ink-3, #6e6a62); } .ds-settled strong { color: var(--ink-3, #6e6a62); } .ds-fields { display: grid; grid-template-columns: 96px 1fr; gap: 2px 12px; margin: 8px 0 0; color: var(--ink-2, #57544d); } .ds-fields dt { color: var(--ink-3, #6e6a62); } .ds-fields dd { margin: 0; } .ds-data { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 12px; color: var(--ink-3, #6e6a62); }"
+			"description": "Labelled field with resin focus halo and bark error state.",
+			"html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Outcome</span><input class=\"ds-input\" placeholder=\"10 users connect a bank\"><span class=\"ds-field-hint\">What changes if this works.</span></label>",
+			"css": ".ds-field { display: flex; flex-direction: column; gap: 6px; font-family: 'Geist Variable', system-ui, sans-serif; } .ds-field-label { font-size: 12px; font-weight: 600; color: #47504b; } .ds-field-hint { font-size: 12px; color: #5f6963; } .ds-input { min-height: 32px; padding: 6px 10px; border: 1px solid #cdd2c9; border-radius: 8px; background: #ffffff; color: #151b18; font: 400 13px/1.45 inherit; caret-color: #f0a63a; transition: border-color 120ms, box-shadow 120ms; } .ds-input::placeholder { color: #5f6963; } .ds-input:focus { outline: none; border-color: #f0a63a; box-shadow: 0 0 0 3px #fdf1dd; } .ds-input[aria-invalid='true'] { border-color: #b23a24; }"
 		},
 		{
 			"name": "Status Pill",
 			"kind": "chip",
 			"refersTo": "status-pill",
-			"description": "Bet status select with a leading pixel; ember open, green won, hollow settled.",
-			"html": "<span class=\"ds-pill\"><span class=\"ds-pill-px\"></span>open<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m6 9 6 6 6-6\"/></svg></span> <span class=\"ds-pill ds-pill-won\"><span class=\"ds-pill-px\"></span>won<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m6 9 6 6 6-6\"/></svg></span> <span class=\"ds-tag\">For profit</span>",
-			"css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border: 1px solid var(--line, #e9e4d8); border-radius: 4px; background: var(--raised, #fffefb); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 12px; color: var(--ink-2, #57544d); cursor: pointer; } .ds-pill svg { color: var(--ink-3, #6e6a62); margin-left: -2px; } .ds-pill:hover { border-color: var(--line-strong, #d8d0bf); color: var(--ink, #242423); } .ds-pill:focus-visible { box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); outline: none; } .ds-pill-px { width: 6px; height: 6px; background: var(--ember, #ec693a); } .ds-pill-won .ds-pill-px { background: var(--won, #3d7a4c); } .ds-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; background: var(--ground-sunk, #f5f1e8); color: var(--ink-2, #57544d); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 11px; font-weight: 500; }"
+			"description": "Bet status with a round dot in the venture ring hue.",
+			"html": "<span class=\"ds-pill\" style=\"--ring:#2fa58a\"><span class=\"ds-dot\"></span>Active</span> <span class=\"ds-pill is-won\"><span class=\"ds-dot\"></span>Won</span> <span class=\"ds-tag\">bet</span>",
+			"css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border: 1px solid #e2e5de; border-radius: 4px; background: #ffffff; color: #47504b; font: 400 12px/1 'Geist Variable', system-ui, sans-serif; cursor: pointer; } .ds-pill:hover { border-color: #cdd2c9; color: #151b18; } .ds-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ring, #7c6cf0); } .ds-pill.is-won .ds-dot { background: #4f7a45; } .ds-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 10px; background: #eceee8; color: #47504b; font: 500 11px/1 'Geist Variable', system-ui, sans-serif; }"
 		},
 		{
-			"name": "Work Tree",
+			"name": "Rail Navigation",
+			"kind": "nav",
+			"refersTo": "rail",
+			"description": "Pith rail with the growth-ring mark, wordmark, rows and venture glyphs.",
+			"html": "<nav class=\"ds-rail\"><div class=\"ds-rail-brand\"><svg class=\"ds-mark is-live\" width=\"30\" height=\"30\" viewBox=\"0 0 64 64\"><circle cx=\"24.5\" cy=\"39.5\" r=\"5\" fill=\"#f0a63a\"/><circle cx=\"26.6\" cy=\"37.2\" r=\"11\" class=\"r\" opacity=\".55\"/><circle cx=\"29.2\" cy=\"34.6\" r=\"18.6\" class=\"r\" opacity=\".85\"/><path class=\"o\" pathLength=\"100\" d=\"M56.37 19.04A27.6 27.6 0 1 1 43.23 6.79\"/></svg><span class=\"ds-wordmark\">braise</span></div><a class=\"ds-rail-item\" aria-current=\"page\">Holding</a><a class=\"ds-rail-item\">Runs<span class=\"ds-count\">2</span></a><a class=\"ds-rail-item\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 20 20\" class=\"ds-vr is-live\" style=\"color:#e0566b\"><circle cx=\"8.6\" cy=\"11.4\" r=\"2.2\" fill=\"currentColor\"/><circle cx=\"9.3\" cy=\"10.7\" r=\"5\" opacity=\".6\"/><circle cx=\"10\" cy=\"10\" r=\"8.2\" class=\"vo\"/></svg>Ledgerly</a></nav>",
+			"css": ".ds-rail { width: 232px; padding: 16px 8px 12px; display: flex; flex-direction: column; gap: 4px; background: #131a16; color: #e8ede5; font: 400 13px/1.5 'Geist Variable', system-ui, sans-serif; } .ds-rail-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; } .ds-mark { fill: none; stroke-width: 3.4; } .ds-mark .r { stroke: currentColor; } .ds-mark .o { stroke: #f0a63a; stroke-width: 4; stroke-linecap: round; } .ds-mark.is-live .o { stroke-dasharray: 100; animation: ds-grow 5s cubic-bezier(0.16,1,0.3,1) infinite; } @keyframes ds-grow { 0% { stroke-dashoffset: 100; } 78%, 100% { stroke-dashoffset: 0; } } .ds-wordmark { font: 640 21px/1 'Bricolage Grotesque Variable', sans-serif; font-variation-settings: 'opsz' 48; letter-spacing: -0.03em; } .ds-rail-item { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; border-radius: 8px; color: #a9b5ad; cursor: pointer; transition: background-color 120ms, color 120ms; } .ds-rail-item:hover { background: #1b241f; color: #e8ede5; } .ds-rail-item[aria-current='page'] { background: #1d2721; color: #e8ede5; } .ds-count { margin-left: auto; font-size: 11px; color: #7d8a81; } .ds-vr { fill: none; stroke: currentColor; stroke-width: 1.6; } .ds-vr.is-live .vo { stroke-dasharray: 3 2.2; transform-origin: 50% 50%; animation: ds-turn 9s linear infinite; } @keyframes ds-turn { to { transform: rotate(360deg); } } @media (prefers-reduced-motion: reduce) { .ds-mark.is-live .o, .ds-vr.is-live .vo { animation: none; } }"
+		},
+		{
+			"name": "Core Sample",
 			"kind": "custom",
-			"refersTo": "work-row",
-			"description": "Per-goal sections of 34px hairline rows: 22px indent per depth, 7px square status markers (hollow todo, ember doing, Ink 3 done), fixed n/m, function and priority slots.",
-			"html": "<div class=\"ds-wt\"><div class=\"ds-wt-head\"><span class=\"ds-wt-node\"></span><h3>12 users connect a bank</h3><span class=\"ds-wt-date\">Dec 15, 2026</span><span class=\"ds-wt-count\">1/3 done</span></div><div class=\"ds-wt-row ds-l1\"><span class=\"ds-wt-fold\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 18 6-6-6-6\"/></svg></span><span class=\"ds-wt-status\"><span class=\"ds-wt-mark ds-is-doing\"></span></span><span class=\"ds-wt-title\">Bank connection flow</span><span class=\"ds-wt-meta\"><span class=\"ds-wt-progress\">1/2</span><span class=\"ds-wt-fn\"><span class=\"ds-wt-tag\">Engineering</span></span><span class=\"ds-wt-prio\"></span></span></div><div class=\"ds-wt-row ds-is-selected\" style=\"padding-left: 22px\"><span class=\"ds-wt-fold\"></span><span class=\"ds-wt-status\"><span class=\"ds-wt-mark ds-is-todo\"></span></span><span class=\"ds-wt-title\">Consent screen copy</span><span class=\"ds-wt-meta\"><span class=\"ds-wt-progress\"></span><span class=\"ds-wt-fn\"><span class=\"ds-wt-tag\">Design</span></span><svg class=\"ds-wt-prio\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 20h.01\"/><path d=\"M7 20v-4\"/><path d=\"M12 20v-8\"/><path d=\"M17 20V8\"/></svg></span></div><div class=\"ds-wt-row ds-done ds-is-focus\" style=\"padding-left: 22px\"><span class=\"ds-wt-fold\"></span><span class=\"ds-wt-status\"><span class=\"ds-wt-mark ds-is-done\"></span></span><span class=\"ds-wt-title\">Plaid sandbox keys</span><span class=\"ds-wt-meta\"><span class=\"ds-wt-progress\"></span><span class=\"ds-wt-fn\"></span><span class=\"ds-wt-prio\"></span></span></div><div class=\"ds-wt-head\" style=\"margin-top: 24px\"><span class=\"ds-wt-node\" style=\"background: transparent; box-shadow: inset 0 0 0 1.5px #6e6a62\"></span><h3>Waitlist reaches 500</h3></div><div class=\"ds-wt-empty\">No work yet. <span>Add the first initiative</span></div></div>",
-			"css": ".ds-wt { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); background: var(--ground, #fbf9f4); padding: 12px; } .ds-wt-head { display: flex; align-items: center; gap: 8px; min-height: 32px; padding-bottom: 4px; border-bottom: 1px solid var(--line, #e9e4d8); } .ds-wt-node { width: 5px; height: 5px; margin: 0 7px 0 5px; background: var(--ink-3, #6e6a62); } .ds-wt-head h3 { margin: 0; font-size: 13px; font-weight: 600; } .ds-wt-date { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; letter-spacing: -0.01em; color: var(--ink-3, #6e6a62); } .ds-wt-count { margin-left: auto; font-size: 12px; color: var(--ink-3, #6e6a62); font-variant-numeric: tabular-nums; } .ds-wt-row { display: flex; align-items: center; gap: 6px; min-height: 34px; padding-right: 8px; border-bottom: 1px solid var(--line, #e9e4d8); transition: background-color 100ms; } .ds-wt-row:hover { background: var(--ground-sunk, #f5f1e8); } .ds-wt-row.ds-is-selected { background: var(--line, #e9e4d8); } .ds-wt-row.ds-is-focus { box-shadow: inset 0 0 0 1px var(--ember, #ec693a); } .ds-wt-fold { flex: none; display: inline-grid; place-items: center; width: 16px; height: 16px; color: var(--ink-3, #6e6a62); } .ds-wt-fold svg { width: 13px; height: 13px; transform: rotate(90deg); } .ds-wt-status { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; } .ds-wt-mark { width: 7px; height: 7px; } .ds-is-todo { box-shadow: inset 0 0 0 1.5px var(--ink-3, #6e6a62); } .ds-is-doing { background: var(--ember, #ec693a); } .ds-is-done { background: var(--ink-3, #6e6a62); } .ds-wt-title { flex: 1; min-width: 0; padding-left: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-wt-row.ds-l1 .ds-wt-title { font-weight: 500; } .ds-wt-row.ds-done .ds-wt-title { color: var(--ink-3, #6e6a62); } .ds-wt-meta { flex: none; display: flex; align-items: center; gap: 8px; color: var(--ink-3, #6e6a62); } .ds-wt-progress { width: 40px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; } .ds-wt-fn { display: flex; justify-content: flex-end; width: 96px; } .ds-wt-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; background: var(--ground-sunk, #f5f1e8); color: var(--ink-2, #57544d); font-size: 11px; font-weight: 500; } .ds-wt-prio { width: 15px; height: 15px; } .ds-wt-empty { padding: 8px 0 8px 22px; border-bottom: 1px solid var(--line, #e9e4d8); color: var(--ink-3, #6e6a62); } .ds-wt-empty span { color: var(--ink-2, #57544d); text-decoration: underline; text-decoration-color: var(--line-strong, #d8d0bf); text-underline-offset: 3px; }"
+			"refersTo": "cross-section",
+			"description": "Holding tile: a venture's strategy versions as rings, ghosts faint, resin growth ring while live.",
+			"html": "<a class=\"ds-xs\"><svg class=\"ds-core is-live\" width=\"76\" height=\"76\" viewBox=\"0 0 100 100\" style=\"color:#7c6cf0\"><circle cx=\"39\" cy=\"60\" r=\"7\" fill=\"currentColor\"/><circle cx=\"42.67\" cy=\"56.67\" r=\"17.33\" opacity=\"1\"/><circle cx=\"46.33\" cy=\"53.33\" r=\"27.67\" class=\"ghost\"/><circle cx=\"50\" cy=\"50\" r=\"38\" class=\"ghost\"/><circle cx=\"50\" cy=\"50\" r=\"45\" class=\"grow\" pathLength=\"100\"/></svg><span class=\"ds-xs-name\">Ledgerly</span><span class=\"ds-xs-meta\">Strategy v1 · Claude is working</span></a>",
+			"css": ".ds-xs { display: grid; grid-template-columns: auto minmax(0,1fr); grid-template-rows: auto auto; column-gap: 16px; row-gap: 2px; align-items: center; width: 300px; padding: 12px 16px 12px 12px; border-radius: 14px; color: #151b18; transition: background-color 160ms cubic-bezier(0.16,1,0.3,1); cursor: pointer; } .ds-xs:hover { background: #ffffff; } .ds-core { grid-row: span 2; fill: none; stroke: currentColor; stroke-width: 2; } .ds-core .ghost { stroke: #cdd2c9; stroke-dasharray: 2 3; } .ds-core .grow { stroke: #f0a63a; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; transform: rotate(-90deg); transform-origin: 50% 50%; } .ds-core.is-live .grow { animation: ds-cgrow 5s cubic-bezier(0.16,1,0.3,1) infinite; } @keyframes ds-cgrow { 0% { stroke-dashoffset: 100; } 78%, 100% { stroke-dashoffset: 0; } } .ds-xs-name { align-self: end; font: 640 18px/1.2 'Bricolage Grotesque Variable', sans-serif; font-variation-settings: 'opsz' 48; letter-spacing: -0.02em; } .ds-xs-meta { align-self: start; font: 400 12px/1.5 'Geist Variable', system-ui, sans-serif; color: #5f6963; } @media (prefers-reduced-motion: reduce) { .ds-core.is-live .grow { animation: none; stroke-dashoffset: 0; } }"
 		},
 		{
-			"name": "Holding Table",
+			"name": "Trunk Bet Node",
 			"kind": "custom",
-			"refersTo": "table-row",
-			"description": "Hairline table with sortable sticky headers, tabular numerals and sunk row hover.",
-			"html": "<table class=\"ds-table\"><thead><tr><th aria-sort=\"descending\">Venture</th><th class=\"ds-num\">Open bets</th></tr></thead><tbody><tr><td><span class=\"ds-tpx\"></span>Quiet Ledger</td><td class=\"ds-num\">1</td></tr><tr><td><span class=\"ds-tpx ds-quiet\"></span>Corner Bakery</td><td class=\"ds-num\">0</td></tr></tbody></table>",
-			"css": ".ds-table { width: 100%; border-collapse: collapse; background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-table th { height: 32px; padding: 0 12px; text-align: left; font-size: 12px; font-weight: 500; color: var(--ink-3, #6e6a62); border-bottom: 1px solid var(--line, #e9e4d8); } .ds-table th[aria-sort] { color: var(--ink, #242423); } .ds-table td { height: 40px; padding: 0 12px; border-bottom: 1px solid var(--line, #e9e4d8); } .ds-table td:first-child { font-weight: 500; } .ds-num { text-align: right !important; font-variant-numeric: tabular-nums; } .ds-table tbody tr { cursor: pointer; transition: background-color 100ms; } .ds-table tbody tr:hover { background: var(--ground-sunk, #f5f1e8); } .ds-tpx { display: inline-block; width: 6px; height: 6px; margin-right: 8px; background: var(--ember, #ec693a); } .ds-tpx.ds-quiet { background: var(--line-strong, #d8d0bf); }"
-		},
-		{
-			"name": "Activity Feed",
-			"kind": "custom",
-			"description": "Pixel-led event list; ember pixel when fresh, hollow pixel for agent events, reason on a hairline left rule.",
-			"html": "<ul class=\"ds-feed\"><li class=\"ds-item ds-fresh\"><span class=\"ds-fpx\"></span><div><div class=\"ds-text\"><strong>You</strong> revised the strategy to <strong>v2</strong></div><div class=\"ds-reason\">Interviews showed it is a full day, not hours</div><div class=\"ds-meta\">8m ago <span class=\"ds-mono\">· #41</span></div></div></li><li class=\"ds-item\"><span class=\"ds-fpx\"></span><div><div class=\"ds-text\"><strong>You</strong> added a goal <strong>Waitlist reaches 500</strong></div><div class=\"ds-meta\">7m ago</div></div></li><li class=\"ds-item ds-agent\"><span class=\"ds-fpx\"></span><div><div class=\"ds-text\"><strong>Claude</strong> added a task <strong>Consent screen copy</strong></div><div class=\"ds-meta\">5m ago</div></div></li></ul>",
-			"css": ".ds-feed { list-style: none; margin: 0; padding: 8px; background: var(--ground-sunk, #f5f1e8); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; line-height: 1.45; } .ds-item { display: grid; grid-template-columns: 6px 1fr; gap: 0 12px; padding: 8px; } .ds-fpx { width: 6px; height: 6px; margin-top: 7px; background: var(--line-strong, #d8d0bf); } .ds-fresh .ds-fpx { background: var(--ember, #ec693a); } .ds-text { color: var(--ink-2, #57544d); } .ds-text strong { color: var(--ink, #242423); font-weight: 500; } .ds-meta { font-size: 12px; color: var(--ink-3, #6e6a62); margin-top: 1px; } .ds-reason { margin-top: 4px; padding-left: 8px; border-left: 1px solid var(--line-strong, #d8d0bf); font-size: 12px; color: var(--ink-2, #57544d); } .ds-mono { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 12px; } .ds-agent .ds-fpx { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-strong, #d8d0bf); }"
-		},
-		{
-			"name": "Word Diff",
-			"kind": "custom",
-			"description": "Strategy revision diff: ember-wash insertions with an ember underline, muted strikes.",
-			"html": "<dl class=\"ds-diff\"><dt>Diagnosis</dt><dd>Bank feeds and invoices never share an identifier, so matching takes <ins>a full day</ins><del>hours</del> every month.</dd></dl>",
-			"css": ".ds-diff { display: grid; grid-template-columns: 128px 1fr; gap: 16px; padding: 12px 0; margin: 0; border-bottom: 1px solid var(--line, #e9e4d8); background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-diff dt { color: var(--ink-3, #6e6a62); font-weight: 500; } .ds-diff dd { margin: 0; max-width: 75ch; line-height: 1.6; } .ds-diff ins { text-decoration: none; background: var(--ember-wash-strong, #f8d4c3); box-shadow: inset 0 -1.5px 0 var(--ember, #ec693a); border-radius: 2px; margin-right: 0.3em; } .ds-diff del { color: var(--ink-3, #6e6a62); text-decoration-thickness: 1.5px; text-decoration-color: var(--ink-2, #57544d); }"
-		},
-		{
-			"name": "Small Button",
-			"kind": "button",
-			"refersTo": "button-small",
-			"description": "Any variant at 24px for in-context actions in dense regions (Link, New thread, Retry).",
-			"html": "<button class=\"ds-btn-sm ds-ghost\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>New thread</button> <button class=\"ds-btn-sm ds-sec\">Retry</button>",
-			"css": ".ds-btn-sm { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: background-color 120ms, border-color 120ms; } .ds-btn-sm svg { width: 13px; height: 13px; } .ds-btn-sm:focus-visible { box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); outline: none; } .ds-ghost { background: transparent; border: 1px solid transparent; color: var(--ink-2, #57544d); } .ds-ghost:hover { background: var(--ground-sunk, #f5f1e8); color: var(--ink, #242423); } .ds-sec { background: var(--raised, #fffefb); border: 1px solid var(--line-strong, #d8d0bf); color: var(--ink, #242423); } .ds-sec:hover { background: var(--ground-sunk, #f5f1e8); }"
-		},
-		{
-			"name": "Thread List",
-			"kind": "custom",
-			"refersTo": "thread-row",
-			"description": "Conversation rows: 6px pixel (Line Strong at rest, ember working pulse while live), 500 ellipsized title, 11px time or \"working\", 12px Ink 3 snippet, venture and one link tag plus +n.",
-			"html": "<ul class=\"ds-tl\"><li class=\"ds-tr ds-sel\"><span class=\"ds-tpx ds-live\"></span><span class=\"ds-tm\"><span class=\"ds-tt\"><span class=\"ds-ttl\">Plan the bank connection launch</span><span class=\"ds-ttime\">working</span></span><span class=\"ds-tsn\">Here is a first cut of the rollout in three steps</span><span class=\"ds-tln\"><span class=\"ds-tv\">Quiet Ledger</span><span class=\"ds-tag\">Bank connection flow</span><span class=\"ds-more\">+2</span></span></span></li><li class=\"ds-tr\" tabindex=\"0\"><span class=\"ds-tpx\"></span><span class=\"ds-tm\"><span class=\"ds-tt\"><span class=\"ds-ttl\">Waitlist copy ideas</span><span class=\"ds-ttime\">2h</span></span><span class=\"ds-tsn\">Three options, shortest first</span></span></li></ul>",
-			"css": "@keyframes ds-working { 50% { opacity: 0.35; } } .ds-tl { list-style: none; margin: 0; padding: 8px; width: 320px; display: flex; flex-direction: column; gap: 1px; background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-tr { display: grid; grid-template-columns: 6px minmax(0, 1fr); gap: 10px; align-items: start; padding: 9px 8px 10px; border-radius: 6px; transition: background-color 100ms; cursor: pointer; } .ds-tr:hover { background: var(--ground-sunk, #f5f1e8); } .ds-tr.ds-sel { background: var(--line, #e9e4d8); } .ds-tr:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--ember, #ec693a); } .ds-tpx { width: 6px; height: 6px; margin-top: 7px; background: var(--line-strong, #d8d0bf); } .ds-tpx.ds-live { background: var(--ember, #ec693a); animation: ds-working 1.6s ease-in-out infinite; } .ds-tm { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .ds-tt { display: flex; align-items: baseline; gap: 8px; min-width: 0; } .ds-ttl { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-ttime { flex: none; font-size: 11px; color: var(--ink-3, #6e6a62); } .ds-tsn { font-size: 12px; color: var(--ink-3, #6e6a62); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-tln { display: flex; align-items: center; gap: 4px; margin-top: 3px; font-size: 11px; } .ds-tv { color: var(--ink-2, #57544d); font-weight: 500; } .ds-tag { display: inline-block; height: 20px; line-height: 20px; padding: 0 7px; border-radius: 4px; background: var(--ground-sunk, #f5f1e8); color: var(--ink-2, #57544d); font-weight: 500; } .ds-sel .ds-tag { background: var(--raised, #fffefb); } .ds-more { color: var(--ink-3, #6e6a62); } @media (prefers-reduced-motion: reduce) { .ds-tpx.ds-live { animation: none; } }"
-		},
-		{
-			"name": "Message",
-			"kind": "custom",
-			"refersTo": null,
-			"description": "Slack-style conversation rows: 7px square author marks (owner filled ink, agent hollow, ember pulse while live), mono 11px time, Markdown prose at 1.6 with a pulsing ember caret while streaming, and an 11px run footer.",
-			"html": "<ol class=\"ds-tlm\"><li class=\"ds-msg\"><div class=\"ds-mh\"><span class=\"ds-am\"></span><span class=\"ds-au\">You</span><time class=\"ds-mt\">14:02</time></div><div class=\"ds-mb ds-plain\">What should we ship first for bank connection?</div></li><li class=\"ds-msg\"><div class=\"ds-mh\"><span class=\"ds-am ds-agent\"></span><span class=\"ds-au\">Claude</span><time class=\"ds-mt\">14:02</time></div><div class=\"ds-mb\"><div class=\"ds-prose\"><p>Start with the <code>consent</code> screen. Then:</p><ul><li>Sandbox keys</li><li>Error states</li></ul></div><div class=\"ds-rf\"><span class=\"ds-rmono\">claude-opus-5-5</span><span class=\"ds-num\">12s</span><span class=\"ds-num\">8.4k tokens</span></div></div></li><li class=\"ds-msg\"><div class=\"ds-mh\"><span class=\"ds-am ds-live\"></span><span class=\"ds-au\">Claude</span><time class=\"ds-mt\">14:05</time></div><div class=\"ds-mb\"><div class=\"ds-prose ds-streaming\"><p>Looking at the open tasks under that goal</p></div></div></li></ol>",
-			"css": "@keyframes ds-working { 50% { opacity: 0.35; } } .ds-tlm { list-style: none; margin: 0; padding: 16px; max-width: 760px; display: flex; flex-direction: column; gap: 24px; background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; line-height: 1.5; color: var(--ink, #242423); } .ds-msg { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 6px; row-gap: 4px; } .ds-mh { grid-column: 1 / -1; display: grid; grid-template-columns: 16px auto auto; justify-content: start; align-items: baseline; column-gap: 6px; } .ds-am { align-self: center; width: 7px; height: 7px; background: var(--ink, #242423); } .ds-am.ds-agent { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink, #242423); } .ds-am.ds-live { background: var(--ember, #ec693a); animation: ds-working 1.6s ease-in-out infinite; } .ds-au { font-weight: 600; } .ds-mt { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 11px; color: var(--ink-3, #6e6a62); } .ds-mb { grid-column: 2; min-width: 0; display: flex; flex-direction: column; gap: 8px; } .ds-plain { white-space: pre-wrap; max-width: 72ch; } .ds-prose { max-width: 72ch; line-height: 1.6; } .ds-prose p, .ds-prose ul { margin: 0 0 10px; } .ds-prose > :last-child { margin-bottom: 0; } .ds-prose ul { padding-left: 20px; list-style: square; } .ds-prose li::marker { color: var(--ink-3, #6e6a62); } .ds-prose code { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--ground-sunk, #f5f1e8); } .ds-streaming > :last-child::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 4px; background: var(--ember, #ec693a); animation: ds-working 1.6s ease-in-out infinite; } .ds-rf { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 24px; font-size: 11px; color: var(--ink-3, #6e6a62); } .ds-rmono { font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 11px; } .ds-num { font-variant-numeric: tabular-nums; } @media (prefers-reduced-motion: reduce) { .ds-am.ds-live, .ds-streaming > :last-child::after { animation: none; } }"
-		},
-		{
-			"name": "Tool Activity",
-			"kind": "custom",
-			"refersTo": null,
-			"description": "A round of tool calls folded into one 24px toggle (\"n steps · n changes · n failed\"); rows on a Line Strong rule with 6px markers: hollow read, Ink 2 write, ember pending, rust failed; each opens to mono input/output.",
-			"html": "<details class=\"ds-tg\" open><summary><svg class=\"ds-tc\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 18 6-6-6-6\"/></svg><span class=\"ds-ts ds-changed\">4 steps · 1 change · 1 failed</span></summary><ul class=\"ds-tcs\"><li><div class=\"ds-tcall\"><span class=\"ds-tmk\"></span><span class=\"ds-ta\">Read work under Bank connection</span><span class=\"ds-td\">6 items</span></div></li><li><div class=\"ds-tcall\"><span class=\"ds-tmk ds-write\"></span><span class=\"ds-ta ds-write\">Added task Consent screen copy</span></div></li><li><div class=\"ds-tcall\"><span class=\"ds-tmk ds-failed\"></span><span class=\"ds-ta\">Moved task</span><span class=\"ds-td ds-failed\">failed</span></div><div class=\"ds-io\"><span class=\"ds-iol\">Error</span><pre class=\"ds-failed\">Work item not found</pre></div></li><li><div class=\"ds-tcall\"><span class=\"ds-tmk ds-pending\"></span><span class=\"ds-ta\">Reading the strategy</span></div></li></ul></details>",
-			"css": "@keyframes ds-working { 50% { opacity: 0.35; } } .ds-tg { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); background: var(--ground, #fbf9f4); padding: 12px; } .ds-tg > summary { list-style: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px 0 4px; border-radius: 6px; color: var(--ink-3, #6e6a62); font-size: 12px; cursor: pointer; transition: background-color 100ms, color 100ms; } .ds-tg > summary::-webkit-details-marker { display: none; } .ds-tg > summary:hover { background: var(--ground-sunk, #f5f1e8); color: var(--ink-2, #57544d); } .ds-tg > summary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); } .ds-tc { width: 13px; height: 13px; transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-tg[open] .ds-tc { transform: rotate(90deg); } .ds-changed { color: var(--ink-2, #57544d); } .ds-tcs { list-style: none; margin: 4px 0 0 3px; padding: 0 0 0 13px; border-left: 1px solid var(--line-strong, #d8d0bf); } .ds-tcall { display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 0 6px; border-radius: 4px; font-size: 12px; color: var(--ink-2, #57544d); cursor: pointer; } .ds-tcall:hover { background: var(--ground-sunk, #f5f1e8); } .ds-tmk { flex: none; width: 6px; height: 6px; box-shadow: inset 0 0 0 1.5px var(--ink-3, #6e6a62); } .ds-tmk.ds-write { background: var(--ink-2, #57544d); box-shadow: none; } .ds-tmk.ds-pending { background: var(--ember, #ec693a); box-shadow: none; animation: ds-working 1.6s ease-in-out infinite; } .ds-tmk.ds-failed { background: var(--error, #a93b19); box-shadow: none; } .ds-ta.ds-write { color: var(--ink, #242423); font-weight: 500; } .ds-td { color: var(--ink-3, #6e6a62); font-variant-numeric: tabular-nums; } .ds-td.ds-failed, pre.ds-failed { color: var(--error, #a93b19); } .ds-io { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 10px; margin-bottom: 4px; border-radius: 0 0 4px 4px; background: var(--ground-sunk, #f5f1e8); } .ds-iol { font-size: 11px; font-weight: 500; color: var(--ink-3, #6e6a62); } .ds-io pre { margin: 0; padding: 6px 8px; border-radius: 4px; background: var(--raised, #fffefb); font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace; font-size: 11px; line-height: 1.5; white-space: pre-wrap; } @media (prefers-reduced-motion: reduce) { .ds-tmk.ds-pending { animation: none; } .ds-tc { transition: none; } }"
-		},
-		{
-			"name": "Composer",
-			"kind": "input",
-			"refersTo": "composer",
-			"description": "Raised message field with Line Strong border; ember border and wash halo on focus-within; sizes to content up to 220px; primary Send or secondary Stop; link chips above, 11px kbd hint below.",
-			"html": "<div class=\"ds-cmp\"><div class=\"ds-cl\"><span class=\"ds-lt\"><span class=\"ds-ltk\">Task</span><span class=\"ds-ltl\">Consent screen copy</span><button class=\"ds-ltx\" aria-label=\"Remove\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/></svg></button></span></div><div class=\"ds-cb\"><textarea class=\"ds-cf\" rows=\"1\" placeholder=\"Message Claude\"></textarea><button class=\"ds-send\">Send</button></div><p class=\"ds-ch\"><kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line · <kbd>@</kbd> to link</p></div>",
-			"css": ".ds-cmp { display: flex; flex-direction: column; gap: 6px; max-width: 560px; padding: 12px; background: var(--ground, #fbf9f4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: var(--ink, #242423); } .ds-cl { display: flex; flex-wrap: wrap; gap: 6px; } .ds-lt { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 2px 0 8px; border: 1px solid var(--line, #e9e4d8); border-radius: 6px; background: var(--raised, #fffefb); font-size: 12px; } .ds-ltk { color: var(--ink-3, #6e6a62); font-size: 11px; font-weight: 500; } .ds-ltx { display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 4px; background: transparent; color: var(--ink-3, #6e6a62); cursor: pointer; } .ds-ltx:hover { background: var(--ground-sunk, #f5f1e8); color: var(--ink, #242423); } .ds-ltx svg { width: 12px; height: 12px; } .ds-cb { display: flex; align-items: flex-end; gap: 8px; padding: 6px 6px 6px 12px; border: 1px solid var(--line-strong, #d8d0bf); border-radius: 6px; background: var(--raised, #fffefb); transition: border-color 120ms, box-shadow 120ms; } .ds-cb:focus-within { border-color: var(--ember, #ec693a); box-shadow: 0 0 0 3px var(--ember-wash, #fbe6dc); } .ds-cf { flex: 1; min-width: 0; min-height: 28px; max-height: 220px; padding: 4px 0; border: 0; background: transparent; font: inherit; line-height: 1.5; resize: none; outline: none; field-sizing: content; color: inherit; } .ds-cf::placeholder { color: var(--ink-3, #6e6a62); } .ds-send { flex: none; height: 28px; padding: 0 12px; border: 1px solid var(--ember, #ec693a); border-radius: 6px; background: var(--ember, #ec693a); color: var(--ink, #242423); font: inherit; font-weight: 600; cursor: pointer; transition: background-color 120ms; } .ds-send:hover { background: var(--ember-light, #fa8851); } .ds-send:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ground, #fbf9f4), 0 0 0 4px var(--ember, #ec693a); } .ds-ch { margin: 0; font-size: 11px; color: var(--ink-3, #6e6a62); } .ds-ch kbd { font: inherit; font-weight: 500; color: var(--ink-2, #57544d); }"
+			"refersTo": "progress",
+			"description": "A bet on the hairline trunk: ring-hue node with ground gap, title and goal progress bar.",
+			"html": "<div class=\"ds-trunk\" style=\"--ring:#3b8fe0\"><div class=\"ds-bet\"><span class=\"ds-node\"></span><span class=\"ds-bet-title\">Bank sync converts trial users</span><span class=\"ds-progress\"><span style=\"width:60%\"></span></span></div><div class=\"ds-bet is-won\"><span class=\"ds-node\"></span><span class=\"ds-bet-title\">Landing page explains the ledger</span></div></div>",
+			"css": ".ds-trunk { position: relative; padding-left: 28px; background: #f4f5f1; font: 400 13px/1.5 'Geist Variable', system-ui, sans-serif; color: #151b18; } .ds-trunk::before { content: ''; position: absolute; left: 9px; top: 18px; bottom: 18px; width: 1px; background: #cdd2c9; } .ds-bet { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #e2e5de; } .ds-bet:last-child { border-bottom: 0; } .ds-node { position: absolute; left: -23px; width: 9px; height: 9px; border-radius: 50%; background: var(--ring); box-shadow: 0 0 0 3px #f4f5f1, 0 0 0 4px var(--ring); } .ds-bet.is-won .ds-node { background: #4f7a45; } .ds-bet-title { font-weight: 500; } .ds-progress { display: inline-block; width: 40px; height: 3px; border-radius: 2px; background: #e2e5de; overflow: hidden; } .ds-progress span { display: block; height: 100%; border-radius: 2px; background: var(--ring); transition: width 600ms cubic-bezier(0.16,1,0.3,1); }"
 		}
 	],
 	"narrative": {
-		"northStar": "The Holding Console",
-		"overview": "A working console for one expert owner steering several ventures. A committed charcoal rail (Slack's posture) sits beside a Linear-precise work area on a barely-cream ground. Everything reads top-down along one connected line, the spine: strategy kernel, then bets, then the goals testing them. Density is high and quiet: 13px system UI, hairline rules, 28px controls, no decoration that does not carry state.\n\nThe brand's simmering-terminal logo supplies exactly two devices and no more: the pixel-square bubble, which becomes every status and activity marker, and the ember orange, which is reserved for the one thing that matters on a screen. The app must never read as terminal cosplay or kitchen kitsch; monospace appears only where the content is literally data.\n\nLiveness is shown, never claimed. Changes that arrive from elsewhere make the touched node and its rail square simmer once (an ember pulse that settles), and a blinking pixel appears in the rail foot only while the live stream is down.\n\nAgent work is shown the same way. While Claude is running, its pixel pulses (the working pulse) in the rail, the thread list and the conversation, and its tool calls fold into quiet one-line rounds; when the run ends, everything settles back to neutral.",
+		"northStar": "The Growth Rings",
+		"overview": "**Creative North Star: \"The Growth Rings\"**\n\nEvery venture is a living cross-section. Each strategy revision lays down a ring, and agents at work grow the outer ring while you watch. The console is a calm instrument for one owner: a dark pith rail on the left that holds the identity and the venture list, and a pale sage-white work area where strategy, bets and goals read as plain, dense, hairline-ruled text. Colour is earned. Resin amber means \"act here\" or \"something is alive right now\"; each venture's own ring hue identifies it everywhere it appears; everything else is sage, ink and line.\n\nDensity is desktop-console dense (13px body, 28px rail rows, 30px buttons, 40px table rows) with generous section gaps (32px) so the hierarchy comes from weight, ink and space rather than boxes. Bricolage Grotesque carries the identity at the few places a name is spoken (wordmark, page and venture titles); Geist does all the work; Geist Mono appears only where the content is data.\n\nThe world replaces the charcoal-and-cream terminal kit it grew out of and refuses the flat grey productivity-app clone: no square pixel markers, no all-system type, no grey-on-grey with a single blue accent.",
 		"keyCharacteristics": [
-			"Charcoal rail (232px) + cream work area; desktop only (1024px minimum width).",
-			"Hairline-ruled rows and definition grids instead of cards.",
-			"Pixel-square markers (5-7px, square, never round) for every status.",
-			"Ember on the primary action, selection and live state only.",
-			"Monospace strictly for data: seq numbers, slugs, dates, versions."
+			"Pith green-black rail against a cool sage-white ground, white raised surfaces.",
+			"Resin amber reserved for the primary action and live state.",
+			"One full-strength ring hue per venture, carried by `--ring` on every venture-scoped surface.",
+			"Growth-ring geometry (off-centre pith, concentric rings) as the signature, in the mark, the venture glyph and the core sample.",
+			"Motion is ring motion: outer rings draw, glyph rings turn, nodes pulse a ring outward. All of it stops under reduced motion.",
+			"Hairline rules and tonal sinks instead of shadows and cards."
 		],
 		"rules": [
 			{
-				"name": "The One Ember Rule",
-				"body": "Ember marks the primary action, the current selection, or live state. Nothing else. One ember button per view section; never on headings, icons, links or decoration.",
+				"name": "The Resin Is Alive Rule",
+				"body": "Resin appears only on the single primary action in view and on things that are live this second (a running agent, a growing ring, the focus ring). A static decoration in resin is a bug.",
 				"section": "colors"
 			},
 			{
-				"name": "The Quiet Default Rule",
-				"body": "Resting UI is neutral. Ember appears on a pixel only when it means \"active now\" or \"just changed\"; otherwise the pixel is Line Strong, Ink 3 or the quiet rail grey.",
+				"name": "The One Hue Per Venture Rule",
+				"body": "A venture's ring hue comes from `ringColor(id)` and nothing else. Never pick a ring hue by hand, never use one for status, never put two ventures' hues on one venture-scoped surface.",
 				"section": "colors"
 			},
 			{
-				"name": "The Data-Only Mono Rule",
-				"body": "Monospace is for machine values: seq, slugs, dates, versions. Never for headings, labels, buttons or prose. If a human wrote it, it is sans.",
+				"name": "The Names Only Rule",
+				"body": "Bricolage is for names: the wordmark, page titles and venture titles. Section heads, buttons, labels and body stay in Geist.",
 				"section": "typography"
 			},
 			{
-				"name": "The Tabular Numbers Rule",
-				"body": "Numeric table columns are right-aligned with tabular numerals.",
+				"name": "The Data Is Mono Rule",
+				"body": "Geist Mono marks content that is data (ids, numbers, durations). It is never used for labels, headings or decoration. Plain numbers in prose use Geist with tabular numerals.",
 				"section": "typography"
 			},
 			{
-				"name": "The No Cards Rule",
-				"body": "Content never sits in shadowed, bordered tiles. Group with hairline rules, definition grids and sunk-ground regions. The single bordered box is the transient add-bet form (10px radius) while it is open.",
+				"name": "The Hairline Not Card Rule",
+				"body": "Group with a 1px `line` rule or a tonal sink. Do not wrap sections in bordered, shadowed cards.",
 				"section": "elevation"
 			}
 		],
 		"dos": [
-			"**Do** keep ember (#ec693a) to the primary action, the current selection and live state; one primary button per section.",
-			"**Do** mark every status and activity with a square pixel (5-7px), filled or hollow (1.5px inset), never a dot or icon.",
-			"**Do** separate content with 1px hairlines (#e9e4d8) and sunk ground (#f5f1e8) instead of containers.",
-			"**Do** set seq numbers, slugs, dates and versions in monospace at 12px with tabular numerals, and nothing else.",
-			"**Do** hang new strategy-derived content off the spine: kernel, bets, goals, top-down on one line.",
-			"**Do** show liveness with the 1.8s simmer on what changed, and the reconnect pixel only while the stream is down.",
-			"**Do** keep work markers neutral: ember fills a work marker only while the item is doing.",
-			"**Do** honor reduced motion by removing every animation listed under States.",
-			"**Do** show agent work live with the 1.6s working pulse, and only while a run is active; when it ends the thread pixel returns to Line Strong and the author mark to ink. Ember stays for the primary action, selection and live state."
+			"**Do** set `--ring` to `ringColor(venture.id)` on every venture-scoped container and let glyphs, nodes, dots and progress read it.",
+			"**Do** keep resin to the one primary action in view and to live state; pair resin fills with on-resin text.",
+			"**Do** draw every marker round, and draw rings off-centre (pith low-left, rings shifting up-right).",
+			"**Do** express liveness as ring motion: the mark's outer arc grows, venture glyph rings turn, the core sample's resin ring grows, fresh nodes pulse a ring.",
+			"**Do** list every animated selector in the `prefers-reduced-motion` block; under reduce, live rings rest fully drawn and simmer pulses do not play.",
+			"**Do** group with hairline rules and tonal sinks; keep the work area flat."
 		],
 		"donts": [
-			"**Don't** wrap content in cards, tiles or kanban columns; the only bordered box is the transient add-bet form.",
-			"**Don't** use ember for headings, links, icons, borders at rest or decoration.",
-			"**Don't** use monospace for prose, labels or headings; no terminal cosplay or kitchen kitsch.",
-			"**Don't** add shadows for elevation; the focus ring, field halo, node gap and checked segment are the whole vocabulary.",
-			"**Don't** add round status dots; markers are square.",
-			"**Don't** go above 20px type or add a display face."
+			"**Don't** use square pixel markers, charcoal-and-cream surfaces or an all-system type stack; that is the replaced world.",
+			"**Don't** set Bricolage on section heads, buttons, labels or body copy, and don't use Geist Mono for anything that is not data.",
+			"**Don't** use a venture ring hue to signal status, or resin as decoration.",
+			"**Don't** wrap sections in shadowed cards; the only shadows are focus, halo, the primary lift and node gap rings.",
+			"**Don't** pick ring hues by hand; they come from the venture id."
 		]
 	}
 }

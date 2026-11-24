@@ -118,6 +118,7 @@ export interface HoldingRow {
 	openBets: number;
 	goals: number;
 	unlinkedGoals: number;
+	strategyVersion: number;
 	lastSeq: number;
 	lastActivityAt: string;
 }

@@ -1,7 +1,7 @@
 import type { Bet, BetStatus, Cockpit, Goal, StrategyVersion, WorkProgress } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import { Archive, ChevronDown, ChevronRight, History, Pencil, Plus } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, History, MessagesSquare, Pencil, Plus } from "lucide-react";
 import { type CSSProperties, type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 import { ApiRequestError, api, type SetStatusResult } from "./api.ts";
 import { Editable } from "./editable.tsx";
@@ -12,7 +12,7 @@ import { useFreshIds } from "./fresh.ts";
 import { PageError } from "./holding.tsx";
 import { kindLabel } from "./labels.ts";
 import { keys, queries, rememberVenture, updateCockpit } from "./live.ts";
-import { CoreSample, ringColor } from "./rings.tsx";
+import { CoreSample, Progress, ringColor } from "./rings.tsx";
 import { ago, formatDate } from "./time.ts";
 import { useCommand } from "./use-command.ts";
 
@@ -74,6 +74,16 @@ function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 					/
 				</span>
 				<span className="crumb-current">{venture.name}</span>
+				<div className="topbar-actions">
+					<Link to="/v/$slug/threads" params={{ slug }} className="button">
+						<MessagesSquare aria-hidden />
+						New thread
+					</Link>
+					<button type="button" className="button is-primary" onClick={() => setAdding(true)}>
+						<Plus aria-hidden />
+						Add bet
+					</button>
+				</div>
 			</header>
 
 			<div className="cockpit" style={{ "--ring": ringColor(venture.id) } as CSSProperties}>
@@ -88,7 +98,9 @@ function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 								{working.length > 0 ? (
 									<span className="venture-working">
 										<span className="pixel is-live" aria-hidden />
-										{working.length === 1 ? "An agent is working" : `${working.length} agents are working`}
+										{working.length === 1
+											? "Claude is working"
+											: `Claude is working in ${working.length} threads`}
 									</span>
 								) : null}
 							</div>
@@ -104,12 +116,6 @@ function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 								<span className="section-meta num">
 									{bets.filter((bet) => bet.status === "open").length} open
 								</span>
-								<div className="section-actions">
-									<button type="button" className="button is-primary" onClick={() => setAdding(true)}>
-										<Plus aria-hidden />
-										Add bet
-									</button>
-								</div>
 							</div>
 
 							{adding ? <AddBetForm slug={slug} ventureId={venture.id} close={() => setAdding(false)} /> : null}
@@ -705,6 +711,7 @@ function GoalRow(props: { slug: string; goal: Goal; bets: Bet[]; fresh: boolean;
 						className="num"
 						title="Open this goal's work"
 					>
+						<Progress done={progress.done} total={progress.total} />
 						{progress.done}/{progress.total} done
 					</Link>
 				)}

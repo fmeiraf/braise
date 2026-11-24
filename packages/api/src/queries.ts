@@ -15,6 +15,7 @@ export async function listVentures(db: Database) {
 			openBets: sql<number>`(SELECT count(*)::int FROM bets b WHERE b.venture_id = ventures.id AND b.status = 'open' AND b.archived_at IS NULL)`,
 			goals: sql<number>`(SELECT count(*)::int FROM goals g WHERE g.venture_id = ventures.id AND g.archived_at IS NULL)`,
 			unlinkedGoals: sql<number>`(SELECT count(*)::int FROM goals g WHERE g.venture_id = ventures.id AND g.archived_at IS NULL AND g.bet_id IS NULL)`,
+			strategyVersion: sql<number>`(SELECT coalesce(max(s.version), 0)::int FROM strategy_versions s WHERE s.venture_id = ventures.id AND s.status = 'active')`,
 		})
 		.from(ventures)
 		.where(isNull(ventures.archivedAt))

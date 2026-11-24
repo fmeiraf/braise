@@ -397,11 +397,10 @@ a {
 
 @keyframes simmer {
 	0% {
-		transform: scale(1.5);
-		color: var(--resin-light);
+		opacity: 0.35;
 	}
 	100% {
-		transform: none;
+		opacity: 1;
 	}
 }
 
@@ -618,7 +617,7 @@ a {
 .select {
 	appearance: none;
 	padding-right: 28px;
-	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%236e6a62' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%235f6963' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 	background-repeat: no-repeat;
 	background-position: right 9px center;
 }
@@ -745,7 +744,7 @@ a {
 }
 
 .flagged .pixel {
-	color: var(--resin);
+	color: var(--ink-3);
 }
 
 .cockpit {
@@ -840,6 +839,87 @@ a {
 
 .core-sample.is-live .core-growth {
 	animation: ring-grow 5s var(--ease-out) infinite;
+}
+
+.core-ring.is-ghost {
+	stroke: currentColor;
+	opacity: 0.16;
+}
+
+.ring-scope {
+	display: contents;
+}
+
+.progress {
+	display: inline-block;
+	width: 40px;
+	height: 3px;
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--ring) 18%, var(--line));
+	overflow: hidden;
+	vertical-align: middle;
+}
+
+.progress-fill {
+	display: block;
+	height: 100%;
+	border-radius: 2px;
+	background: var(--ring);
+	transition: width 600ms var(--ease-out);
+}
+
+.goal-work a,
+.work-goal-progress {
+	white-space: nowrap;
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.cross-sections {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	margin: 0 0 var(--space-6);
+	padding: 0;
+	list-style: none;
+}
+
+.cross-section {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	grid-template-rows: auto auto;
+	column-gap: var(--space-4);
+	row-gap: 2px;
+	align-items: center;
+	width: 300px;
+	padding: var(--space-3) var(--space-4) var(--space-3) var(--space-3);
+	border-radius: var(--radius-panel);
+	transition: background-color 160ms var(--ease-out);
+}
+
+.cross-section:hover {
+	background: var(--raised);
+}
+
+.cross-section .core-sample {
+	grid-row: span 2;
+}
+
+.cross-section-name {
+	align-self: end;
+	font: 640 18px / 1.2 var(--font-display);
+	font-variation-settings: "opsz" 48;
+	letter-spacing: -0.02em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.cross-section-meta {
+	align-self: start;
+	color: var(--ink-3);
+	font-size: var(--text-sm);
 }
 
 .venture-title h1 {
@@ -1057,8 +1137,9 @@ a {
 
 @keyframes node-simmer {
 	0% {
-		transform: translateY(4px) scale(1.8);
-		background: var(--resin-light);
+		box-shadow:
+			0 0 0 3px var(--ground),
+			0 0 0 10px color-mix(in srgb, var(--ring) 35%, transparent);
 	}
 }
 
@@ -1138,7 +1219,7 @@ a {
 }
 
 .status-pill .pixel {
-	color: var(--resin);
+	color: var(--ring);
 }
 
 .status-select {
@@ -1232,7 +1313,7 @@ a {
 .goal {
 	position: relative;
 	display: grid;
-	grid-template-columns: 14px minmax(0, 1.4fr) minmax(0, 1fr) 104px 76px 60px;
+	grid-template-columns: 14px minmax(0, 1.4fr) minmax(0, 1fr) 104px 112px 60px;
 	align-items: center;
 	gap: var(--space-3);
 	min-height: 36px;
@@ -1286,7 +1367,7 @@ a {
 	background-color: transparent;
 	color: transparent;
 	cursor: pointer;
-	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' fill='none' stroke='%236e6a62' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='M9 17H7A5 5 0 0 1 7 7h2'/%3E%3Cpath d='M15 7h2a5 5 0 1 1 0 10h-2'/%3E%3Cline x1='8' x2='16' y1='12' y2='12'/%3E%3C/svg%3E");
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' fill='none' stroke='%235f6963' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='M9 17H7A5 5 0 0 1 7 7h2'/%3E%3Cpath d='M15 7h2a5 5 0 1 1 0 10h-2'/%3E%3Cline x1='8' x2='16' y1='12' y2='12'/%3E%3C/svg%3E");
 	background-position: center;
 }
 
@@ -2025,7 +2106,7 @@ button.work-fold:hover {
 }
 
 .work-status.is-doing {
-	background: var(--resin);
+	background: var(--ring);
 }
 
 .work-status.is-done {
@@ -2687,6 +2768,7 @@ a.link-tag-label:hover {
 	justify-self: start;
 	width: 7px;
 	height: 7px;
+	border-radius: 50%;
 	background: var(--ink);
 }
 

@@ -22,7 +22,15 @@ import {
 	SignalMedium,
 	X,
 } from "lucide-react";
-import { type FormEvent, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+	type CSSProperties,
+	type FormEvent,
+	type KeyboardEvent,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import type { ArchiveWorkResult } from "./api.ts";
 import { Editable } from "./editable.tsx";
 import { describeError } from "./errors.ts";
@@ -30,6 +38,7 @@ import { focusOnMount } from "./focus.ts";
 import { useFreshIds } from "./fresh.ts";
 import { PageError } from "./holding.tsx";
 import { patchWork, queries, refreshVenture, rememberVenture } from "./live.ts";
+import { Progress, ringColor } from "./rings.tsx";
 import { WorkItemThreads } from "./threads.tsx";
 import { ago, formatDate } from "./time.ts";
 import { useCommand } from "./use-command.ts";
@@ -457,10 +466,19 @@ function VentureWork({
 		/>
 	));
 
-	if (!holding) return <>{body}</>;
+	if (!holding)
+		return (
+			<div className="ring-scope" style={{ "--ring": ringColor(section.venture.id) } as CSSProperties}>
+				{body}
+			</div>
+		);
 
 	return (
-		<section className="work-venture" aria-labelledby={`venture-${section.venture.id}`}>
+		<section
+			className="work-venture"
+			style={{ "--ring": ringColor(section.venture.id) } as CSSProperties}
+			aria-labelledby={`venture-${section.venture.id}`}
+		>
 			<div className="work-venture-head">
 				<h2 id={`venture-${section.venture.id}`}>
 					<Link to="/v/$slug/work" params={{ slug: section.venture.slug }}>
@@ -496,7 +514,8 @@ function GoalWork(props: {
 				{goal.horizon === null ? null : <span className="data muted">{formatDate(goal.horizon)}</span>}
 				<span className="work-goal-meta">
 					{props.progress.total === 0 ? null : (
-						<span className="num">
+						<span className="num work-goal-progress">
+							<Progress done={props.progress.done} total={props.progress.total} />
 							{props.progress.done}/{props.progress.total} done
 						</span>
 					)}

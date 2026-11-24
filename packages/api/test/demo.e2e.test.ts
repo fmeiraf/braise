@@ -127,13 +127,14 @@ describe("slice 1 demo scenario over HTTP", () => {
 		]);
 
 		const holding = await json<{
-			ventures: { id: string; openBets: number; goals: number; unlinkedGoals: number }[];
+			ventures: { id: string; openBets: number; goals: number; unlinkedGoals: number; strategyVersion: number }[];
 		}>(database.app.request("/api/ventures"));
 
 		expect(holding.body.ventures.find((row) => row.id === ventureId)).toMatchObject({
 			openBets: 1,
 			goals: 2,
 			unlinkedGoals: 1,
+			strategyVersion: 2,
 		});
 
 		const history = await json<{ versions: StrategyVersion[] }>(

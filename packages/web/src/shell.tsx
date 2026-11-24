@@ -109,7 +109,12 @@ export function Shell() {
 								}
 							>
 								<span className={fresh.has(venture.id) ? "rail-rings is-simmering" : "rail-rings"}>
-									<VentureRings id={venture.id} live={live} quiet={!recent && !live} />
+									<VentureRings
+										id={venture.id}
+										version={venture.strategyVersion}
+										live={live}
+										quiet={!recent && !live}
+									/>
 								</span>
 								<span className="rail-label">{venture.name}</span>
 							</Link>

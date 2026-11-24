@@ -7,7 +7,7 @@ import { CreateVenture } from "./create-venture.tsx";
 import { describeError } from "./errors.ts";
 import { kindLabel } from "./labels.ts";
 import { queries } from "./live.ts";
-import { VentureRings } from "./rings.tsx";
+import { CoreSample, VentureRings } from "./rings.tsx";
 import { ago } from "./time.ts";
 
 type SortKey = "name" | "kind" | "openBets" | "goals" | "unlinkedGoals" | "lastActivityAt";
@@ -32,6 +32,7 @@ function compare(a: HoldingRow, b: HoldingRow, key: SortKey) {
 
 export function HoldingPage() {
 	const ventures = useQuery(queries.ventures());
+	const activeRuns = useQuery(queries.activeRuns());
 	const navigate = useNavigate();
 
 	const [sort, setSort] = useState<{ key: SortKey; descending: boolean }>({
@@ -52,6 +53,9 @@ export function HoldingPage() {
 	});
 
 	const now = Date.now();
+	const runs = activeRuns.data?.runs ?? [];
+	const isLive = (slug: string) => runs.some((run) => run.ventureSlug === slug);
+	const byActivity = ventures.data.ventures.toSorted((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
 
 	return (
 		<>
@@ -66,6 +70,33 @@ export function HoldingPage() {
 				</div>
 			</header>
 			<div className="page">
+				<ul className="cross-sections" aria-label="Ventures at a glance">
+					{byActivity.map((row) => {
+						const live = isLive(row.slug);
+
+						return (
+							<li key={row.id}>
+								<Link to="/v/$slug" params={{ slug: row.slug }} className="cross-section">
+									<CoreSample id={row.id} version={row.strategyVersion} live={live} size={76} />
+									<span className="cross-section-name">{row.name}</span>
+									<span className="cross-section-meta">
+										{live ? (
+											<span className="venture-working">
+												<span className="pixel is-live" aria-hidden />
+												Claude is working
+											</span>
+										) : (
+											<>
+												<span className="data">v{row.strategyVersion}</span> · {row.openBets} open{" "}
+												{row.openBets === 1 ? "bet" : "bets"} · {ago(row.lastActivityAt, now)}
+											</>
+										)}
+									</span>
+								</Link>
+							</li>
+						);
+					})}
+				</ul>
 				<table className="table">
 					<thead>
 						<tr>
@@ -97,7 +128,12 @@ export function HoldingPage() {
 							<tr key={row.id} onClick={() => void navigate({ to: "/v/$slug", params: { slug: row.slug } })}>
 								<td>
 									<Link to="/v/$slug" params={{ slug: row.slug }} className="venture-cell">
-										<VentureRings id={row.id} live={false} quiet={false} />
+										<VentureRings
+											id={row.id}
+											version={row.strategyVersion}
+											live={isLive(row.slug)}
+											quiet={false}
+										/>
 										{row.name}
 									</Link>
 								</td>
