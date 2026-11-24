@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17.6-bookworm
+    environment:
+      POSTGRES_USER: braise
+      POSTGRES_PASSWORD: braise
+      POSTGRES_DB: braise
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - braise-pg:/var/lib/postgresql/data
+      - ./compose/initdb.sql:/docker-entrypoint-initdb.d/initdb.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U braise -d braise"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  braise-pg:

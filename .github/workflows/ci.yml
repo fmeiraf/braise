@@ -10,6 +10,22 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-bookworm
+        env:
+          POSTGRES_USER: braise
+          POSTGRES_PASSWORD: braise
+          POSTGRES_DB: braise_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U braise -d braise_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://braise:braise@127.0.0.1:5432/braise
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

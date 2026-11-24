@@ -1,16 +1,31 @@
 import { defineConfig } from "vitest/config";
 
+const sourceConditions = {
+	resolve: { conditions: ["source"] },
+	ssr: { resolve: { conditions: ["source"] } },
+};
+
 export default defineConfig({
+	...sourceConditions,
 	test: {
-		environment: "node",
-		include: ["packages/*/src/**/*.test.ts", "packages/*/test/**/*.test.ts"],
-	},
-	resolve: {
-		conditions: ["source"],
-	},
-	ssr: {
-		resolve: {
-			conditions: ["source"],
-		},
+		projects: [
+			{
+				...sourceConditions,
+				test: {
+					name: "unit",
+					environment: "node",
+					include: ["packages/*/src/**/*.test.ts"],
+				},
+			},
+			{
+				...sourceConditions,
+				test: {
+					name: "api",
+					environment: "node",
+					include: ["packages/api/test/**/*.test.ts"],
+					globalSetup: ["packages/api/test/database.test-utils.ts"],
+				},
+			},
+		],
 	},
 });

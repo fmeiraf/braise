@@ -3,9 +3,10 @@
 	"compilerOptions": {
 		"noEmit": true,
 		"paths": {
-			"@braise/core": ["./packages/core/src/index.ts"]
+			"@braise/core": ["./packages/core/src/index.ts"],
+			"@braise/api": ["./packages/api/src/index.ts"]
 		}
 	},
-	"include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts", "vitest.config.ts"],
+	"include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts", "packages/*/*.config.ts", "vitest.config.ts"],
 	"exclude": ["**/dist/**", "**/node_modules/**"]
 }
