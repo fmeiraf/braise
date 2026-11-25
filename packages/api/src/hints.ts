@@ -1,13 +1,14 @@
 import type { RunDelta, StreamHint, ThreadHint } from "@braise/core";
 import pg from "pg";
 import { z } from "zod";
-import { deltaChannel, notifyChannel, runControlChannel, threadChannel } from "./channels.ts";
+import { accessChannel, deltaChannel, notifyChannel, runControlChannel, threadChannel } from "./channels.ts";
 
 export type HubMessage =
 	| ({ type: "hint" } & StreamHint)
 	| ({ type: "thread" } & ThreadHint)
 	| ({ type: "delta" } & RunDelta)
 	| { type: "control"; runId: string }
+	| { type: "access" }
 	| { type: "reset" };
 
 const threadHint = z.object({ threadId: z.uuid(), ventureId: z.uuid().nullable() });
@@ -47,6 +48,8 @@ export function parseHubMessage(channel: string, payload: string) {
 
 			return parsed.success ? ({ type: "delta", ...parsed.data } satisfies HubMessage) : null;
 		}
+		case accessChannel:
+			return { type: "access" } satisfies HubMessage;
 		case runControlChannel:
 			return z.uuid().safeParse(payload).success ? ({ type: "control", runId: payload } satisfies HubMessage) : null;
 		default:
@@ -121,7 +124,7 @@ export function createHintHub(connectionString: string) {
 
 		await next.connect();
 
-		for (const channel of [notifyChannel, threadChannel, deltaChannel, runControlChannel]) {
+		for (const channel of [notifyChannel, threadChannel, deltaChannel, runControlChannel, accessChannel]) {
 			await next.query(`LISTEN ${channel}`);
 		}
 

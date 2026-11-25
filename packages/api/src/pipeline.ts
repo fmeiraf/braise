@@ -1,21 +1,23 @@
 import { createHash } from "node:crypto";
 import {
-	agentCommands,
+	type Capability,
 	type CommandName,
 	type CommandPayload,
 	type CommandResponse,
+	capabilityLabels,
+	capabilityOf,
 	commandEnvelope,
 	commandSchemas,
 	commandsRequiringReason,
 	isAgentActor,
 	isCommandName,
 } from "@braise/core";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import type { z } from "zod";
-import { notifyChannel, threadChannel } from "./channels.ts";
+import { accessChannel, notifyChannel, threadChannel } from "./channels.ts";
 import type { Database, Transaction } from "./db/client.ts";
-import { commands, events, ventures } from "./db/schema.ts";
+import { agentGrants, agentProfiles, commands, events, runs, ventures } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 
 export interface Services {
@@ -50,7 +52,12 @@ export interface ThreadOutcome {
 	result: unknown;
 }
 
-export type HandlerOutcome = VentureOutcome | ThreadOutcome;
+export interface GlobalOutcome {
+	global: true;
+	result: unknown;
+}
+
+export type HandlerOutcome = VentureOutcome | ThreadOutcome | GlobalOutcome;
 
 export type Handler<Name extends CommandName> = (
 	context: HandlerContext,
@@ -160,10 +167,94 @@ async function finishThreadCommand(tx: Transaction, outcome: ThreadOutcome) {
 	return { ventureId: outcome.thread.ventureId, seq: outcome.thread.seq };
 }
 
-function assertGranted(name: CommandName, actor: string) {
-	if (isAgentActor(actor) && !agentCommands.has(name)) {
+async function finishGlobalCommand(tx: Transaction) {
+	await tx.execute(sql`SELECT pg_notify(${accessChannel}, '')`);
+
+	return { ventureId: null, seq: 0 };
+}
+
+function activeGrant(executor: Database | Transaction, actor: string, capability: Capability) {
+	return executor
+		.select({ id: agentGrants.id })
+		.from(agentGrants)
+		.innerJoin(agentProfiles, eq(agentProfiles.id, agentGrants.profileId))
+		.where(
+			and(eq(agentProfiles.actor, actor), eq(agentGrants.capability, capability), isNull(agentGrants.revokedAt)),
+		);
+}
+
+async function holdsCapability(db: Database, actor: string, capability: Capability) {
+	const [grant] = await activeGrant(db, actor, capability);
+
+	return grant !== undefined;
+}
+
+async function assertStillGranted(tx: Transaction, name: CommandName, actor: string) {
+	const capability = isAgentActor(actor) ? capabilityOf(name) : null;
+
+	if (capability === null) return;
+
+	const [grant] = await activeGrant(tx, actor, capability).for("share", { of: agentGrants });
+
+	if (grant === undefined) {
+		throw new AppError("not_granted", `${capabilityLabels[capability]} was revoked`, {
+			command: name,
+			actor,
+			capability,
+		});
+	}
+}
+
+function assertGrantable(name: CommandName, actor: string) {
+	if (isAgentActor(actor) && name !== "access.request" && capabilityOf(name) === null) {
 		throw new AppError("not_granted", "Agents may not run this command", { command: name, actor });
 	}
+}
+
+async function assertGranted(
+	db: Database,
+	handlers: Handlers,
+	services: Services,
+	name: CommandName,
+	request: CommandRequest,
+	attempt: { payload: object; idempotencyKey: string },
+) {
+	const capability = isAgentActor(request.actor) ? capabilityOf(name) : null;
+
+	if (capability === null) return;
+
+	const details = { command: name, actor: request.actor };
+
+	if (await holdsCapability(db, request.actor, capability)) return;
+
+	const refused = { ...details, capability };
+	const runId = request.runId ?? null;
+
+	const [found] =
+		runId === null ? [] : await db.select({ threadId: runs.threadId }).from(runs).where(eq(runs.id, runId));
+
+	if (runId === null || found === undefined) {
+		throw new AppError("not_granted", `${capabilityLabels[capability]} isn't granted to this agent`, refused);
+	}
+
+	const attempted = { ...attempt.payload } as Record<string, unknown>;
+
+	const filed = await run(db, handlers, services, "access.request", {
+		name: "access.request",
+		actor: request.actor,
+		runId,
+		body: {
+			payload: { capability, threadId: found.threadId, command: name, payload: attempted },
+			idempotencyKey: `access:${attempt.idempotencyKey}`,
+		},
+	});
+
+	const { accessRequest } = filed.result as { accessRequest: { id: string } };
+
+	throw new AppError("not_granted", `${capabilityLabels[capability]} isn't granted; the owner was asked`, {
+		...refused,
+		accessRequestId: accessRequest.id,
+	});
 }
 
 async function run<Name extends CommandName>(
@@ -173,9 +264,12 @@ async function run<Name extends CommandName>(
 	name: Name,
 	request: CommandRequest,
 ) {
-	assertGranted(name, request.actor);
+	assertGrantable(name, request.actor);
 
 	const { payload, idempotencyKey, reason } = parse(name, request.body);
+
+	await assertGranted(db, handlers, services, name, request, { payload, idempotencyKey });
+
 	const payloadHash = hashCommand(name, payload, reason);
 	const targetVentureId = ventureIdOf(payload);
 	const queuedRuns: string[] = [];
@@ -214,6 +308,8 @@ async function run<Name extends CommandName>(
 			return stored.result as CommandResponse;
 		}
 
+		await assertStillGranted(tx, name, request.actor);
+
 		const venture = targetVentureId === null ? null : await lockVenture(tx, targetVentureId);
 
 		const outcome = await handlers[name](
@@ -229,9 +325,11 @@ async function run<Name extends CommandName>(
 		);
 
 		const finished =
-			"thread" in outcome
-				? await finishThreadCommand(tx, outcome)
-				: await finishVentureCommand(tx, commandId, request, outcome);
+			"global" in outcome
+				? await finishGlobalCommand(tx)
+				: "thread" in outcome
+					? await finishThreadCommand(tx, outcome)
+					: await finishVentureCommand(tx, commandId, request, outcome);
 
 		const response = JSON.parse(
 			JSON.stringify({ result: outcome.result, seq: finished.seq } satisfies CommandResponse),

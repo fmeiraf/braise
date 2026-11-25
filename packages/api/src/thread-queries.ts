@@ -12,6 +12,7 @@ import {
 import { and, asc, desc, eq, ilike, inArray, isNull, type SQL } from "drizzle-orm";
 import type { Database } from "./db/client.ts";
 import {
+	agentProfiles,
 	bets,
 	goals,
 	runEvents,
@@ -226,7 +227,12 @@ export async function getThread(db: Database, threadId: string) {
 
 	if (row === undefined) throw new AppError("not_found", "Thread not found", { threadId });
 
-	const [venture, links, messages, runRows] = await Promise.all([
+	const [agent, venture, links, messages, runRows] = await Promise.all([
+		db
+			.select({ id: agentProfiles.id, name: agentProfiles.name })
+			.from(agentProfiles)
+			.where(eq(agentProfiles.id, row.agentProfileId))
+			.then(([found]) => found),
 		row.ventureId === null
 			? undefined
 			: db
@@ -253,8 +259,11 @@ export async function getThread(db: Database, threadId: string) {
 					)
 					.orderBy(asc(runEvents.runId), asc(runEvents.seq));
 
+	if (agent === undefined) throw new AppError("internal_error", "The thread's agent profile is missing", { threadId });
+
 	return {
 		thread: toThread(row),
+		agent,
 		venture: venture ?? null,
 		links: links.get(row.id) ?? [],
 		messages: messages.map((message) => ({ ...message, createdAt: message.createdAt.toISOString() })),

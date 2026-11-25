@@ -129,7 +129,9 @@ async function applyChanges(
 
 		const outcome = await handlerFor(apply, change.command)(context, payload);
 
-		if ("thread" in outcome) throw new AppError("internal_error", "A proposable command returned a thread outcome");
+		if (!("events" in outcome)) {
+			throw new AppError("internal_error", "A proposable command returned a non-venture outcome");
+		}
 
 		if (change.command === "bet.create") {
 			const result = outcome.result as { id: string };

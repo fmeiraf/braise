@@ -3,6 +3,7 @@ import { type RunContext, renderPrompt, renderSystemPrompt } from "./context.ts"
 
 const base = {
 	today: "2026-11-24",
+	agent: { name: "Claude", grants: ["work", "links", "propose"] },
 	thread: { id: "thread-1", title: "Launch plan" },
 	scope: null,
 	ventures: [{ id: "v-1", slug: "corner-bakery", name: "Corner Bakery" }],
@@ -60,6 +61,28 @@ describe("renderSystemPrompt", () => {
 		expect(
 			renderSystemPrompt({ ...base, pendingProposals: [{ id: "p-1", title: "Loyalty card", changeCount: 3 }] }),
 		).toContain('- "Loyalty card" (id p-1, 3 changes)');
+	});
+});
+
+describe("permissions in the system prompt", () => {
+	it("names the agent and lists every capability as granted", () => {
+		const prompt = renderSystemPrompt(base);
+
+		expect(prompt).toContain("You are Claude, the agent inside braise");
+
+		expect(prompt).toContain("Granted now: Work items, Thread links, Proposals. Not granted: nothing.");
+
+		expect(prompt).not.toContain("(not granted)");
+	});
+
+	it("marks what isn't granted and explains access requests", () => {
+		const prompt = renderSystemPrompt({ ...base, agent: { name: "GPT", grants: ["links"] } });
+
+		expect(prompt).toContain("- Work items (not granted): create");
+
+		expect(prompt).toContain("Granted now: Thread links. Not granted: Work items, Proposals.");
+
+		expect(prompt).toContain("braise files an access request in the owner's inbox");
 	});
 });
 

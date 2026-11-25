@@ -1,10 +1,19 @@
 import { activeRunStatuses, type ThreadLinkType, threadTitle } from "@braise/core";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
-import { agentProfile } from "./agent/profile.ts";
 import { runControlChannel } from "./channels.ts";
 import type { Database, Transaction } from "./db/client.ts";
-import { bets, goals, runs, threadLinks, threadMessages, threads, ventures, workItems } from "./db/schema.ts";
+import {
+	agentProfiles,
+	bets,
+	goals,
+	runs,
+	threadLinks,
+	threadMessages,
+	threads,
+	ventures,
+	workItems,
+} from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 import type { HandlerContext, Handlers } from "./pipeline.ts";
 
@@ -166,8 +175,16 @@ async function assertNoActiveRun(tx: Transaction, threadId: string) {
 	}
 }
 
+async function profileOf(tx: Transaction, profileId: string) {
+	const [profile] = await tx.select().from(agentProfiles).where(eq(agentProfiles.id, profileId));
+
+	if (profile === undefined) throw new AppError("not_found", "Agent profile not found", { agentProfileId: profileId });
+
+	return profile;
+}
+
 async function queueRun(context: HandlerContext, thread: ThreadRow, messageId: string, retryOf: string | null = null) {
-	const profile = agentProfile();
+	const profile = await profileOf(context.tx, thread.agentProfileId);
 
 	const [run] = await context.tx
 		.insert(runs)
@@ -223,9 +240,17 @@ export const threadHandlers = {
 		const { tx, actor } = context;
 		const ventureId = context.venture?.id ?? null;
 
+		const profile = await profileOf(tx, payload.agentProfileId);
+
 		const [thread] = await tx
 			.insert(threads)
-			.values({ id: uuidv7(), ventureId, title: threadTitle(payload.body), createdBy: actor })
+			.values({
+				id: uuidv7(),
+				ventureId,
+				agentProfileId: profile.id,
+				title: threadTitle(payload.body),
+				createdBy: actor,
+			})
 			.returning();
 
 		if (thread === undefined) throw new AppError("internal_error", "Thread insert returned nothing");

@@ -1,6 +1,7 @@
 import { type FieldChanges, maxWorkDepth, slugify } from "@braise/core";
 import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
+import { accessHandlers } from "./access-handlers.ts";
 import type { Transaction } from "./db/client.ts";
 import { bets, goals, strategyVersions, ventures, workItems } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
@@ -716,6 +717,20 @@ const domainHandlers = {
 			events: [{ type: "work.archived", subject: `work:${item.id}`, payload: { title: item.title, archivedIds } }],
 		};
 	},
-} satisfies Omit<Handlers, "proposal.create" | "proposal.approve" | "proposal.reject">;
+} satisfies Omit<
+	Handlers,
+	| "proposal.create"
+	| "proposal.approve"
+	| "proposal.reject"
+	| "access.request"
+	| "access.approve"
+	| "access.deny"
+	| "grant.add"
+	| "grant.revoke"
+>;
 
-export const handlers = { ...domainHandlers, ...proposalHandlers(domainHandlers) } satisfies Handlers;
+export const handlers = {
+	...domainHandlers,
+	...proposalHandlers(domainHandlers),
+	...accessHandlers,
+} satisfies Handlers;

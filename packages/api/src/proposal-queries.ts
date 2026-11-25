@@ -1,5 +1,6 @@
 import type { Inbox, InboxProposal, Proposal, ProposalChange, ProposalDetail } from "@braise/core";
 import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
+import { accessInbox } from "./access-queries.ts";
 import type { Database } from "./db/client.ts";
 import { bets, goals, proposals, strategyVersions, threads, ventures } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
@@ -41,6 +42,7 @@ async function toInboxItem(db: Database, row: Awaited<ReturnType<typeof inboxRow
 	const { proposal } = row;
 
 	return {
+		kind: "proposal",
 		id: proposal.id,
 		venture: row.venture,
 		thread: row.thread,
@@ -62,9 +64,19 @@ export async function getInbox(db: Database) {
 		inboxRows(db).where(ne(proposals.status, "pending")).orderBy(desc(proposals.decidedAt)).limit(decidedLimit),
 	]);
 
+	const [pendingProposals, decidedProposals, access] = await Promise.all([
+		Promise.all(pending.map((row) => toInboxItem(db, row))),
+		Promise.all(decided.map((row) => toInboxItem(db, row))),
+		accessInbox(db),
+	]);
+
 	return {
-		pending: await Promise.all(pending.map((row) => toInboxItem(db, row))),
-		decided: await Promise.all(decided.map((row) => toInboxItem(db, row))),
+		pending: [...pendingProposals, ...access.pending].toSorted((left, right) =>
+			left.createdAt.localeCompare(right.createdAt),
+		),
+		decided: [...decidedProposals, ...access.decided]
+			.toSorted((left, right) => (right.decidedAt ?? "").localeCompare(left.decidedAt ?? ""))
+			.slice(0, decidedLimit),
 	} satisfies Inbox;
 }
 

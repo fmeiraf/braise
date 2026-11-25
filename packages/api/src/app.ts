@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import type { SSEStreamingApi } from "hono/streaming";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
+import { getAgents } from "./access-queries.ts";
 import type { Database } from "./db/client.ts";
 import { AppError } from "./errors.ts";
 import { handlers } from "./handlers.ts";
@@ -158,6 +159,8 @@ export function createApp({ db, hub, services }: { db: Database; hub: HintHub; s
 
 	app.get("/inbox", async (c) => c.json(await getInbox(db)));
 
+	app.get("/agents", async (c) => c.json({ agents: await getAgents(db) }));
+
 	app.get("/proposals/:id", async (c) => {
 		const id = z.uuid().safeParse(c.req.param("id"));
 
@@ -225,6 +228,8 @@ export function createApp({ db, hub, services }: { db: Database; hub: HintHub; s
 				if (message.type === "thread") {
 					write(stream, label, "thread", { threadId: message.threadId, ventureId: message.ventureId });
 				}
+
+				if (message.type === "access") write(stream, label, "access", {});
 
 				if (message.type === "reset") write(stream, label, "reset", {});
 			});

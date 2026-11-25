@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import {
+	type Capability,
 	type CommandName,
+	capabilityLabels,
 	maxProposalChanges,
 	proposalTitleLength,
 	threadLinkTypes,
@@ -54,8 +56,28 @@ function ok(value: unknown) {
 	return { text: text.length > maxOutputLength ? `${text.slice(0, maxOutputLength)}\n…(cut)` : text, isError: false };
 }
 
+function accessRequested(error: AppError) {
+	const { accessRequestId, capability } = error.details;
+
+	if (error.code !== "not_granted" || typeof accessRequestId !== "string" || typeof capability !== "string") {
+		return null;
+	}
+
+	const label = capabilityLabels[capability as Capability];
+
+	return {
+		text: JSON.stringify({
+			accessRequested: { accessRequestId, capability, label },
+			message: `Access requested · ${label}. The owner decides in the inbox; carry on with what you can and tell the owner. Don't retry until the owner says it's granted.`,
+		}),
+		isError: false,
+	};
+}
+
 function failure(error: unknown) {
-	if (error instanceof AppError) return { text: JSON.stringify(error.toBody().error), isError: true };
+	if (error instanceof AppError) {
+		return accessRequested(error) ?? { text: JSON.stringify(error.toBody().error), isError: true };
+	}
 
 	return { text: error instanceof Error ? error.message : String(error), isError: true };
 }

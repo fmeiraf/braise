@@ -7,7 +7,6 @@ const envFile = fileURLToPath(new URL("../../../.env", import.meta.url));
 const schema = z.object({
 	DATABASE_URL: z.url(),
 	PORT: z.coerce.number().int().positive().default(4400),
-	BRAISE_AGENT_MODEL: z.string().min(1).optional(),
 });
 
 export function readEnv() {

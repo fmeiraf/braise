@@ -1,4 +1,5 @@
 import type {
+	accessRequestStatuses,
 	betStatuses,
 	ProposableCommand,
 	proposalStatuses,
@@ -9,6 +10,7 @@ import type {
 	workPriorities,
 	workStatuses,
 } from "./commands.ts";
+import type { Capability } from "./grants.ts";
 
 export type VentureKind = (typeof ventureKinds)[number];
 
@@ -27,6 +29,8 @@ export type ThreadLinkType = (typeof threadLinkTypes)[number];
 export type RunStatus = (typeof runStatuses)[number];
 
 export type ProposalStatus = (typeof proposalStatuses)[number];
+
+export type AccessRequestStatus = (typeof accessRequestStatuses)[number];
 
 export interface Venture {
 	id: string;
@@ -190,6 +194,7 @@ export interface RunDelta {
 export interface Thread {
 	id: string;
 	ventureId: string | null;
+	agentProfileId: string;
 	title: string;
 	lastSeq: number;
 	createdBy: string;
@@ -262,6 +267,7 @@ export interface ThreadSummary extends Thread {
 
 export interface ThreadDetail {
 	thread: Thread;
+	agent: { id: string; name: string };
 	venture: { id: string; slug: string; name: string } | null;
 	links: ThreadLink[];
 	messages: ThreadMessage[];
@@ -318,6 +324,7 @@ export interface Proposal {
 }
 
 export interface InboxProposal {
+	kind: "proposal";
 	id: string;
 	venture: { id: string; slug: string; name: string };
 	thread: { id: string; title: string };
@@ -330,9 +337,48 @@ export interface InboxProposal {
 	decidedAt: string | null;
 }
 
+export interface InboxAccessRequest {
+	kind: "access_request";
+	id: string;
+	agent: { id: string; name: string };
+	capability: Capability;
+	command: string;
+	payload: Record<string, unknown>;
+	references: Record<string, string>;
+	summary: string;
+	attempts: number;
+	venture: { id: string; slug: string; name: string } | null;
+	thread: { id: string; title: string; ventureSlug: string | null };
+	runId: string;
+	status: AccessRequestStatus;
+	note: string | null;
+	createdAt: string;
+	decidedAt: string | null;
+}
+
+export type InboxItem = InboxProposal | InboxAccessRequest;
+
 export interface Inbox {
-	pending: InboxProposal[];
-	decided: InboxProposal[];
+	pending: InboxItem[];
+	decided: InboxItem[];
+}
+
+export interface AgentCapability {
+	capability: Capability;
+	granted: boolean;
+	changedAt: string | null;
+	changedBy: string | null;
+	viaRequest: boolean;
+	pendingRequestId: string | null;
+}
+
+export interface AgentOverview {
+	id: string;
+	actor: string;
+	name: string;
+	runtime: string;
+	model: string;
+	capabilities: AgentCapability[];
 }
 
 export interface ProposalChangeDetail extends ProposalChange {

@@ -182,11 +182,24 @@ export const events = pgTable(
 	],
 );
 
+export const agentProfiles = pgTable("agent_profiles", {
+	id: text("id").primaryKey(),
+	actor: text("actor").notNull().unique(),
+	name: text("name").notNull(),
+	runtime: text("runtime").notNull(),
+	model: text("model").notNull(),
+	createdAt: createdAt(),
+});
+
 export const threads = pgTable(
 	"threads",
 	{
 		id: uuid("id").primaryKey(),
 		ventureId: uuid("venture_id").references(() => ventures.id),
+		agentProfileId: text("agent_profile_id")
+			.notNull()
+			.default("claude")
+			.references(() => agentProfiles.id),
 		title: text("title").notNull(),
 		lastSeq: bigint("last_seq", { mode: "number" }).notNull().default(0),
 		createdBy: text("created_by").notNull(),
@@ -306,5 +319,62 @@ export const proposals = pgTable(
 		index("proposals_venture_idx").on(table.ventureId),
 		index("proposals_thread_idx").on(table.threadId),
 		check("proposals_status_check", sql`${table.status} IN ('pending','approved','rejected')`),
+	],
+);
+
+const capabilityCheck = (column: unknown) => sql`${column} IN ('work','links','propose')`;
+
+export const accessRequests = pgTable(
+	"access_requests",
+	{
+		id: uuid("id").primaryKey(),
+		profileId: text("profile_id")
+			.notNull()
+			.references(() => agentProfiles.id),
+		capability: text("capability", { enum: ["work", "links", "propose"] }).notNull(),
+		threadId: uuid("thread_id")
+			.notNull()
+			.references(() => threads.id),
+		runId: uuid("run_id")
+			.notNull()
+			.references(() => runs.id),
+		ventureId: uuid("venture_id").references(() => ventures.id),
+		command: text("command").notNull(),
+		payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+		attempts: integer("attempts").notNull().default(1),
+		status: text("status", { enum: ["pending", "approved", "denied"] }).notNull(),
+		note: text("note"),
+		createdAt: createdAt(),
+		decidedAt: timestamp("decided_at", { withTimezone: true }),
+	},
+	(table) => [
+		uniqueIndex("access_requests_one_pending")
+			.on(table.profileId, table.capability)
+			.where(sql`${table.status} = 'pending'`),
+		index("access_requests_status_created_idx").on(table.status, table.createdAt),
+		check("access_requests_capability_check", capabilityCheck(table.capability)),
+		check("access_requests_status_check", sql`${table.status} IN ('pending','approved','denied')`),
+	],
+);
+
+export const agentGrants = pgTable(
+	"agent_grants",
+	{
+		id: uuid("id").primaryKey(),
+		profileId: text("profile_id")
+			.notNull()
+			.references(() => agentProfiles.id),
+		capability: text("capability", { enum: ["work", "links", "propose"] }).notNull(),
+		grantedBy: text("granted_by").notNull(),
+		grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+		accessRequestId: uuid("access_request_id").references(() => accessRequests.id),
+		revokedBy: text("revoked_by"),
+		revokedAt: timestamp("revoked_at", { withTimezone: true }),
+	},
+	(table) => [
+		uniqueIndex("agent_grants_one_active")
+			.on(table.profileId, table.capability)
+			.where(sql`${table.revokedAt} IS NULL`),
+		check("agent_grants_capability_check", capabilityCheck(table.capability)),
 	],
 );
