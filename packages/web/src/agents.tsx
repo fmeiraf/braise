@@ -6,57 +6,70 @@ import { describeError } from "./errors.ts";
 import { PageError } from "./holding.tsx";
 import { capabilityPhrases } from "./labels.ts";
 import { keys, queries } from "./live.ts";
+import { accent, Cast, Drone, Icon, isSquare } from "./marks.tsx";
+import { Hero, Skeleton } from "./parts.tsx";
 import { actorName } from "./thread-timeline.ts";
 import { ago, formatDateTime } from "./time.ts";
+import { toast } from "./toast.ts";
 import { useCommand } from "./use-command.ts";
+import { ThreadLink, useWorking, type Working } from "./working.tsx";
 
 const runtimeNames: Record<string, string> = { "claude-agent-sdk": "Claude Agent SDK", pi: "Pi" };
 
 export function AgentsPage() {
 	const agents = useQuery(queries.agents());
+	const working = useWorking();
+	const count = agents.data?.agents.length ?? 0;
 
 	return (
-		<>
-			<header className="topbar">
-				<span className="crumb-current">Agents</span>
-			</header>
+		<div className="page narrow">
+			<Hero cap={agents.isSuccess ? `${count === 1 ? "1 agent" : `${count} agents`}` : "Agents"} title="Agents" />
 			{agents.isPending ? (
-				<div className="page page-narrow skeleton-stack" aria-busy="true">
-					<span className="visually-hidden">Loading agents…</span>
-					{[40, 90, 80, 70].map((width) => (
-						<span key={width} className="skeleton" style={{ width: `${width}%` }} />
-					))}
-				</div>
+				<Skeleton label="Loading agents…" widths={[40, 90, 80, 70]} />
 			) : agents.isError ? (
 				<PageError error={agents.error} retry={() => void agents.refetch()} />
 			) : (
-				<div className="page page-narrow agents">
-					<p className="agents-lede">
+				<>
+					<p className="lede">
 						Every agent reads everything in braise. These switches decide what each one may change; braise checks
 						them on every change. Approving proposals, archiving and editing ventures stay yours.
 					</p>
 					{agents.data.agents.map((agent) => (
-						<AgentSection key={agent.id} agent={agent} />
+						<AgentSection
+							key={agent.id}
+							agent={agent}
+							busy={working.find((item) => item.agent?.id === agent.id)}
+						/>
 					))}
-				</div>
+				</>
 			)}
-		</>
+		</div>
 	);
 }
 
-function AgentSection({ agent }: { agent: AgentOverview }) {
+function AgentSection({ agent, busy }: { agent: AgentOverview; busy: Working | undefined }) {
 	const headingId = useId();
 
 	return (
-		<section className="agent" aria-labelledby={headingId}>
-			<header className="agent-head">
-				<span className="author-mark is-agent" aria-hidden />
-				<h2 id={headingId}>{agent.name}</h2>
-				<span className="agent-runtime">
-					{runtimeNames[agent.runtime] ?? agent.runtime} · <span className="num">{agent.model}</span>
-				</span>
+		<section className="agent" aria-labelledby={headingId} style={accent(busy?.run.ventureSlug)}>
+			<header className="agent-h">
+				<Drone square={isSquare(agent)} size={30} run={busy !== undefined} />
+				<div>
+					<h2 id={headingId}>{agent.name}</h2>
+					<span className="mono mute">
+						{runtimeNames[agent.runtime] ?? agent.runtime} · {agent.model}
+					</span>
+				</div>
+				<span className="grow" />
+				{busy === undefined ? (
+					<span className="tag">Idle</span>
+				) : (
+					<ThreadLink ventureSlug={busy.run.ventureSlug} threadId={busy.run.threadId} className="agent-cast">
+						<Cast label={busy.run.threadTitle} since={busy.run.startedAt ?? busy.run.createdAt} />
+					</ThreadLink>
+				)}
 			</header>
-			<ul className="grants">
+			<ul>
 				{agent.capabilities.map((state) => (
 					<GrantRow key={state.capability} agent={agent} state={state} />
 				))}
@@ -92,12 +105,26 @@ function GrantRow({ agent, state }: { agent: AgentOverview; state: AgentCapabili
 		refresh();
 
 		revoke.reset();
+
+		toast(
+			<>
+				{agent.name} may now change <b>{label.toLowerCase()}</b>
+			</>,
+			"key",
+		);
 	});
 
 	const revoke = useCommand("grant.revoke", () => {
 		refresh();
 
 		add.reset();
+
+		toast(
+			<>
+				Revoked <b>{label.toLowerCase()}</b> from {agent.name}
+			</>,
+			"key",
+		);
 	});
 
 	const busy = add.isPending || revoke.isPending;
@@ -106,27 +133,30 @@ function GrantRow({ agent, state }: { agent: AgentOverview; state: AgentCapabili
 	const payload = { profileId: agent.id, capability: state.capability };
 
 	return (
-		<li className={state.granted ? "grant is-granted" : "grant"}>
-			<div className="grant-main">
-				<label className="grant-label" htmlFor={switchId}>
-					{label}
+		<li className={state.granted ? "grant on" : "grant"}>
+			<span className="grant-k">
+				<Icon name="key" />
+			</span>
+			<div>
+				<label htmlFor={switchId}>
+					<b>{label}</b>
 				</label>
-				<p className="grant-phrase">May {capabilityPhrases[state.capability]}.</p>
-				<p className="grant-commands num">{capabilityCommands[state.capability].join(" · ")}</p>
+				<p>May {capabilityPhrases[state.capability]}.</p>
+				<span className="mono cmds">{capabilityCommands[state.capability].join(" · ")}</span>
 			</div>
-			<div className="grant-side">
+			<div className="grant-s">
 				<input
 					id={switchId}
 					type="checkbox"
 					role="switch"
-					className="switch"
+					className="sw"
 					checked={shown}
 					aria-checked={shown}
 					disabled={busy}
 					aria-describedby={`${switchId}-status`}
 					onChange={(event) => (event.target.checked ? add.mutate({ payload }) : revoke.mutate({ payload }))}
 				/>
-				<p className="grant-status" id={`${switchId}-status`}>
+				<span id={`${switchId}-status`}>
 					{error === null ? (
 						state.changedAt === null ? (
 							lastChange(state, Date.now())
@@ -136,13 +166,13 @@ function GrantRow({ agent, state }: { agent: AgentOverview; state: AgentCapabili
 							</time>
 						)
 					) : (
-						<span className="error-text" role="alert">
+						<span className="err" role="alert">
 							{describeError(error)}
 						</span>
 					)}
-				</p>
+				</span>
 				{state.pendingRequestId === null ? null : (
-					<Link to="/inbox" search={{ access: state.pendingRequestId }} className="grant-request">
+					<Link to="/inbox" search={{ access: state.pendingRequestId }}>
 						{agent.name} asked for this
 					</Link>
 				)}

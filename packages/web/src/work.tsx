@@ -10,37 +10,20 @@ import {
 } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import {
-	Archive,
-	ArrowDown,
-	ArrowUp,
-	ChevronRight,
-	OctagonAlert,
-	Plus,
-	SignalHigh,
-	SignalLow,
-	SignalMedium,
-	X,
-} from "lucide-react";
-import {
-	type CSSProperties,
-	type FormEvent,
-	type KeyboardEvent,
-	type ReactNode,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type CSSProperties, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type { ArchiveWorkResult } from "./api.ts";
 import { Editable } from "./editable.tsx";
 import { describeError } from "./errors.ts";
 import { focusOnMount } from "./focus.ts";
 import { useFreshIds } from "./fresh.ts";
 import { PageError } from "./holding.tsx";
+import { betNumbers } from "./labels.ts";
 import { patchWork, queries, refreshVenture, rememberVenture } from "./live.ts";
-import { Progress, ringColor } from "./rings.tsx";
+import { accent, Crest, Dia, FunctionGlyph, FunctionTag, Icon, Pips, progressStatus, Rank } from "./marks.tsx";
+import { Select } from "./menu.tsx";
+import { Skeleton } from "./parts.tsx";
 import { WorkItemThreads } from "./threads.tsx";
-import { ago, formatDate } from "./time.ts";
+import { ago, shortDate } from "./time.ts";
 import { useCommand } from "./use-command.ts";
 import { buildForest, cycleStatus, goalProgress, kindOf, orderGoals, type WorkNode } from "./work-tree.ts";
 
@@ -61,6 +44,7 @@ interface Located {
 	section: WorkSection;
 	siblings: number;
 	parent: WorkNode | null;
+	ancestors: WorkNode[];
 }
 
 export const functionLabel = {
@@ -134,23 +118,6 @@ export function VentureWorkPage() {
 
 	return (
 		<WorkScreen
-			crumbs={
-				<>
-					<Link to="/" className="crumb">
-						Holding
-					</Link>
-					<span className="muted" aria-hidden>
-						/
-					</span>
-					<Link to="/v/$slug" params={{ slug }} className="crumb">
-						{name}
-					</Link>
-					<span className="muted" aria-hidden>
-						/
-					</span>
-					<span className="crumb-current">Work</span>
-				</>
-			}
 			sections={[{ venture, goals: work.data.goals, items: work.data.workItems }]}
 			selectedId={item ?? null}
 			select={(next) =>
@@ -184,17 +151,6 @@ export function HoldingWorkPage() {
 
 	return (
 		<WorkScreen
-			crumbs={
-				<>
-					<Link to="/" className="crumb">
-						Holding
-					</Link>
-					<span className="muted" aria-hidden>
-						/
-					</span>
-					<span className="crumb-current">Work</span>
-				</>
-			}
 			sections={sections}
 			holding
 			selectedId={item ?? null}
@@ -212,15 +168,21 @@ function locate(sections: readonly WorkSection[]) {
 
 		forests.set(section.venture.id, forest);
 
-		const walk = (nodes: WorkNode[], parent: WorkNode | null) => {
+		const walk = (nodes: WorkNode[], ancestors: WorkNode[]) => {
 			for (const node of nodes) {
-				located.set(node.item.id, { node, section, siblings: nodes.length, parent });
+				located.set(node.item.id, {
+					node,
+					section,
+					siblings: nodes.length,
+					parent: ancestors.at(-1) ?? null,
+					ancestors,
+				});
 
-				walk(node.children, node);
+				walk(node.children, [...ancestors, node]);
 			}
 		};
 
-		for (const roots of forest.values()) walk(roots, null);
+		for (const roots of forest.values()) walk(roots, []);
 	}
 
 	return { located, forests };
@@ -237,7 +199,6 @@ function focusItem(root: HTMLElement | null, id: string) {
 }
 
 function WorkScreen(props: {
-	crumbs: ReactNode;
 	sections: WorkSection[];
 	holding?: boolean;
 	selectedId: string | null;
@@ -365,26 +326,25 @@ function WorkScreen(props: {
 	};
 
 	return (
-		<>
-			<header className="topbar">{props.crumbs}</header>
+		<div className={selected === null ? "wk" : "wk open"}>
+			<div className="wk-main" ref={mainRef}>
+				<div className="bar">
+					<h1>Work</h1>
+					<span className="cnt">
+						{plural(allItems.length, "item")} · {done} done
+					</span>
+					<span className="grow" />
+					<span className="hint">↑↓ select · ←→ fold · ↵ rename · ⌥↑↓ reorder</span>
+				</div>
 
-			<div className={selected === null ? "work-layout" : "work-layout has-pane"}>
-				<div className="work-main" ref={mainRef}>
-					<div className="work-title">
-						<h1>Work</h1>
-						<span className="muted num">
-							{plural(allItems.length, "item")} · {done} done
-						</span>
-						<span className="kbd-hint work-keys">↑↓ select · ←→ fold · Enter rename · ⌥↑↓ reorder</span>
-					</div>
-
+				<div className="wk-tree">
 					{hasGoals ? null : (
-						<p className="empty-state">
+						<p className="empty wk-empty">
 							{props.holding === true
 								? "Work hangs off goals, and no venture has a goal yet."
 								: "Work hangs off goals, and this venture has none yet."}{" "}
 							{props.holding === true || sections[0] === undefined ? null : (
-								<Link to="/v/$slug" params={{ slug: sections[0].venture.slug }} className="inline-link">
+								<Link to="/v/$slug" params={{ slug: sections[0].venture.slug }}>
 									Add a goal in the overview
 								</Link>
 							)}
@@ -410,21 +370,22 @@ function WorkScreen(props: {
 						/>
 					))}
 				</div>
-
-				{selected === null ? null : (
-					<WorkPane
-						key={selected.node.item.id}
-						located={selected}
-						close={() => {
-							select(null);
-
-							focusItem(mainRef.current, selected.node.item.id);
-						}}
-						onArchived={() => select(null)}
-					/>
-				)}
 			</div>
-		</>
+
+			{selected === null ? null : (
+				<WorkPane
+					key={selected.node.item.id}
+					located={selected}
+					select={select}
+					close={() => {
+						select(null);
+
+						focusItem(mainRef.current, selected.node.item.id);
+					}}
+					onArchived={() => select(null)}
+				/>
+			)}
+		</div>
 	);
 }
 
@@ -437,6 +398,12 @@ interface TreeState {
 	setEditingId: (id: string | null) => void;
 	onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
 	focusRow: (id: string) => void;
+}
+
+function useBetNumbers(slug: string) {
+	const bets = useQuery(queries.cockpit(slug)).data?.bets ?? [];
+
+	return { bets, numbers: betNumbers(bets) };
 }
 
 function VentureWork({
@@ -452,12 +419,14 @@ function VentureWork({
 }) {
 	const fresh = useFreshIds(section.venture.id, section.items);
 	const goals = orderGoals(section.goals);
+	const { numbers } = useBetNumbers(section.venture.slug);
 
 	const body = goals.map((goal) => (
 		<GoalWork
 			key={goal.id}
 			venture={section.venture}
 			goal={goal}
+			bet={goal.betId === null ? null : (numbers.get(goal.betId) ?? null)}
 			roots={forest.get(goal.id) ?? []}
 			progress={goalProgress(section.items, goal.id)}
 			level={holding ? 3 : 2}
@@ -466,28 +435,18 @@ function VentureWork({
 		/>
 	));
 
-	if (!holding)
-		return (
-			<div className="ring-scope" style={{ "--ring": ringColor(section.venture.id) } as CSSProperties}>
-				{body}
-			</div>
-		);
+	if (!holding) return <div style={accent(section.venture.slug)}>{body}</div>;
 
 	return (
-		<section
-			className="work-venture"
-			style={{ "--ring": ringColor(section.venture.id) } as CSSProperties}
-			aria-labelledby={`venture-${section.venture.id}`}
-		>
-			<div className="work-venture-head">
-				<h2 id={`venture-${section.venture.id}`}>
-					<Link to="/v/$slug/work" params={{ slug: section.venture.slug }}>
-						{section.venture.name}
-					</Link>
-				</h2>
-				<span className="muted num">{plural(section.items.length, "item")}</span>
-			</div>
-			{goals.length === 0 ? <p className="empty-state">No goals yet.</p> : body}
+		<section style={accent(section.venture.slug)} aria-labelledby={`venture-${section.venture.id}`}>
+			<h2 className="wk-v" id={`venture-${section.venture.id}`}>
+				<Crest seed={section.venture.slug} size={18} />
+				<Link to="/v/$slug/work" params={{ slug: section.venture.slug }}>
+					{section.venture.name}
+				</Link>
+				<span className="cnt">{plural(section.items.length, "item")}</span>
+			</h2>
+			{goals.length === 0 ? <p className="empty wk-empty">No goals yet.</p> : body}
 		</section>
 	);
 }
@@ -495,48 +454,45 @@ function VentureWork({
 function GoalWork(props: {
 	venture: VentureRef;
 	goal: Goal;
+	bet: string | null;
 	roots: WorkNode[];
 	progress: { done: number; total: number };
 	level: 2 | 3;
 	fresh: ReadonlySet<string>;
 	tree: TreeState;
 }) {
-	const { goal, venture } = props;
+	const { goal, venture, progress } = props;
 	const [adding, setAdding] = useState(false);
 	const Heading = props.level === 2 ? "h2" : "h3";
 	const headingId = `goal-heading-${goal.id}`;
 
 	return (
-		<section className="work-goal" id={`goal-${goal.id}`} aria-labelledby={headingId}>
-			<div className="work-goal-head">
-				<span className={goal.betId === null ? "goal-node is-loose" : "goal-node"} aria-hidden />
+		<section id={`goal-${goal.id}`} aria-labelledby={headingId}>
+			<div className="wk-g">
+				<Dia status={progressStatus(progress)} />
 				<Heading id={headingId}>{goal.outcome}</Heading>
-				{goal.horizon === null ? null : <span className="data muted">{formatDate(goal.horizon)}</span>}
-				<span className="work-goal-meta">
-					{props.progress.total === 0 ? null : (
-						<span className="num work-goal-progress">
-							<Progress done={props.progress.done} total={props.progress.total} />
-							{props.progress.done}/{props.progress.total} done
-						</span>
-					)}
-					<button
-						type="button"
-						className="icon-button"
-						aria-label="Add initiative"
-						title="Add initiative"
-						onClick={() => setAdding(true)}
-					>
-						<Plus aria-hidden />
-					</button>
+				<span className="tag plain">
+					{props.bet ?? "No bet"}
+					{goal.horizon === null ? null : ` · ${shortDate(goal.horizon, Date.now())}`}
 				</span>
+				<i className="dots" />
+				<Pips done={progress.done} total={progress.total} />
+				<span className="mono mute">
+					{progress.done}/{progress.total}
+				</span>
+				<button
+					type="button"
+					className="ib"
+					aria-label="Add initiative"
+					data-tip="Add initiative"
+					onClick={() => setAdding(true)}
+				>
+					<Icon name="plus" />
+				</button>
 			</div>
 
-			{props.roots.length === 0 && !adding ? (
-				<button type="button" className="work-empty" onClick={() => setAdding(true)}>
-					No work yet. <span>Add the first initiative</span>
-				</button>
-			) : (
-				<div role="tree" aria-labelledby={headingId} className="work-tree">
+			{props.roots.length === 0 ? null : (
+				<div role="tree" aria-labelledby={headingId}>
 					{props.roots.map((node) => (
 						<WorkRow
 							key={node.item.id}
@@ -553,35 +509,14 @@ function GoalWork(props: {
 
 			{adding ? (
 				<AddWorkForm venture={venture} placement={{ goalId: goal.id }} depth={0} close={() => setAdding(false)} />
-			) : props.roots.length === 0 ? null : (
-				<button type="button" className="add-row work-add" onClick={() => setAdding(true)}>
-					<Plus aria-hidden />
-					Add initiative
+			) : (
+				<button type="button" className="addline" onClick={() => setAdding(true)}>
+					<Icon name="plus" />
+					{props.roots.length === 0 ? "No work yet. Add the first initiative" : "Add initiative"}
 				</button>
 			)}
 		</section>
 	);
-}
-
-function StatusMarker({ status }: { status: WorkStatus }) {
-	return <span className={`work-status is-${status}`} aria-hidden />;
-}
-
-function PriorityGlyph({ priority }: { priority: WorkPriority }) {
-	const label = `Priority: ${priorityLabel[priority].toLowerCase()}`;
-
-	switch (priority) {
-		case "low":
-			return <SignalLow aria-label={label} className="priority" />;
-		case "medium":
-			return <SignalMedium aria-label={label} className="priority" />;
-		case "high":
-			return <SignalHigh aria-label={label} className="priority" />;
-		case "urgent":
-			return <OctagonAlert aria-label={label} className="priority is-urgent" />;
-		default:
-			return <span className="priority" />;
-	}
 }
 
 function WorkRow(props: {
@@ -616,10 +551,11 @@ function WorkRow(props: {
 	const error = setStatus.error ?? update.error;
 
 	const className = [
-		"work-row",
-		selected ? "is-selected" : "",
-		item.status === "done" ? "is-done" : "",
-		props.fresh.has(item.id) ? "is-fresh" : "",
+		"wr",
+		item.status,
+		selected ? "on" : "",
+		open && node.children.length > 0 ? "open" : "",
+		props.fresh.has(item.id) ? "fresh" : "",
 	]
 		.filter(Boolean)
 		.join(" ");
@@ -634,7 +570,7 @@ function WorkRow(props: {
 			tabIndex={selected || (tree.selectedId === null && item.depth === 0 && item.position === 0) ? 0 : -1}
 			data-id={item.id}
 			data-parent={item.parentId ?? ""}
-			className="work-item"
+			className="wi"
 			onKeyDown={tree.onKeyDown}
 			onClick={(event) => {
 				const target = event.target as HTMLElement;
@@ -644,11 +580,11 @@ function WorkRow(props: {
 				tree.select(item.id);
 			}}
 		>
-			<div className={className} style={{ paddingLeft: `${item.depth * 22}px` }}>
+			<div className={className} data-depth={item.depth} style={{ "--d": item.depth } as CSSProperties}>
 				{node.children.length > 0 ? (
 					<button
 						type="button"
-						className="work-fold"
+						className="fold"
 						tabIndex={-1}
 						aria-label={open ? "Collapse" : "Expand"}
 						onClick={(event) => {
@@ -657,17 +593,17 @@ function WorkRow(props: {
 							tree.toggle(item.id);
 						}}
 					>
-						<ChevronRight aria-hidden className={open ? "is-open" : undefined} />
+						<Icon name="chevr" />
 					</button>
 				) : (
-					<span className="work-fold" />
+					<span className="fold" />
 				)}
 
 				<button
 					type="button"
-					className="work-status-button"
+					className="st"
 					tabIndex={-1}
-					title={`${statusLabel[item.status]}. Click for ${statusLabel[cycleStatus(item.status)].toLowerCase()}`}
+					data-tip={`${statusLabel[item.status]}|click for ${statusLabel[cycleStatus(item.status)].toLowerCase()}`}
 					aria-label={`Status ${statusLabel[item.status]}, change to ${statusLabel[cycleStatus(item.status)]}`}
 					disabled={setStatus.isPending}
 					onClick={(event) => {
@@ -676,7 +612,7 @@ function WorkRow(props: {
 						setStatus.mutate({ payload: { ...base, status: cycleStatus(item.status) } });
 					}}
 				>
-					<StatusMarker status={item.status} />
+					<Dia status={item.status} />
 				</button>
 
 				{editing ? (
@@ -690,51 +626,53 @@ function WorkRow(props: {
 						save={(title) => update.mutateAsync({ payload: { ...base, title } })}
 					/>
 				) : (
-					<span className="work-title-text">{item.title}</span>
+					<span className="wt">{item.title}</span>
 				)}
 
-				<span className="work-meta">
-					<span
-						className="num work-progress"
-						title={node.total === 0 ? undefined : `${node.done} of ${node.total} items under it done`}
+				<span className="grow" />
+
+				{canNest ? (
+					<button
+						type="button"
+						className="ib add"
+						tabIndex={-1}
+						aria-label={`Add ${childKind[item.depth]}`}
+						data-tip={`Add ${childKind[item.depth]}`}
+						onClick={(event) => {
+							event.stopPropagation();
+
+							tree.toggle(item.id, true);
+
+							setAdding(true);
+						}}
 					>
-						{node.total === 0 ? null : `${node.done}/${node.total}`}
-					</span>
-					<span className="work-function">
-						{showFunction ? <span className="tag">{functionLabel[item.function]}</span> : null}
-					</span>
-					<PriorityGlyph priority={item.priority} />
-					<span className="work-row-actions">
-						{canNest ? (
-							<button
-								type="button"
-								className="icon-button"
-								tabIndex={-1}
-								aria-label={`Add ${childKind[item.depth]}`}
-								title={`Add ${childKind[item.depth]}`}
-								onClick={(event) => {
-									event.stopPropagation();
-
-									tree.toggle(item.id, true);
-
-									setAdding(true);
-								}}
-							>
-								<Plus aria-hidden />
-							</button>
-						) : null}
-					</span>
-				</span>
+						<Icon name="plus" />
+					</button>
+				) : null}
+				{node.total === 0 ? null : (
+					<>
+						<Pips done={node.done} total={node.total} />
+						<span className="mono frac">
+							{node.done}/{node.total}
+						</span>
+					</>
+				)}
+				{showFunction ? (
+					<FunctionTag fn={item.function} label={functionLabel[item.function]} />
+				) : (
+					<span className="tag fn" />
+				)}
+				<Rank priority={item.priority} />
 			</div>
 
 			{error === null ? null : (
-				<p className="error-text work-row-error" role="alert" style={{ paddingLeft: `${item.depth * 22 + 44}px` }}>
+				<p className="err wr-err" role="alert" style={{ "--d": item.depth } as CSSProperties}>
 					{describeError(error)}
 				</p>
 			)}
 
 			{(open && node.children.length > 0) || adding ? (
-				<div className="work-tree">
+				<div>
 					{open
 						? node.children.map((child) => (
 								<WorkRow
@@ -749,14 +687,12 @@ function WorkRow(props: {
 							))
 						: null}
 					{adding ? (
-						<div className="work-add-child">
-							<AddWorkForm
-								venture={venture}
-								placement={{ parentId: item.id }}
-								depth={item.depth + 1}
-								close={() => setAdding(false)}
-							/>
-						</div>
+						<AddWorkForm
+							venture={venture}
+							placement={{ parentId: item.id }}
+							depth={item.depth + 1}
+							close={() => setAdding(false)}
+						/>
 					) : null}
 				</div>
 			) : null}
@@ -796,10 +732,10 @@ function TitleInput({
 	};
 
 	return (
-		<span className="editing work-title-edit">
+		<span className="editing wt-edit">
 			<input
 				ref={focusOnMount}
-				className="input"
+				className="inp"
 				aria-label="Title"
 				aria-invalid={error !== null}
 				value={draft}
@@ -826,13 +762,19 @@ function TitleInput({
 				}}
 			/>
 			{error === null ? null : (
-				<span className="error-text" role="alert">
+				<span className="err" role="alert">
 					{error}
 				</span>
 			)}
 		</span>
 	);
 }
+
+const functionOptions = workFunctions.map((value) => ({
+	value,
+	label: functionLabel[value],
+	glyph: <FunctionGlyph fn={value} />,
+}));
 
 function AddWorkForm(props: {
 	venture: VentureRef;
@@ -866,8 +808,8 @@ function AddWorkForm(props: {
 
 	return (
 		<form
-			className="work-add-form"
-			style={{ paddingLeft: `${props.depth * 22 + 22}px` }}
+			className="wr add-work"
+			style={{ "--d": props.depth } as CSSProperties}
 			onSubmit={submit}
 			onKeyDown={(event) => {
 				event.stopPropagation();
@@ -875,9 +817,12 @@ function AddWorkForm(props: {
 				if (event.key === "Escape") props.close();
 			}}
 		>
-			<StatusMarker status="todo" />
+			<span className="fold" />
+			<span className="st">
+				<Dia status="todo" />
+			</span>
 			<input
-				className="input"
+				className="inp"
 				aria-label={`${kind} title`}
 				placeholder={`${kind} title`}
 				value={title}
@@ -886,28 +831,15 @@ function AddWorkForm(props: {
 				ref={focusOnMount}
 				onChange={(event) => setTitle(event.target.value)}
 			/>
-			{isRoot ? (
-				<select
-					className="select"
-					aria-label="Function"
-					value={fn}
-					onChange={(event) => setFn(event.target.value as WorkFunction)}
-				>
-					{workFunctions.map((value) => (
-						<option key={value} value={value}>
-							{functionLabel[value]}
-						</option>
-					))}
-				</select>
-			) : null}
-			<button type="submit" className="button is-primary" disabled={create.isPending || title.trim() === ""}>
+			{isRoot ? <Select title="Function" value={fn} options={functionOptions} onChange={setFn} /> : null}
+			<button type="submit" className="btn pri sm" disabled={create.isPending || title.trim() === ""}>
 				Add
 			</button>
-			<button type="button" className="button is-ghost" onClick={props.close}>
+			<button type="button" className="btn ghost sm" onClick={props.close}>
 				Done
 			</button>
 			{create.isError ? (
-				<p className="error-text" role="alert">
+				<p className="err" role="alert">
 					{describeError(create.error)}
 				</p>
 			) : null}
@@ -915,16 +847,72 @@ function AddWorkForm(props: {
 	);
 }
 
-function WorkPane({ located, close, onArchived }: { located: Located; close: () => void; onArchived: () => void }) {
-	const { node, section, parent, siblings } = located;
+function KidRow({ venture, node, select }: { venture: VentureRef; node: WorkNode; select: (id: string) => void }) {
+	const { item } = node;
+	const cache = useWorkCache(venture);
+
+	const setStatus = useCommand<"work.set_status", WorkItem>(
+		"work.set_status",
+		(response) => void cache.store(response.seq, response.result),
+	);
+
+	return (
+		<li className={`kid ${item.status}`}>
+			<button
+				type="button"
+				className="st"
+				data-tip={`${statusLabel[item.status]}|click for ${statusLabel[cycleStatus(item.status)].toLowerCase()}`}
+				aria-label={`Status ${statusLabel[item.status]}, change to ${statusLabel[cycleStatus(item.status)]}`}
+				disabled={setStatus.isPending}
+				onClick={() =>
+					setStatus.mutate({
+						payload: { ventureId: venture.id, workItemId: item.id, status: cycleStatus(item.status) },
+					})
+				}
+			>
+				<Dia status={item.status} />
+			</button>
+			<button type="button" className="wt" onClick={() => select(item.id)}>
+				{item.title}
+			</button>
+			<span className="grow" />
+			<FunctionTag fn={item.function} label={functionLabel[item.function]} />
+			<Rank priority={item.priority} />
+		</li>
+	);
+}
+
+const priorityOptions = workPriorities.map((value) => ({
+	value,
+	label: priorityLabel[value],
+	glyph: <Rank priority={value} />,
+}));
+
+function WorkPane({
+	located,
+	select,
+	close,
+	onArchived,
+}: {
+	located: Located;
+	select: (id: string) => void;
+	close: () => void;
+	onArchived: () => void;
+}) {
+	const { node, section, parent, siblings, ancestors } = located;
 	const { item } = node;
 	const venture = section.venture;
 	const cache = useWorkCache(venture);
+	const navigate = useNavigate();
+	const { bets, numbers } = useBetNumbers(venture.slug);
 	const [confirming, setConfirming] = useState(false);
 	const base = { ventureId: venture.id, workItemId: item.id };
 	const kind = kindOf(item);
 	const descendants = node.children.reduce((count, child) => count + 1 + child.children.length, 0);
 	const goal = section.goals.find((candidate) => candidate.id === item.goalId);
+	const bet = bets.find((candidate) => candidate.id === goal?.betId);
+	const goalWork = goalProgress(section.items, item.goalId);
+	const statusIndex = workStatuses.indexOf(item.status);
 
 	const update = useCommand<"work.update", WorkItem>(
 		"work.update",
@@ -947,226 +935,267 @@ function WorkPane({ located, close, onArchived }: { located: Located; close: () 
 	const error = update.error ?? setStatus.error ?? move.error ?? archive.error;
 
 	return (
-		<aside className="work-pane" aria-label={`${kindLabel[kind]} details`}>
-			<div className="work-pane-head">
-				<span className="tag">{kindLabel[kind]}</span>
-				{parent === null ? (
-					<span className="work-pane-path">in {goal?.outcome}</span>
-				) : (
-					<span className="work-pane-path">in {parent.item.title}</span>
-				)}
-				<button
-					type="button"
-					className="icon-button"
-					aria-label="Close details"
-					title="Close (Esc)"
-					onClick={close}
-				>
-					<X aria-hidden />
-				</button>
-			</div>
-
-			<div className="work-pane-title">
-				<Editable
-					label="title"
-					value={item.title}
-					required
-					save={(title) => update.mutateAsync({ payload: { ...base, title } })}
-				/>
-			</div>
-
-			<dl className="work-fields">
-				<dt id="status-label">Status</dt>
-				<dd>
-					<div className="segmented is-compact" role="radiogroup" aria-labelledby="status-label">
-						{workStatuses.map((status) => (
-							<label key={status}>
-								<input
-									type="radio"
-									name={`status-${item.id}`}
-									value={status}
-									checked={item.status === status}
-									disabled={setStatus.isPending}
-									onChange={() => setStatus.mutate({ payload: { ...base, status } })}
-								/>
-								<StatusMarker status={status} />
+		<aside className="wk-pane insp" style={accent(venture.slug)} aria-label={`${kindLabel[kind]} details`}>
+			<div className="insp-top">
+				<div className="insp-bar">
+					<span className="cap">{kindLabel[kind]}</span>
+					<span className="mono mute">
+						{item.position + 1} of {siblings}
+					</span>
+					<span className="grow" />
+					<button
+						type="button"
+						className="ib"
+						aria-label="Move up"
+						data-tip="Move up|⌥↑"
+						disabled={item.position === 0 || move.isPending}
+						onClick={() => move.mutate({ payload: { ...base, index: item.position - 1 } })}
+					>
+						<Icon name="up" />
+					</button>
+					<button
+						type="button"
+						className="ib"
+						aria-label="Move down"
+						data-tip="Move down|⌥↓"
+						disabled={item.position >= siblings - 1 || move.isPending}
+						onClick={() => move.mutate({ payload: { ...base, index: item.position + 1 } })}
+					>
+						<Icon name="down" />
+					</button>
+					<button type="button" className="ib" aria-label="Close details" data-tip="Close|esc" onClick={close}>
+						<Icon name="x" />
+					</button>
+				</div>
+				<h2>
+					<Editable
+						label="title"
+						value={item.title}
+						required
+						save={(title) => update.mutateAsync({ payload: { ...base, title } })}
+					/>
+				</h2>
+				<fieldset className="stepper">
+					<legend className="vh">Status</legend>
+					{workStatuses.map((status, index) => (
+						<button
+							key={status}
+							type="button"
+							aria-pressed={item.status === status}
+							className={index <= statusIndex ? "lit" : undefined}
+							disabled={setStatus.isPending}
+							onClick={() => setStatus.mutate({ payload: { ...base, status } })}
+						>
+							<i />
+							<span>
+								<Dia status={status} />
 								{statusLabel[status]}
-							</label>
-						))}
+							</span>
+						</button>
+					))}
+				</fieldset>
+			</div>
+
+			<div className="insp-body">
+				<div className="props">
+					<div className="prop">
+						<span className="cap">Function</span>
+						<Select
+							title="Function"
+							value={item.function}
+							options={functionOptions}
+							onChange={(value) => update.mutate({ payload: { ...base, function: value } })}
+						/>
 					</div>
-				</dd>
-
-				<dt>
-					<label htmlFor={`function-${item.id}`}>Function</label>
-				</dt>
-				<dd>
-					<select
-						id={`function-${item.id}`}
-						className="select"
-						value={item.function}
-						onChange={(event) =>
-							update.mutate({ payload: { ...base, function: event.target.value as WorkFunction } })
-						}
-					>
-						{workFunctions.map((value) => (
-							<option key={value} value={value}>
-								{functionLabel[value]}
-							</option>
-						))}
-					</select>
-				</dd>
-
-				<dt>
-					<label htmlFor={`priority-${item.id}`}>Priority</label>
-				</dt>
-				<dd>
-					<select
-						id={`priority-${item.id}`}
-						className="select"
-						value={item.priority}
-						onChange={(event) =>
-							update.mutate({ payload: { ...base, priority: event.target.value as WorkPriority } })
-						}
-					>
-						{workPriorities.map((value) => (
-							<option key={value} value={value}>
-								{priorityLabel[value]}
-							</option>
-						))}
-					</select>
-				</dd>
-
-				{parent === null ? (
-					<>
-						<dt>
-							<label htmlFor={`goal-${item.id}`}>Goal</label>
-						</dt>
-						<dd>
-							<select
-								id={`goal-${item.id}`}
-								className="select"
+					<div className="prop">
+						<span className="cap">Priority</span>
+						<Select
+							title="Priority"
+							value={item.priority}
+							options={priorityOptions}
+							onChange={(value) => update.mutate({ payload: { ...base, priority: value } })}
+						/>
+					</div>
+					{node.total === 0 ? null : (
+						<div className="prop wide">
+							<span className="cap">
+								Progress
+								<span>
+									{node.done} of {node.total} done
+								</span>
+							</span>
+							<span className="bar-p">
+								<i style={{ width: `${(node.done / node.total) * 100}%` }} />
+							</span>
+						</div>
+					)}
+					{parent === null ? (
+						<div className="prop wide">
+							<span className="cap">Goal</span>
+							<Select
+								title="Goal"
 								value={item.goalId}
 								disabled={move.isPending}
-								onChange={(event) => {
-									const goalId = event.target.value;
-
+								options={orderGoals(section.goals).map((option) => ({
+									value: option.id,
+									label: option.outcome,
+								}))}
+								onChange={(goalId) => {
 									const index = section.items.filter(
 										(other) => other.goalId === goalId && other.parentId === null,
 									).length;
 
 									move.mutate({ payload: { ...base, goalId, index } });
 								}}
-							>
-								{orderGoals(section.goals).map((option) => (
-									<option key={option.id} value={option.id}>
-										{option.outcome}
-									</option>
-								))}
-							</select>
-						</dd>
-					</>
-				) : null}
+							/>
+						</div>
+					) : null}
+				</div>
 
-				<dt>Order</dt>
-				<dd className="work-order">
-					<span className="num muted">
-						{item.position + 1} of {siblings}
-					</span>
-					<button
-						type="button"
-						className="icon-button"
-						aria-label="Move up"
-						title="Move up (⌥↑)"
-						disabled={item.position === 0 || move.isPending}
-						onClick={() => move.mutate({ payload: { ...base, index: item.position - 1 } })}
-					>
-						<ArrowUp aria-hidden />
-					</button>
-					<button
-						type="button"
-						className="icon-button"
-						aria-label="Move down"
-						title="Move down (⌥↓)"
-						disabled={item.position >= siblings - 1 || move.isPending}
-						onClick={() => move.mutate({ payload: { ...base, index: item.position + 1 } })}
-					>
-						<ArrowDown aria-hidden />
-					</button>
-				</dd>
-			</dl>
+				<section>
+					<h3>Traces back to</h3>
+					<ol className="chain">
+						<li>
+							<span className="bet-n">{bet === undefined ? "–" : numbers.get(bet.id)}</span>
+							<div>
+								<span className="cap">Bet</span>
+								<p>{bet === undefined ? "Not tied to a bet" : bet.hypothesis}</p>
+							</div>
+						</li>
+						<li>
+							<Dia status={progressStatus(goalWork)} />
+							<div>
+								<span className="cap">
+									Goal · {goalWork.done}/{goalWork.total} done
+								</span>
+								<p>{goal?.outcome}</p>
+							</div>
+						</li>
+						{ancestors.map((ancestor) => (
+							<li key={ancestor.item.id}>
+								<button type="button" onClick={() => select(ancestor.item.id)}>
+									<Dia status={ancestor.item.status} />
+									<div>
+										<span className="cap">{kindLabel[kindOf(ancestor.item)]}</span>
+										<p>{ancestor.item.title}</p>
+									</div>
+								</button>
+							</li>
+						))}
+						<li className="me">
+							<Dia status={item.status} />
+							<div>
+								<span className="cap">This {kind}</span>
+								<p>{item.title}</p>
+							</div>
+						</li>
+					</ol>
+				</section>
 
-			<div className="work-description">
-				<span className="field-label">Description</span>
-				<Editable
-					label="description"
-					value={item.description}
-					multiline
-					placeholder="What does done look like?"
-					save={(description) => update.mutateAsync({ payload: { ...base, description } })}
-				/>
-			</div>
+				<section className="done-looks">
+					<h3>What done looks like</h3>
+					<Editable
+						label="description"
+						value={item.description}
+						multiline
+						placeholder="Describe the result that lets you mark this done."
+						save={(description) => update.mutateAsync({ payload: { ...base, description } })}
+					/>
+				</section>
 
-			<WorkItemThreads workItem={item} venture={venture} />
+				{node.children.length === 0 ? null : (
+					<section>
+						<h3>
+							{item.depth === 0 ? "Tasks" : "Subtasks"}
+							<span className="cnt">
+								{node.done}/{node.total}
+							</span>
+						</h3>
+						<ul className="kids">
+							{node.children.map((child) => (
+								<KidRow key={child.item.id} venture={venture} node={child} select={select} />
+							))}
+						</ul>
+					</section>
+				)}
 
-			{error === null ? null : (
-				<p className="error-text" role="alert">
-					{describeError(error)}
-				</p>
-			)}
+				<WorkItemThreads workItem={item} venture={venture} />
 
-			<div className="work-pane-foot">
-				<span className="muted">
+				{error === null ? null : (
+					<p className="err" role="alert">
+						{describeError(error)}
+					</p>
+				)}
+
+				<p className="cap insp-when">
 					Added {ago(item.createdAt, Date.now())}
 					{item.updatedAt === item.createdAt ? null : ` · edited ${ago(item.updatedAt, Date.now())}`}
-				</span>
+				</p>
+			</div>
 
+			<footer className="insp-foot">
 				{confirming ? (
-					<div className="settle work-confirm">
-						<p>
+					<>
+						<span className="insp-ask">
 							Archive this {kind} and the {plural(descendants, "item")} under it?
-						</p>
+						</span>
+						<span className="grow" />
+						<button type="button" className="btn ghost" onClick={() => setConfirming(false)}>
+							Cancel
+						</button>
 						<button
 							type="button"
-							className="button is-primary"
+							className="btn danger"
 							disabled={archive.isPending}
 							onClick={() => archive.mutate({ payload: base })}
 						>
 							Archive {1 + descendants} items
 						</button>
-						<button type="button" className="button is-ghost" onClick={() => setConfirming(false)}>
-							Cancel
-						</button>
-					</div>
+					</>
 				) : (
-					<button
-						type="button"
-						className="button"
-						disabled={archive.isPending}
-						onClick={() => (descendants === 0 ? archive.mutate({ payload: base }) : setConfirming(true))}
-					>
-						<Archive aria-hidden />
-						Archive {kind}
-					</button>
+					<>
+						<button
+							type="button"
+							className="btn pri"
+							onClick={() =>
+								void navigate({
+									to: "/v/$slug/threads",
+									params: { slug: venture.slug },
+									search: { link: `work_item:${item.id}`, label: item.title },
+								})
+							}
+						>
+							<Icon name="threads" />
+							Start a thread
+						</button>
+						<span className="grow" />
+						<button
+							type="button"
+							className="btn ghost danger"
+							disabled={archive.isPending}
+							onClick={() => (descendants === 0 ? archive.mutate({ payload: base }) : setConfirming(true))}
+						>
+							<Icon name="archive" />
+							Archive
+						</button>
+					</>
 				)}
-			</div>
+			</footer>
 		</aside>
 	);
 }
 
 function WorkSkeleton() {
 	return (
-		<>
-			<header className="topbar">
-				<span className="skeleton" style={{ width: 180 }} />
-			</header>
-			<div className="work-layout">
-				<div className="work-main skeleton-stack" aria-busy="true">
-					<span className="visually-hidden">Loading work…</span>
-					{[30, 80, 70, 75, 40, 85, 60].map((width) => (
-						<span key={width} className="skeleton" style={{ width: `${width}%` }} />
-					))}
+		<div className="wk">
+			<div className="wk-main">
+				<div className="bar">
+					<h1>Work</h1>
+				</div>
+				<div className="wk-tree">
+					<Skeleton label="Loading work…" widths={[30, 80, 70, 75, 40, 85, 60]} />
 				</div>
 			</div>
-		</>
+		</div>
 	);
 }

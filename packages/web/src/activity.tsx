@@ -1,11 +1,40 @@
+import type { DomainEvent } from "@braise/core";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
+import { Fragment } from "react";
 import { api } from "./api.ts";
 import { EventItem } from "./feed.tsx";
 import { PageError } from "./holding.tsx";
 import { keys, queries } from "./live.ts";
+import { Hero, Skeleton } from "./parts.tsx";
+import { dayLabel } from "./time.ts";
 
 const pageSize = 50;
+
+function DayLog<Event extends DomainEvent>({ events, slug }: { events: readonly Event[]; slug?: string }) {
+	const now = Date.now();
+
+	return (
+		<ol className="log full">
+			{events.map((event, index) => {
+				const day = dayLabel(event.createdAt, now);
+				const previous = events[index - 1];
+				const first = previous === undefined || dayLabel(previous.createdAt, now) !== day;
+
+				return (
+					<Fragment key={`${event.ventureId}:${event.seq}`}>
+						{first ? (
+							<li className="day">
+								<span className="cap">{day}</span>
+							</li>
+						) : null}
+						<EventItem event={event} slug={slug} full />
+					</Fragment>
+				);
+			})}
+		</ol>
+	);
+}
 
 export function VentureActivityPage() {
 	const { slug } = useParams({ from: "/v/$slug/activity" });
@@ -22,45 +51,34 @@ export function VentureActivityPage() {
 		},
 	});
 
+	const loaded = events.data?.pages.flatMap((page) => page.events) ?? [];
+	const name = cockpit.data?.venture.name ?? slug;
+
 	return (
-		<>
-			<header className="topbar">
-				<Link to="/v/$slug" params={{ slug }} className="crumb">
-					{cockpit.data?.venture.name ?? slug}
-				</Link>
-				<span className="muted" aria-hidden>
-					/
-				</span>
-				<h1>Activity</h1>
-			</header>
-			<div className="page page-narrow">
-				{events.isPending ? (
-					<FeedSkeleton />
-				) : events.isError ? (
-					<PageError error={events.error} retry={() => void events.refetch()} />
-				) : (
-					<>
-						<ol className="feed is-full">
-							{events.data.pages
-								.flatMap((page) => page.events)
-								.map((event) => (
-									<EventItem key={event.seq} event={event} full />
-								))}
-						</ol>
-						{events.hasNextPage ? (
+		<div className="page narrow">
+			<Hero cap={events.isSuccess ? `${name} · latest ${loaded.length}` : name} title="Activity" />
+			{events.isPending ? (
+				<Skeleton label="Loading activity…" widths={[80, 65, 72, 58, 70]} />
+			) : events.isError ? (
+				<PageError error={events.error} retry={() => void events.refetch()} />
+			) : (
+				<>
+					<DayLog events={loaded} slug={slug} />
+					{events.hasNextPage ? (
+						<p className="more">
 							<button
 								type="button"
-								className="button load-more"
+								className="btn"
 								disabled={events.isFetchingNextPage}
 								onClick={() => void events.fetchNextPage()}
 							>
 								{events.isFetchingNextPage ? "Loading…" : "Load older"}
 							</button>
-						) : null}
-					</>
-				)}
-			</div>
-		</>
+						</p>
+					) : null}
+				</>
+			)}
+		</div>
 	);
 }
 
@@ -68,43 +86,22 @@ export function HoldingActivityPage() {
 	const events = useQuery(queries.recent());
 
 	return (
-		<>
-			<header className="topbar">
-				<Link to="/" className="crumb">
-					Holding
-				</Link>
-				<span className="muted" aria-hidden>
-					/
-				</span>
-				<h1>Activity</h1>
-				<span className="muted">across every venture, latest 100</span>
-			</header>
-			<div className="page page-narrow">
-				{events.isPending ? (
-					<FeedSkeleton />
-				) : events.isError ? (
-					<PageError error={events.error} retry={() => void events.refetch()} />
-				) : events.data.events.length === 0 ? (
-					<p className="empty-state">Nothing has happened yet.</p>
-				) : (
-					<ol className="feed is-full">
-						{events.data.events.map((event) => (
-							<EventItem key={`${event.ventureId}:${event.seq}`} event={event} full />
-						))}
-					</ol>
-				)}
-			</div>
-		</>
-	);
-}
-
-function FeedSkeleton() {
-	return (
-		<div className="skeleton-stack" aria-busy="true">
-			<span className="visually-hidden">Loading activity…</span>
-			{[80, 65, 72, 58, 70].map((width) => (
-				<span key={width} className="skeleton" style={{ width: `${width}%` }} />
-			))}
+		<div className="page narrow">
+			<Hero
+				cap={
+					events.isSuccess ? `Across every venture · latest ${events.data.events.length}` : "Across every venture"
+				}
+				title="Activity"
+			/>
+			{events.isPending ? (
+				<Skeleton label="Loading activity…" widths={[80, 65, 72, 58, 70]} />
+			) : events.isError ? (
+				<PageError error={events.error} retry={() => void events.refetch()} />
+			) : events.data.events.length === 0 ? (
+				<p className="empty">Nothing has happened yet.</p>
+			) : (
+				<DayLog events={events.data.events} />
+			)}
 		</div>
 	);
 }

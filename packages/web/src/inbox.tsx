@@ -5,7 +5,6 @@ import {
 	changeLabels,
 	type InboxAccessRequest,
 	type InboxItem,
-	type InboxProposal,
 	isBetRef,
 	type ProposalChangeDetail,
 	type ProposalDetail,
@@ -13,18 +12,21 @@ import {
 } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { Check, Inbox as InboxIcon, Pencil, X } from "lucide-react";
-import { type CSSProperties, type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { ApiRequestError } from "./api.ts";
 import { describeError } from "./errors.ts";
 import { DiffField } from "./history.tsx";
 import { PageError } from "./holding.tsx";
 import { capabilityPhrases, plural } from "./labels.ts";
 import { keys, queries, refreshVenture } from "./live.ts";
-import { ringColor } from "./rings.tsx";
+import { accent, Crest, Dia, Icon, Need } from "./marks.tsx";
+import { Select } from "./menu.tsx";
+import { Sec, Skeleton } from "./parts.tsx";
 import { actorName } from "./thread-timeline.ts";
 import { ago, formatDate, formatDateTime } from "./time.ts";
+import { toast } from "./toast.ts";
 import { useCommand } from "./use-command.ts";
+import { ThreadLink } from "./working.tsx";
 
 type FieldKind = "text" | "date" | "bet" | "status" | "flag";
 
@@ -126,54 +128,54 @@ export function InboxPage() {
 	const inbox = useQuery(queries.inbox());
 	const search = useSearch({ from: "/inbox" });
 
-	if (inbox.isPending) return <InboxSkeleton />;
+	if (inbox.isPending) {
+		return (
+			<div className="split">
+				<div className="list">
+					<div className="bar">
+						<h1>Inbox</h1>
+					</div>
+					<Skeleton label="Loading the inbox…" widths={[70, 90, 60]} />
+				</div>
+				<div className="pane" />
+			</div>
+		);
+	}
 
 	if (inbox.isError) return <PageError error={inbox.error} retry={() => void inbox.refetch()} />;
 
 	const { pending, decided } = inbox.data;
-	const selectedId = search.access ?? search.proposal ?? pending[0]?.id ?? null;
+	const selectedId = search.access ?? search.proposal ?? pending[0]?.id ?? decided[0]?.id ?? null;
 	const selected = [...pending, ...decided].find((item) => item.id === selectedId);
 
 	return (
-		<>
-			<header className="topbar">
-				<span className="crumb-current">Inbox</span>
-				{pending.length === 0 ? null : <span className="muted num">{pending.length} waiting</span>}
-			</header>
+		<div className="split">
+			<nav className="list" aria-label="Inbox">
+				<div className="bar">
+					<h1>Inbox</h1>
+					<span className="cnt">{pending.length}</span>
+				</div>
+				{pending.length === 0 ? (
+					<p className="empty list-note">Nothing needs you. Agents' proposals and access requests land here.</p>
+				) : (
+					pending.map((item) => <InboxRow key={item.id} item={item} selected={item.id === selectedId} />)
+				)}
+				{decided.length === 0 ? null : (
+					<>
+						<div className="group">
+							<h2 className="cap">Decided</h2>
+						</div>
+						{decided.map((item) => (
+							<InboxRow key={item.id} item={item} selected={item.id === selectedId} />
+						))}
+					</>
+				)}
+			</nav>
 
-			<div className="threads-layout">
-				<nav className="thread-list inbox-list" aria-label="Inbox">
-					{pending.length === 0 ? (
-						<p className="thread-list-note muted">
-							Nothing needs you. Agents' proposals and access requests land here.
-						</p>
-					) : (
-						<ul>
-							{pending.map((item) => (
-								<li key={item.id}>
-									<InboxRow item={item} selected={item.id === selectedId} />
-								</li>
-							))}
-						</ul>
-					)}
-					{decided.length === 0 ? null : (
-						<>
-							<h2 className="inbox-group">Decided</h2>
-							<ul>
-								{decided.map((item) => (
-									<li key={item.id}>
-										<InboxRow item={item} selected={item.id === selectedId} />
-									</li>
-								))}
-							</ul>
-						</>
-					)}
-				</nav>
-
+			<section className="pane" aria-label="Review">
 				{selectedId === null ? (
-					<div className="inbox-empty">
-						<InboxIcon aria-hidden />
-						<p>
+					<div className="rev">
+						<p className="lede">
 							When an agent proposes a change to a strategy, a bet or a goal, or asks for access it doesn't have,
 							you decide here. Nothing changes until you approve.
 						</p>
@@ -183,98 +185,65 @@ export function InboxPage() {
 				) : search.access === undefined ? (
 					<Review key={selectedId} proposalId={selectedId} />
 				) : (
-					<div className="review">
-						<p className="inbox-note muted">This access request is no longer in the inbox.</p>
+					<div className="rev">
+						<p className="lede">This access request is no longer in the inbox.</p>
 					</div>
 				)}
-			</div>
-		</>
-	);
-}
-
-function InboxRow({ item, selected }: { item: InboxItem; selected: boolean }) {
-	return item.kind === "proposal" ? (
-		<ProposalRow item={item} selected={selected} />
-	) : (
-		<AccessRow item={item} selected={selected} />
+			</section>
+		</div>
 	);
 }
 
 function accessTitle(item: InboxAccessRequest) {
-	return `${item.agent.name} asks for ${capabilityLabels[item.capability]}`;
+	return `${item.agent.name} asks for ${capabilityLabels[item.capability].toLowerCase()}`;
 }
 
-function AccessRow({ item, selected }: { item: InboxAccessRequest; selected: boolean }) {
+function InboxRow({ item, selected }: { item: InboxItem; selected: boolean }) {
 	const now = Date.now();
 	const decided = item.status !== "pending";
 	const at = item.decidedAt ?? item.createdAt;
+	const proposal = item.kind === "proposal" ? item : null;
 
 	return (
 		<Link
 			to="/inbox"
-			search={{ access: item.id }}
-			className={["thread-row inbox-row", selected ? "is-selected" : "", decided ? "is-decided" : ""].join(" ")}
+			search={item.kind === "proposal" ? { proposal: item.id } : { access: item.id }}
+			className={decided ? "lr dim" : "lr"}
 			aria-current={selected ? "page" : undefined}
-			style={item.venture === null ? undefined : ({ "--ring": ringColor(item.venture.id) } as CSSProperties)}
+			style={accent(item.venture?.slug)}
 		>
-			<span className={`inbox-mark is-access is-${item.status}`} aria-hidden />
-			<span className="thread-row-main">
-				<span className="thread-row-top">
-					<span className="thread-row-title">{accessTitle(item)}</span>
-					<time className="thread-row-time" dateTime={at} title={formatDateTime(at)}>
-						{ago(at, now)}
-					</time>
+			<span className="lr-h">
+				<span className="lr-mark">
+					{decided ? <Dia status={item.status === "approved" ? "won" : "lost"} /> : <Need />}
 				</span>
-				<span className="thread-row-snippet">
-					<span className="inbox-venture">{item.venture?.name ?? "Holding"}</span> · {item.summary}
-					{decided ? ` · ${item.status === "approved" ? "granted" : "denied"}` : ""}
+				<b>{item.kind === "proposal" ? item.title : accessTitle(item)}</b>
+				<time className="mono" dateTime={at} title={formatDateTime(at)}>
+					{ago(at, now)}
+				</time>
+			</span>
+			<span className="lr-s">
+				<span>
+					{item.venture?.name ?? "Holding"} ·{" "}
+					{item.kind === "proposal"
+						? `${plural(item.changeCount, "change")} · ${actorName(item.createdBy)}`
+						: `Access request${item.attempts > 1 ? ` · tried ${item.attempts}×` : ""}`}
+					{decided ? ` · ${decisionWord(item)}` : null}
+					{proposal !== null && !decided && proposal.staleCount > 0 ? (
+						<>
+							{" · "}
+							<em>Stale</em>
+						</>
+					) : null}
 				</span>
-				{item.attempts > 1 ? (
-					<span className="thread-row-links">
-						<span className="tag num">Tried {item.attempts}×</span>
-					</span>
-				) : null}
 			</span>
 		</Link>
 	);
 }
 
-function ProposalRow({ item, selected }: { item: InboxProposal; selected: boolean }) {
-	const now = Date.now();
-	const decided = item.status !== "pending";
+function decisionWord(item: InboxItem) {
+	if (item.kind === "proposal") return item.status;
 
-	return (
-		<Link
-			to="/inbox"
-			search={{ proposal: item.id }}
-			className={["thread-row inbox-row", selected ? "is-selected" : "", decided ? "is-decided" : ""].join(" ")}
-			aria-current={selected ? "page" : undefined}
-			style={{ "--ring": ringColor(item.venture.id) } as CSSProperties}
-		>
-			<span className={`inbox-mark is-${item.status}`} aria-hidden />
-			<span className="thread-row-main">
-				<span className="thread-row-top">
-					<span className="thread-row-title">{item.title}</span>
-					<time
-						className="thread-row-time"
-						dateTime={item.decidedAt ?? item.createdAt}
-						title={formatDateTime(item.decidedAt ?? item.createdAt)}
-					>
-						{ago(item.decidedAt ?? item.createdAt, now)}
-					</time>
-				</span>
-				<span className="thread-row-snippet">
-					<span className="inbox-venture">{item.venture.name}</span> · {plural(item.changeCount, "change")}
-					{decided ? ` · ${item.status}` : ""}
-				</span>
-				{item.staleCount > 0 ? (
-					<span className="thread-row-links">
-						<span className="tag is-stale">Stale</span>
-					</span>
-				) : null}
-			</span>
-		</Link>
-	);
+	return item.status === "approved" ? "granted" : "denied";
 }
 
 function initialState(detail: ProposalDetail) {
@@ -302,19 +271,16 @@ function Review({ proposalId }: { proposalId: string }) {
 
 	if (proposal.isPending) {
 		return (
-			<div className="review skeleton-stack inbox-loading" aria-busy="true">
-				<span className="visually-hidden">Loading proposal…</span>
-				{[50, 80, 90, 70].map((width) => (
-					<span key={width} className="skeleton" style={{ width: `${width}%` }} />
-				))}
+			<div className="rev">
+				<Skeleton label="Loading proposal…" widths={[50, 80, 90, 70]} />
 			</div>
 		);
 	}
 
 	if (proposal.isError) {
 		return (
-			<div className="review">
-				<p className="error-text inbox-note" role="alert">
+			<div className="rev">
+				<p className="err" role="alert">
 					{describeError(proposal.error)}
 				</p>
 			</div>
@@ -322,6 +288,28 @@ function Review({ proposalId }: { proposalId: string }) {
 	}
 
 	return <ReviewBody key={proposal.data.proposal.status} detail={proposal.data} />;
+}
+
+function useApproveShortcut(enabled: boolean) {
+	const form = useRef<HTMLFormElement>(null);
+
+	useEffect(() => {
+		if (!enabled) return;
+
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
+
+			event.preventDefault();
+
+			form.current?.requestSubmit();
+		};
+
+		document.addEventListener("keydown", onKeyDown);
+
+		return () => document.removeEventListener("keydown", onKeyDown);
+	}, [enabled]);
+
+	return form;
 }
 
 function ReviewBody({ detail }: { detail: ProposalDetail }) {
@@ -332,7 +320,9 @@ function ReviewBody({ detail }: { detail: ProposalDetail }) {
 	const [reason, setReason] = useState(proposal.reason);
 	const [note, setNote] = useState("");
 	const pending = proposal.status === "pending";
+	const form = useApproveShortcut(pending);
 	const now = Date.now();
+	const author = actorName(proposal.createdBy);
 
 	const settle = (seq: number) => {
 		void navigate({ to: "/inbox", search: { proposal: proposal.id }, replace: true });
@@ -346,29 +336,38 @@ function ReviewBody({ detail }: { detail: ProposalDetail }) {
 		void client.invalidateQueries({ queryKey: keys.thread(thread.id) });
 	};
 
+	const update = (index: number, change: Partial<ChangeState>) =>
+		setStates((current) => current.map((state, at) => (at === index ? { ...state, ...change } : state)));
+
+	const kept = states.filter((state) => state.included).length;
+
 	const approve = useCommand("proposal.approve", (response) => {
 		settle(response.seq);
 
 		reject.reset();
+
+		toast(
+			<>
+				Approved · <b>{plural(kept, "change")} applied</b> to {venture.name}
+			</>,
+		);
 	});
 
 	const reject = useCommand("proposal.reject", (response) => {
 		settle(response.seq);
 
 		approve.reset();
+
+		toast("Proposal rejected", "x");
 	});
 
-	const update = (index: number, change: Partial<ChangeState>) =>
-		setStates((current) => current.map((state, at) => (at === index ? { ...state, ...change } : state)));
-
-	const kept = states.filter((state) => state.included).length;
 	const stale = detail.changes.filter((change, index) => change.stale !== null && states[index]?.included === true);
 	const refDropped = droppedRefs(states);
 	const busy = approve.isPending || reject.isPending;
 
 	const blocked =
 		stale.length > 0
-			? `Part of this proposal is out of date. Reject it and ask ${actorName(proposal.createdBy)} for a fresh one.`
+			? `Part of this proposal is out of date. Leave the stale change out, or reject it and ask ${author} for a fresh one.`
 			: kept === 0
 				? "Include at least one change, or reject the proposal."
 				: refDropped
@@ -380,7 +379,7 @@ function ReviewBody({ detail }: { detail: ProposalDetail }) {
 	const submitApprove = (event: FormEvent) => {
 		event.preventDefault();
 
-		if (blocked !== null) return;
+		if (blocked !== null || busy) return;
 
 		approve.mutate({
 			payload: {
@@ -403,92 +402,119 @@ function ReviewBody({ detail }: { detail: ProposalDetail }) {
 		});
 
 	const error = approve.error ?? reject.error;
-	const threadSearch = { thread: thread.id };
+	const anyStale = detail.changes.some((change) => change.stale !== null);
 
 	return (
-		<div className="review" style={{ "--ring": ringColor(venture.id) } as CSSProperties}>
-			<div className="review-scroll">
-				<header className="review-head">
-					<p className="review-venture">
-						<span className="ring-dot" aria-hidden />
-						<Link to="/v/$slug" params={{ slug: venture.slug }}>
-							{venture.name}
-						</Link>
-					</p>
-					<h1 className="review-title">{proposal.title}</h1>
-					<p className="review-meta">
-						{actorName(proposal.createdBy)} proposed this in{" "}
-						{thread.ventureSlug === null ? (
-							<Link to="/threads" search={threadSearch}>
-								{thread.title}
-							</Link>
-						) : (
-							<Link to="/v/$slug/threads" params={{ slug: thread.ventureSlug }} search={threadSearch}>
-								{thread.title}
-							</Link>
-						)}{" "}
-						·{" "}
-						<time dateTime={proposal.createdAt} title={formatDateTime(proposal.createdAt)}>
-							{ago(proposal.createdAt, now)}
-						</time>
-					</p>
-					<p className="review-reason">{proposal.reason}</p>
-				</header>
-
-				{pending ? null : <Decision detail={detail} />}
-
-				<ol className="changes">
-					{detail.changes.map((change, index) => (
-						<Change
-							key={`${change.command}:${index}`}
-							index={index}
-							change={change}
-							detail={detail}
-							state={states[index] ?? { included: true, editing: false, draft: change.payload }}
-							applied={pending ? undefined : (proposal.applied?.[index] ?? null)}
-							update={(next) => update(index, next)}
-						/>
-					))}
-				</ol>
+		<div className="rev" style={accent(venture.slug)}>
+			<div className="rev-kind">
+				<Crest seed={venture.slug} size={14} />
+				<span>
+					<Link to="/v/$slug" params={{ slug: venture.slug }}>
+						{venture.name}
+					</Link>
+				</span>
+				<i>·</i>
+				<span>Proposal</span>
+				{pending && anyStale ? (
+					<>
+						<i>·</i>
+						<em>Out of date</em>
+					</>
+				) : null}
 			</div>
+			<h2>{proposal.title}</h2>
+			<p className="rev-meta">
+				{author} proposed this{" "}
+				<time dateTime={proposal.createdAt} title={formatDateTime(proposal.createdAt)}>
+					{ago(proposal.createdAt, now)}
+				</time>{" "}
+				in{" "}
+				<ThreadLink ventureSlug={thread.ventureSlug} threadId={thread.id}>
+					{thread.title}
+				</ThreadLink>
+			</p>
+			<p className="rev-why">{proposal.reason}</p>
+
+			<Sec title="Changes" count={detail.changes.length} />
+			{detail.changes.map((change, index) => (
+				<Change
+					key={`${change.command}:${index}`}
+					index={index}
+					change={change}
+					detail={detail}
+					state={states[index] ?? { included: true, editing: false, draft: change.payload }}
+					applied={pending ? undefined : (proposal.applied?.[index] ?? null)}
+					update={(next) => update(index, next)}
+				/>
+			))}
 
 			{pending ? (
-				<form className="decision-bar" onSubmit={submitApprove}>
-					<div className="decision-fields">
-						<label className="field">
-							<span className="field-label">Reason</span>
-							<input
-								className="input"
-								value={reason}
-								onChange={(event) => setReason(event.target.value)}
-								aria-invalid={reason.trim() === "" ? true : undefined}
-							/>
-						</label>
-						<label className="field">
-							<span className="field-label">Note for {actorName(proposal.createdBy)}</span>
-							<input
-								className="input"
-								value={note}
-								placeholder="Optional, shown in the thread"
-								onChange={(event) => setNote(event.target.value)}
-							/>
-						</label>
-					</div>
-					<div className="decision-actions">
-						<output className={error === null ? "decision-hint" : "decision-hint error-text"}>
-							{error !== null ? approvalError(error) : blocked}
+				<form className="verdict" ref={form} onSubmit={submitApprove}>
+					{error !== null || blocked !== null ? (
+						<output className={error === null ? "verdict-hint" : "verdict-hint err"}>
+							{error === null ? blocked : approvalError(error)}
 						</output>
-						<button type="button" className="button" disabled={busy} onClick={submitReject}>
-							<X aria-hidden />
-							Reject
-						</button>
-						<button type="submit" className="button is-primary" disabled={busy || blocked !== null}>
-							<Check aria-hidden />
-							{kept === detail.changes.length ? "Approve" : `Approve ${plural(kept, "change")}`}
-						</button>
-					</div>
+					) : null}
+					<label className="verdict-reason">
+						<span className="cap">Reason</span>
+						<input
+							className="inp"
+							value={reason}
+							placeholder="Recorded with the change"
+							onChange={(event) => setReason(event.target.value)}
+							aria-invalid={reason.trim() === "" ? true : undefined}
+						/>
+					</label>
+					<input
+						className="inp"
+						value={note}
+						aria-label={`Note for ${author}`}
+						placeholder={`Note for ${author}. Optional, shown in the thread`}
+						onChange={(event) => setNote(event.target.value)}
+					/>
+					<button type="button" className="btn ghost danger" disabled={busy} onClick={submitReject}>
+						Reject
+					</button>
+					<button type="submit" className="btn pri" disabled={busy || blocked !== null}>
+						{kept === detail.changes.length ? "Approve" : `Approve ${plural(kept, "change")}`}
+						<span className="kbd">⌘↵</span>
+					</button>
 				</form>
-			) : null}
+			) : (
+				<Decided
+					approved={proposal.status === "approved"}
+					text={proposal.status === "approved" ? "You approved this" : "You rejected this"}
+					at={proposal.decidedAt}
+					note={proposal.note}
+				/>
+			)}
+		</div>
+	);
+}
+
+function Decided({
+	approved,
+	text,
+	at,
+	note,
+}: {
+	approved: boolean;
+	text: string;
+	at: string | null;
+	note: string | null;
+}) {
+	return (
+		<div className="decided">
+			<Dia status={approved ? "won" : "lost"} />
+			<b>{text}</b>
+			<span className="mute">
+				{at === null ? null : (
+					<time dateTime={at} title={formatDateTime(at)}>
+						{ago(at, Date.now())}
+					</time>
+				)}
+				{note === null ? null : ` · “${note}”`}
+			</span>
 		</div>
 	);
 }
@@ -525,6 +551,7 @@ function AccessReview({ item }: { item: InboxAccessRequest }) {
 	const client = useQueryClient();
 	const [note, setNote] = useState("");
 	const pending = item.status === "pending";
+	const form = useApproveShortcut(pending);
 	const now = Date.now();
 	const label = capabilityLabels[item.capability];
 
@@ -540,105 +567,93 @@ function AccessReview({ item }: { item: InboxAccessRequest }) {
 		settle();
 
 		deny.reset();
+
+		toast(
+			<>
+				{item.agent.name} may now change <b>{label.toLowerCase()}</b>
+			</>,
+			"key",
+		);
 	});
 
 	const deny = useCommand("access.deny", () => {
 		settle();
 
 		approve.reset();
+
+		toast("Request denied", "x");
 	});
 
 	const busy = approve.isPending || deny.isPending;
 	const error = approve.error ?? deny.error;
 	const trimmed = note.trim() === "" ? undefined : note.trim();
-	const threadSearch = { thread: item.thread.id };
 	const fields = Object.entries(item.payload).filter(([key]) => key !== "ventureId");
 
 	return (
-		<div
-			className="review"
-			style={item.venture === null ? undefined : ({ "--ring": ringColor(item.venture.id) } as CSSProperties)}
-		>
-			<div className="review-scroll">
-				<header className="review-head">
-					<p className="review-venture">
-						{item.venture === null ? (
-							<span>Holding</span>
-						) : (
-							<>
-								<span className="ring-dot" aria-hidden />
-								<Link to="/v/$slug" params={{ slug: item.venture.slug }}>
-									{item.venture.name}
-								</Link>
-							</>
-						)}
-					</p>
-					<h1 className="review-title">{accessTitle(item)}</h1>
-					<p className="review-meta">
-						Refused in{" "}
-						{item.thread.ventureSlug === null ? (
-							<Link to="/threads" search={threadSearch}>
-								{item.thread.title}
-							</Link>
-						) : (
-							<Link to="/v/$slug/threads" params={{ slug: item.thread.ventureSlug }} search={threadSearch}>
-								{item.thread.title}
-							</Link>
-						)}{" "}
-						·{" "}
-						<time dateTime={item.createdAt} title={formatDateTime(item.createdAt)}>
-							{ago(item.createdAt, now)}
-						</time>
-						{item.attempts > 1 ? <> · tried {plural(item.attempts, "time")}</> : null}
-					</p>
-				</header>
-
-				{pending ? null : (
-					<p className={`decision-line is-${item.status}`}>
-						<span className={`inbox-mark is-access is-${item.status}`} aria-hidden />
-						<span>
-							{item.status === "approved" ? `You granted ${label}` : `You denied ${label}`}
-							{item.decidedAt === null ? null : (
-								<>
-									{" "}
-									<time dateTime={item.decidedAt} title={formatDateTime(item.decidedAt)}>
-										{ago(item.decidedAt, now)}
-									</time>
-								</>
-							)}
-							{item.note === null ? null : <> · “{item.note}”</>}
-						</span>
-					</p>
-				)}
-
-				<section className="access-section" aria-labelledby="access-tried">
-					<h2 id="access-tried">What it tried</h2>
-					<p className="access-summary">{item.summary.charAt(0).toUpperCase() + item.summary.slice(1)}</p>
-					{fields.length === 0 ? null : (
-						<dl className="access-payload">
-							{fields.map(([key, value]) => (
-								<div key={key}>
-									<dt>{attemptLabels[key] ?? key}</dt>
-									{item.references[key] === undefined ? (
-										<dd className={isIdField(key) ? "num" : undefined}>{attemptValue(value)}</dd>
-									) : (
-										<dd title={attemptValue(value)}>{item.references[key]}</dd>
-									)}
-								</div>
-							))}
-						</dl>
+		<div className="rev" style={accent(item.venture?.slug)}>
+			<div className="rev-kind">
+				{item.venture === null ? <Icon name="holding" /> : <Crest seed={item.venture.slug} size={14} />}
+				<span>
+					{item.venture === null ? (
+						"Holding"
+					) : (
+						<Link to="/v/$slug" params={{ slug: item.venture.slug }}>
+							{item.venture.name}
+						</Link>
 					)}
-				</section>
+				</span>
+				<i>·</i>
+				<span>Access request</span>
+			</div>
+			<h2>{accessTitle(item)}</h2>
+			<p className="rev-meta">
+				{item.agent.name} asked{" "}
+				<time dateTime={item.createdAt} title={formatDateTime(item.createdAt)}>
+					{ago(item.createdAt, now)}
+				</time>{" "}
+				in{" "}
+				<ThreadLink ventureSlug={item.thread.ventureSlug} threadId={item.thread.id}>
+					{item.thread.title}
+				</ThreadLink>
+				{item.attempts > 1 ? `, after trying ${plural(item.attempts, "time")}` : null}
+			</p>
 
-				<section className="access-section" aria-labelledby="access-grant">
-					<h2 id="access-grant">
-						{item.status === "pending"
-							? "What approving grants"
-							: item.status === "approved"
-								? "What you granted"
-								: "What it asked for"}
-					</h2>
-					<p className="access-summary">
+			<Sec title="What it tried" />
+			<p className="rev-tried">{item.summary.charAt(0).toUpperCase() + item.summary.slice(1)}</p>
+			{fields.length === 0 ? null : (
+				<dl className="tried">
+					{fields.map(([key, value]) => (
+						<div key={key} className="lead">
+							<dt>{attemptLabels[key] ?? key}</dt>
+							<i className="dots" />
+							{item.references[key] === undefined ? (
+								<dd className={isIdField(key) ? "is-id" : undefined}>{attemptValue(value)}</dd>
+							) : (
+								<dd className="is-ref" title={attemptValue(value)}>
+									{item.references[key]}
+								</dd>
+							)}
+						</div>
+					))}
+				</dl>
+			)}
+
+			<Sec
+				title={
+					item.status === "pending"
+						? "What approving grants"
+						: item.status === "approved"
+							? "What you granted"
+							: "What it asked for"
+				}
+			/>
+			<div className={item.status === "denied" ? "grant solo" : "grant on solo"}>
+				<span className="grant-k">
+					<Icon name="key" />
+				</span>
+				<div>
+					<b>{label}</b>
+					<p>
 						{item.status === "denied" ? (
 							<>
 								To let {item.agent.name} {capabilityPhrases[item.capability]}, grant it in{" "}
@@ -646,61 +661,59 @@ function AccessReview({ item }: { item: InboxAccessRequest }) {
 							</>
 						) : (
 							<>
-								{item.agent.name} may {capabilityPhrases[item.capability]} in every venture until you revoke it
-								in <Link to="/agents">Agents</Link>. What it tried isn't replayed; it tries again when you ask.
+								{item.agent.name} may {capabilityPhrases[item.capability]}, in every venture, until you revoke
+								it in <Link to="/agents">Agents</Link>. What it tried isn't replayed; it tries again when you
+								ask.
 							</>
 						)}
 					</p>
-					<ul className="access-commands">
-						{capabilityCommands[item.capability].map((command) => (
-							<li key={command} className="access-command num">
-								{command}
-							</li>
-						))}
-					</ul>
-				</section>
+					<span className="mono cmds">{capabilityCommands[item.capability].join(" · ")}</span>
+				</div>
 			</div>
 
 			{pending ? (
 				<form
-					className="decision-bar"
+					className="verdict"
+					ref={form}
 					onSubmit={(event) => {
 						event.preventDefault();
 
-						approve.mutate({ payload: { accessRequestId: item.id, note: trimmed } });
+						if (!busy) approve.mutate({ payload: { accessRequestId: item.id, note: trimmed } });
 					}}
 				>
-					<div className="decision-fields is-single">
-						<label className="field">
-							<span className="field-label">Note for {item.agent.name}</span>
-							<input
-								className="input"
-								value={note}
-								placeholder="Optional, shown in the thread"
-								onChange={(event) => setNote(event.target.value)}
-							/>
-						</label>
-					</div>
-					<div className="decision-actions">
-						<output className={error === null ? "decision-hint" : "decision-hint error-text"}>
-							{error === null ? null : accessError(error)}
-						</output>
-						<button
-							type="button"
-							className="button"
-							disabled={busy}
-							onClick={() => deny.mutate({ payload: { accessRequestId: item.id, note: trimmed } })}
-						>
-							<X aria-hidden />
-							Deny
-						</button>
-						<button type="submit" className="button is-primary" disabled={busy}>
-							<Check aria-hidden />
-							Approve
-						</button>
-					</div>
+					{error === null ? null : <output className="verdict-hint err">{accessError(error)}</output>}
+					<input
+						className="inp"
+						value={note}
+						aria-label={`Note for ${item.agent.name}`}
+						placeholder={`Note for ${item.agent.name}. Optional, shown in the thread`}
+						onChange={(event) => setNote(event.target.value)}
+					/>
+					<button
+						type="button"
+						className="btn ghost danger"
+						disabled={busy}
+						onClick={() => deny.mutate({ payload: { accessRequestId: item.id, note: trimmed } })}
+					>
+						Deny
+					</button>
+					<button type="submit" className="btn pri" disabled={busy}>
+						Grant {label.toLowerCase()}
+						<span className="kbd">⌘↵</span>
+					</button>
 				</form>
-			) : null}
+			) : (
+				<Decided
+					approved={item.status === "approved"}
+					text={
+						item.status === "approved"
+							? `You granted ${label.toLowerCase()}`
+							: `You denied ${label.toLowerCase()}`
+					}
+					at={item.decidedAt}
+					note={item.note}
+				/>
+			)}
 		</div>
 	);
 }
@@ -719,29 +732,6 @@ function approvalError(error: unknown) {
 	}
 
 	return describeError(error);
-}
-
-function Decision({ detail }: { detail: ProposalDetail }) {
-	const { proposal } = detail;
-	const decidedAt = proposal.decidedAt;
-
-	return (
-		<p className={`decision-line is-${proposal.status}`}>
-			<span className={`inbox-mark is-${proposal.status}`} aria-hidden />
-			<span>
-				{proposal.status === "approved" ? "You approved this" : "You rejected this"}
-				{decidedAt === null ? null : (
-					<>
-						{" "}
-						<time dateTime={decidedAt} title={formatDateTime(decidedAt)}>
-							{ago(decidedAt, Date.now())}
-						</time>
-					</>
-				)}
-				{proposal.note === null ? null : <> · “{proposal.note}”</>}
-			</span>
-		</p>
-	);
 }
 
 function Change({
@@ -775,48 +765,46 @@ function Change({
 	};
 
 	const labelId = `change-${index}`;
+	const className = ["chg", left ? "out" : "", creates ? "add" : ""].filter(Boolean).join(" ");
 
 	return (
-		<li
-			className={["change", left ? "is-left-out" : "", change.stale === null ? "" : "is-stale"].join(" ")}
-			aria-labelledby={labelId}
-		>
-			<div className="change-head">
-				<span className={creates ? "change-node is-new" : "change-node"} aria-hidden />
-				<h2 id={labelId}>{changeLabels[change.command]}</h2>
-				{change.stale === null ? null : <span className="tag is-stale">Stale · {change.stale}</span>}
-				{left ? <span className="tag">{pending ? "Left out" : "Not applied"}</span> : null}
+		<article className={className} aria-labelledby={labelId}>
+			<header className="chg-h">
+				<span className="n">{index + 1}</span>
+				<b id={labelId}>{changeLabels[change.command]}</b>
+				{change.stale === null ? null : <span className="ref bad">Stale · {change.stale}</span>}
 				{edited ? (
-					<span className="tag">
-						{creates ? `Edited · diff against ${actorName(detail.proposal.createdBy)}’s version` : "Edited"}
+					<span className="ref">
+						{creates ? `Edited · compared with ${actorName(detail.proposal.createdBy)}’s version` : "Edited"}
 					</span>
 				) : null}
+				<span className="grow" />
+				{left ? <span className="cap">{pending ? "Left out" : "Not applied"}</span> : null}
 				{pending ? (
-					<div className="change-actions">
-						<label className="change-include">
-							<input
-								type="checkbox"
-								checked={state.included}
-								onChange={(event) => update({ included: event.target.checked })}
-							/>
-							Include
-						</label>
+					<span className="acts">
 						<button
 							type="button"
-							className={state.editing ? "button is-small is-ghost is-on" : "button is-small is-ghost"}
+							className="btn ghost sm"
 							aria-pressed={state.editing}
 							disabled={!state.included}
 							onClick={() => update({ editing: !state.editing })}
 						>
-							<Pencil aria-hidden />
 							{state.editing ? "Done" : "Edit"}
 						</button>
-					</div>
+						<button
+							type="button"
+							className="btn ghost sm"
+							aria-pressed={!state.included}
+							onClick={() => update({ included: !state.included, editing: false })}
+						>
+							{state.included ? "Leave out" : "Include"}
+						</button>
+					</span>
 				) : null}
-			</div>
+			</header>
 
 			{pending && state.editing && state.included ? (
-				<div className="change-edit">
+				<div className="chg-edit">
 					{fields.map((field) => (
 						<FieldInput
 							key={field.key}
@@ -833,6 +821,7 @@ function Change({
 					{fields.map((field) => (
 						<DiffField
 							key={field.key}
+							className="chg-f"
 							label={field.label}
 							before={before(field)}
 							after={display(field, payload[field.key], detail)}
@@ -840,7 +829,7 @@ function Change({
 					))}
 				</dl>
 			)}
-		</li>
+		</article>
 	);
 }
 
@@ -896,48 +885,39 @@ function FieldInput({
 					<input
 						id={id}
 						type="date"
-						className="input"
+						className="inp"
 						value={typeof value === "string" ? value : ""}
 						onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
 					/>
 				);
 			case "bet":
 				return (
-					<select
-						id={id}
-						className="select"
+					<Select
+						title={field.label}
 						value={encodeBet(value)}
-						onChange={(event) => onChange(decodeBet(event.target.value))}
-					>
-						{betOptions(detail, index).map((option) => (
-							<option key={option.value} value={option.value}>
-								{option.label}
-							</option>
-						))}
-					</select>
+						options={betOptions(detail, index)}
+						onChange={(next) => onChange(decodeBet(next))}
+					/>
 				);
 			case "status":
 				return (
-					<select
-						id={id}
-						className="select"
+					<Select
+						title={field.label}
 						value={typeof value === "string" ? value : "won"}
-						onChange={(event) => onChange(event.target.value)}
-					>
-						{Object.entries(settleNames).map(([status, label]) => (
-							<option key={status} value={status}>
-								{label}
-							</option>
-						))}
-					</select>
+						options={Object.entries(settleNames).map(([status, label]) => ({ value: status, label }))}
+						onChange={onChange}
+					/>
 				);
 			case "flag":
 				return (
-					<label className="change-include">
+					<label className="chg-flag">
 						<input
 							id={id}
 							type="checkbox"
+							role="switch"
+							className="sw"
 							checked={value === true}
+							aria-checked={value === true}
 							onChange={(event) => onChange(event.target.checked)}
 						/>
 						Archive its goals too
@@ -947,7 +927,8 @@ function FieldInput({
 				return (
 					<textarea
 						id={id}
-						className="textarea"
+						className="ta"
+						rows={2}
 						value={typeof value === "string" ? value : ""}
 						aria-invalid={
 							typeof value === "string" &&
@@ -964,35 +945,16 @@ function FieldInput({
 	})();
 
 	return (
-		<div className="change-field">
-			{field.kind === "flag" ? (
-				<span className="field-label">{field.label}</span>
-			) : (
-				<label className="field-label" htmlFor={id}>
+		<div className="chg-f">
+			{field.kind === "text" || field.kind === "date" ? (
+				<label className="cap" htmlFor={id}>
 					{field.label}
 				</label>
+			) : (
+				<span className="cap">{field.label}</span>
 			)}
-			{control}
+			<div>{control}</div>
 		</div>
-	);
-}
-
-function InboxSkeleton() {
-	return (
-		<>
-			<header className="topbar">
-				<span className="crumb-current">Inbox</span>
-			</header>
-			<div className="threads-layout">
-				<div className="thread-list skeleton-stack thread-list-loading" aria-busy="true">
-					<span className="visually-hidden">Loading the inbox…</span>
-					{[70, 90, 60].map((width) => (
-						<span key={width} className="skeleton" style={{ width: `${width}%` }} />
-					))}
-				</div>
-				<div className="review" />
-			</div>
-		</>
 	);
 }
 
@@ -1001,36 +963,34 @@ export function NeedsYou({ ventureId }: { ventureId: string }) {
 	const items = (inbox.data?.pending ?? []).filter((item) => item.venture?.id === ventureId);
 	const now = Date.now();
 
-	if (items.length === 0) return null;
-
 	return (
-		<section className="needs-you" aria-labelledby="needs-you-heading">
-			<div className="aside-head">
-				<h2 id="needs-you-heading">Needs you</h2>
-				<Link to="/inbox">Inbox</Link>
-			</div>
-			<ul>
-				{items.map((item) => (
-					<li key={item.id}>
-						{item.kind === "proposal" ? (
-							<Link to="/inbox" search={{ proposal: item.id }} className="needs-you-row">
-								<span className="needs-you-title">{item.title}</span>
-								<span className="needs-you-meta">
-									{plural(item.changeCount, "change")} · {ago(item.createdAt, now)}
-									{item.staleCount > 0 ? " · stale" : ""}
-								</span>
-							</Link>
-						) : (
-							<Link to="/inbox" search={{ access: item.id }} className="needs-you-row">
-								<span className="needs-you-title">{accessTitle(item)}</span>
-								<span className="needs-you-meta">
-									{item.summary} · {ago(item.createdAt, now)}
-								</span>
-							</Link>
-						)}
-					</li>
-				))}
-			</ul>
+		<section aria-labelledby="needs-you-heading">
+			<Sec title="Needs you" id="needs-you-heading" count={items.length}>
+				<Link to="/inbox" className="btn ghost sm">
+					Inbox
+				</Link>
+			</Sec>
+			{items.length === 0 ? <p className="empty">Nothing needs you.</p> : null}
+			{items.map((item) =>
+				item.kind === "proposal" ? (
+					<Link key={item.id} to="/inbox" search={{ proposal: item.id }} className="quest">
+						<Need />
+						<b>{item.title}</b>
+						<span>
+							{plural(item.changeCount, "change")} · {actorName(item.createdBy)} · {ago(item.createdAt, now)}
+							{item.staleCount > 0 ? " · stale" : ""}
+						</span>
+					</Link>
+				) : (
+					<Link key={item.id} to="/inbox" search={{ access: item.id }} className="quest">
+						<Need />
+						<b>{accessTitle(item)}</b>
+						<span>
+							Access request · {item.summary} · {ago(item.createdAt, now)}
+						</span>
+					</Link>
+				),
+			)}
 		</section>
 	);
 }

@@ -1,8 +1,10 @@
 import { type DomainEvent, isAgentActor } from "@braise/core";
 import { Link } from "@tanstack/react-router";
 import { labelEvent } from "./labels.ts";
+import { accent, Drone, isSquare, You } from "./marks.tsx";
 import { actorName } from "./thread-timeline.ts";
-import { ago, formatDateTime } from "./time.ts";
+import { ago, clockTime, formatDateTime } from "./time.ts";
+import { useAgentLookup } from "./working.tsx";
 
 interface FeedEvent extends DomainEvent {
 	ventureSlug?: string;
@@ -15,53 +17,62 @@ function appliedByProposal(event: Pick<DomainEvent, "type" | "payload">) {
 
 export function EventItem({
 	event,
+	slug,
 	fresh = false,
 	full = false,
 }: {
 	event: FeedEvent;
+	slug?: string;
 	fresh?: boolean;
 	full?: boolean;
 }) {
 	const label = labelEvent(event);
+	const agentOf = useAgentLookup();
+	const agent = isAgentActor(event.actor);
+	const inHolding = full && event.ventureSlug !== undefined;
+	const reason = event.reason === null || appliedByProposal(event) ? null : event.reason;
 
 	return (
-		<li className={["feed-item", fresh ? "is-fresh" : "", isAgentActor(event.actor) ? "is-agent" : ""].join(" ")}>
-			<span className="pixel" aria-hidden />
+		<li className={fresh ? "ev fresh" : "ev"} style={accent(event.ventureSlug ?? slug)}>
+			{full ? (
+				<time className="mono" dateTime={event.createdAt} title={formatDateTime(event.createdAt)}>
+					{clockTime(event.createdAt)}
+				</time>
+			) : null}
+			<span className="ev-g">
+				{agent ? <Drone size={14} square={isSquare(agentOf(event.actor))} /> : <You size={14} />}
+			</span>
 			<div>
-				<p className="feed-text">
-					<strong>{actorName(event.actor)}</strong> {label.action}
+				<p>
+					<b>{actorName(event.actor)}</b> {label.action}
 					{label.subject === null ? null : (
 						<>
 							{" "}
-							<strong>{label.subject}</strong>
+							<span className="obj">{label.subject}</span>
 						</>
 					)}
-					{full && event.ventureSlug !== undefined ? (
-						<>
-							{" "}
-							in{" "}
-							<Link to="/v/$slug" params={{ slug: event.ventureSlug }}>
-								<strong>{event.ventureName}</strong>
-							</Link>
-						</>
-					) : null}
 				</p>
-				{label.detail === null ? null : <p className="feed-detail">{label.detail}</p>}
-				{event.reason === null || appliedByProposal(event) ? null : <p className="feed-reason">{event.reason}</p>}
-				{full ? null : (
-					<p className="feed-meta">
-						<time dateTime={event.createdAt} title={formatDateTime(event.createdAt)}>
-							{ago(event.createdAt, Date.now())}
-						</time>
+				{label.detail === null && !inHolding ? null : (
+					<p className="d">
+						{event.ventureSlug === undefined || !inHolding ? null : (
+							<Link to="/v/$slug" params={{ slug: event.ventureSlug }}>
+								<i className="vdot" />
+								{event.ventureName}
+							</Link>
+						)}
+						{inHolding && label.detail !== null ? " · " : null}
+						{label.detail}
 					</p>
 				)}
+				{reason === null ? null : <p className="why">{reason}</p>}
 			</div>
 			{full ? (
-				<span className="feed-when">
-					<time dateTime={event.createdAt}>{formatDateTime(event.createdAt)}</time>
-					<span className="data"> · #{event.seq}</span>
-				</span>
-			) : null}
+				<span className="mono ev-seq">#{event.seq}</span>
+			) : (
+				<time className="mono" dateTime={event.createdAt} title={formatDateTime(event.createdAt)}>
+					{ago(event.createdAt, Date.now())}
+				</time>
+			)}
 		</li>
 	);
 }

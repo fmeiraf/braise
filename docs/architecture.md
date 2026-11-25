@@ -343,3 +343,30 @@ Milestone: braise manages itself as a venture (dogfooding).
 - 2026-11-24: Agents UI: an Agents entry in the rail's attention section with one switch
   per capability (no confirmation; reversible and recorded), access requests in the
   global inbox beside proposals, and a "with <agent>" picker on new threads.
+- 2026-11-25: UI v6 (owner: "implement v6 fully as the new UI"): the web app follows
+  `ui-prototype-6.html`. Dark warm-neutral surfaces, the system type stack, colour only
+  where it means something (venture hue, amber for "needs you", green and red for diffs
+  and outcomes). It replaces the Growth Rings look in the app (2026-11-24); the brand kit
+  in `assets/` is unchanged and no longer drives the app's palette or fonts. Contract:
+  `packages/web/DESIGN.md`. impeccable stays mandatory for UI work; where its guidance
+  conflicts with the approved prototype, the prototype wins.
+- 2026-11-25: UI topology: a rail of ventures, no top bar, and a bottom dock (scope
+  switcher, Overview, Work, Threads, Activity, then Inbox and Agents) with agent chips
+  beside it. Replaces the persistent sidebar (2026-11-24). Scope still filters views and
+  attention stays global. Keys: 1–4, I, A, H and ⌘K for the command menu.
+- 2026-11-25: The web app draws its own menu (a button with a listbox), tooltips, toasts
+  and command menu instead of native selects and `title` attributes. Replaces "native
+  controls" (2026-11-24); still no Radix or Base UI, and no icon library.
+- 2026-11-25: A venture's colour (one of six hues) and its crest are derived from its
+  slug in the web client; nothing is stored, and a slug never changes. Bets are numbered
+  B1, B2, … by creation order among a venture's live bets, also in the client only.
+- 2026-11-25: Threads UI: the owner's messages are bubbles and an agent run is a trace of
+  steps; each tool call is its own row that opens to its input and output, and Stop sits
+  on the live step. Replaces the folded tool rounds and square pixels (2026-11-24).
+- 2026-11-25: No new endpoints for v6. The Holding reads each venture's cockpit for the
+  card text and work totals; the agent behind a run is found through the thread list.
+- 2026-11-25: `packages/web/src/styles.css` keeps every `animation` and `transition`
+  inside `@media (prefers-reduced-motion: no-preference)`, so reduced motion needs no
+  `!important`.
+- 2026-11-25: Biome skips the design prototypes and sketches at the repo root
+  (`ui-prototype*.html`, `model-sheet.html`). They are references, not shipped code.

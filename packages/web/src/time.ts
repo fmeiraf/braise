@@ -37,3 +37,36 @@ export function formatDate(isoDate: string) {
 export function formatDateTime(iso: string) {
 	return dateTimeFormat.format(new Date(iso));
 }
+
+const clockFormat = new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+const dayFormat = new Intl.DateTimeFormat("en", { day: "numeric", month: "short" });
+
+const dayWithYearFormat = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "numeric" });
+
+export function clockTime(iso: string) {
+	return clockFormat.format(new Date(iso));
+}
+
+function startOfDay(time: number) {
+	const date = new Date(time);
+
+	return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+export function dayLabel(iso: string, now: number) {
+	const then = new Date(iso);
+	const days = Math.round((startOfDay(now) - startOfDay(then.getTime())) / (24 * 3600 * 1000));
+
+	if (days === 0) return "Today";
+
+	if (days === 1) return "Yesterday";
+
+	return then.getFullYear() === new Date(now).getFullYear() ? dayFormat.format(then) : dayWithYearFormat.format(then);
+}
+
+export function shortDate(isoDate: string, now: number) {
+	const date = new Date(`${isoDate}T00:00:00`);
+
+	return date.getFullYear() === new Date(now).getFullYear() ? dayFormat.format(date) : dayWithYearFormat.format(date);
+}

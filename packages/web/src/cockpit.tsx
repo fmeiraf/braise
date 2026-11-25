@@ -1,8 +1,7 @@
 import type { Bet, BetStatus, Cockpit, Goal, StrategyVersion, WorkProgress } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import { Archive, ChevronDown, ChevronRight, History, MessagesSquare, Pencil, Plus } from "lucide-react";
-import { type CSSProperties, type FormEvent, type KeyboardEvent, useRef, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useState } from "react";
 import { ApiRequestError, api, type SetStatusResult } from "./api.ts";
 import { Editable } from "./editable.tsx";
 import { describeError } from "./errors.ts";
@@ -11,11 +10,15 @@ import { focusOnMount } from "./focus.ts";
 import { useFreshIds } from "./fresh.ts";
 import { PageError } from "./holding.tsx";
 import { NeedsYou } from "./inbox.tsx";
-import { kindLabel } from "./labels.ts";
+import { betNumbers, kindLabel } from "./labels.ts";
 import { keys, queries, rememberVenture, updateCockpit } from "./live.ts";
-import { CoreSample, Progress, ringColor } from "./rings.tsx";
-import { ago, formatDate } from "./time.ts";
+import { accent, Cast, Crest, Dia, Icon, Pips, progressStatus } from "./marks.tsx";
+import { Select } from "./menu.tsx";
+import { Sec, Skeleton } from "./parts.tsx";
+import { ago, shortDate } from "./time.ts";
+import { toast } from "./toast.ts";
 import { useCommand } from "./use-command.ts";
+import { ThreadLink, useWorking, workingLabel } from "./working.tsx";
 
 const kernelFields = [
 	{ key: "why", label: "Why", prompt: "Why should this venture exist?" },
@@ -40,7 +43,13 @@ export function CockpitPage() {
 	const { slug } = useParams({ from: "/v/$slug/" });
 	const cockpit = useQuery(queries.cockpit(slug));
 
-	if (cockpit.isPending) return <CockpitSkeleton />;
+	if (cockpit.isPending) {
+		return (
+			<div className="page">
+				<Skeleton label="Loading venture…" widths={[60, 90, 85, 40, 75, 70]} />
+			</div>
+		);
+	}
 
 	if (cockpit.isError) return <PageError error={cockpit.error} retry={() => void cockpit.refetch()} />;
 
@@ -54,121 +63,114 @@ function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 	const freshBets = useFreshIds(venture.id, bets);
 	const freshGoals = useFreshIds(venture.id, goals);
 	const [adding, setAdding] = useState(false);
-	const activeRuns = useQuery(queries.activeRuns());
-	const working = (activeRuns.data?.runs ?? []).filter((run) => run.ventureSlug === slug);
-
+	const live = useWorking().find((item) => item.run.ventureSlug === slug);
+	const numbers = betNumbers(bets);
 	const liveBetIds = new Set(bets.map((bet) => bet.id));
 	const looseGoals = goals.filter((goal) => goal.betId === null || !liveBetIds.has(goal.betId));
+	const open = bets.filter((bet) => bet.status === "open");
+	const settled = bets.filter((bet) => bet.status !== "open");
+	const work = Object.values(workProgress);
+	const done = work.reduce((sum, progress) => sum + progress.done, 0);
+	const total = work.reduce((sum, progress) => sum + progress.total, 0);
 
-	const ordered = [
-		...bets.filter((bet) => bet.status === "open" || bet.status === "won"),
-		...bets.filter((bet) => bet.status === "lost" || bet.status === "killed"),
-	];
+	const betCard = (bet: Bet) => (
+		<BetCard
+			key={bet.id}
+			slug={slug}
+			bet={bet}
+			bets={bets}
+			numbers={numbers}
+			goals={goals.filter((goal) => goal.betId === bet.id)}
+			fresh={freshBets.has(bet.id)}
+			freshGoals={freshGoals}
+			progress={workProgress}
+		/>
+	);
 
 	return (
-		<>
-			<header className="topbar">
-				<Link to="/" className="crumb">
-					Holding
-				</Link>
-				<span className="muted" aria-hidden>
-					/
-				</span>
-				<span className="crumb-current">{venture.name}</span>
-				<div className="topbar-actions">
-					<Link to="/v/$slug/threads" params={{ slug }} className="button">
-						<MessagesSquare aria-hidden />
-						New thread
-					</Link>
-					<button type="button" className="button is-primary" onClick={() => setAdding(true)}>
-						<Plus aria-hidden />
-						Add bet
-					</button>
+		<div className="page" style={accent(slug)}>
+			<header className="sheet">
+				<div className="sheet-crest">
+					<Crest seed={slug} size={48} live={live !== undefined} />
+				</div>
+				<div>
+					<h1 className="h1">{venture.name}</h1>
+					<div className="sheet-meta">
+						<span className="cap">
+							{kindLabel[venture.kind]} · strategy v{strategy.version}
+						</span>
+						{live === undefined ? null : (
+							<ThreadLink ventureSlug={slug} threadId={live.run.threadId} className="sheet-cast">
+								<Cast label={workingLabel(live)} since={live.run.startedAt ?? live.run.createdAt} />
+							</ThreadLink>
+						)}
+					</div>
+				</div>
+				<div className="stats">
+					<div className="stat">
+						<b>{open.length}</b>
+						<span className="cap">Open bets</span>
+					</div>
+					<div className="stat">
+						<b>{goals.length}</b>
+						<span className="cap">Goals</span>
+					</div>
+					<div className="stat">
+						<b>
+							{done}
+							<small>/{total}</small>
+						</b>
+						<span className="cap">Work done</span>
+					</div>
 				</div>
 			</header>
 
-			<div className="cockpit" style={{ "--ring": ringColor(venture.id) } as CSSProperties}>
-				<div className="cockpit-main">
-					<div className="venture-title">
-						<CoreSample id={venture.id} version={strategy.version} live={working.length > 0} />
-						<div className="venture-title-text">
-							<h1>{venture.name}</h1>
-							<div className="venture-meta">
-								<span className="tag">{kindLabel[venture.kind]}</span>
-								<span className="data muted">/v/{venture.slug}</span>
-								{working.length > 0 ? (
-									<span className="venture-working">
-										<span className="pixel is-live" aria-hidden />
-										{working.length === 1
-											? "Claude is working"
-											: `Claude is working in ${working.length} threads`}
-									</span>
-								) : null}
-							</div>
-						</div>
-					</div>
+			<div className="cols">
+				<div>
+					<StrategyPanel slug={slug} ventureId={venture.id} strategy={strategy} />
 
-					<div className="trunk">
-						<StrategyPanel slug={slug} ventureId={venture.id} strategy={strategy} />
+					<section aria-labelledby="bets-heading">
+						<Sec title="Bets" id="bets-heading" count={open.length}>
+							<button type="button" className="btn ghost sm" onClick={() => setAdding(true)}>
+								<Icon name="plus" />
+								Add bet
+							</button>
+						</Sec>
+						{adding ? <AddBetForm slug={slug} ventureId={venture.id} close={() => setAdding(false)} /> : null}
+						{open.length === 0 && !adding ? (
+							<p className="empty">
+								No open bets. A bet is a hypothesis, the action that tests it, and the result that makes you
+								stop.
+							</p>
+						) : (
+							open.map(betCard)
+						)}
+					</section>
 
-						<section aria-labelledby="bets-heading">
-							<div className="section-head">
-								<h2 id="bets-heading">Bets</h2>
-								<span className="section-meta num">
-									{bets.filter((bet) => bet.status === "open").length} open
-								</span>
-							</div>
+					<LooseGoals
+						slug={slug}
+						ventureId={venture.id}
+						goals={looseGoals}
+						bets={bets}
+						numbers={numbers}
+						fresh={freshGoals}
+						progress={workProgress}
+					/>
 
-							{adding ? <AddBetForm slug={slug} ventureId={venture.id} close={() => setAdding(false)} /> : null}
-
-							{bets.length === 0 && !adding ? (
-								<p className="empty-state">
-									No bets yet. A bet is a hypothesis, the action that tests it, and when you'd kill it.
-								</p>
-							) : (
-								<ol className="spine">
-									{ordered.map((bet) => (
-										<BetItem
-											key={bet.id}
-											slug={slug}
-											bet={bet}
-											bets={bets}
-											goals={goals.filter((goal) => goal.betId === bet.id)}
-											fresh={freshBets.has(bet.id)}
-											freshGoals={freshGoals}
-											progress={workProgress}
-										/>
-									))}
-								</ol>
-							)}
+					{settled.length === 0 ? null : (
+						<section aria-labelledby="settled-heading">
+							<Sec title="Settled" id="settled-heading" count={settled.length} />
+							{settled.map(betCard)}
 						</section>
-
-						<section className="loose" aria-labelledby="loose-heading">
-							<div className="section-head">
-								<span className="node is-loose" aria-hidden />
-								<h2 id="loose-heading">Not tied to a bet</h2>
-								<span className="section-meta num">{looseGoals.length}</span>
-							</div>
-							<GoalList
-								slug={slug}
-								ventureId={venture.id}
-								betId={null}
-								goals={looseGoals}
-								bets={bets}
-								fresh={freshGoals}
-								progress={workProgress}
-								loose
-							/>
-						</section>
-					</div>
+					)}
 				</div>
 
-				<aside className="cockpit-aside" aria-labelledby="recent-heading">
+				<aside>
 					<NeedsYou ventureId={venture.id} />
 					<RecentActivity slug={slug} ventureId={venture.id} lastSeq={venture.lastSeq} />
 				</aside>
 			</div>
-		</>
+		</div>
 	);
 }
 
@@ -176,9 +178,7 @@ function StrategyPanel({ slug, ventureId, strategy }: { slug: string; ventureId:
 	const client = useQueryClient();
 	const [open, setOpen] = useState(true);
 	const [draft, setDraft] = useState<Record<KernelKey, string> | null>(null);
-	const [askingReason, setAskingReason] = useState(false);
 	const [reason, setReason] = useState("");
-	const reasonRef = useRef<HTMLInputElement>(null);
 	const nextVersion = strategy.version + 1;
 
 	const revise = useCommand<"strategy.revise", StrategyVersion>("strategy.revise", (response) => {
@@ -186,9 +186,13 @@ function StrategyPanel({ slug, ventureId, strategy }: { slug: string; ventureId:
 
 		setDraft(null);
 
-		setAskingReason(false);
-
 		setReason("");
+
+		toast(
+			<>
+				Strategy saved as <b>v{response.result.version}</b>
+			</>,
+		);
 	});
 
 	const startEditing = () => {
@@ -207,8 +211,6 @@ function StrategyPanel({ slug, ventureId, strategy }: { slug: string; ventureId:
 	const cancel = () => {
 		setDraft(null);
 
-		setAskingReason(false);
-
 		setReason("");
 
 		revise.reset();
@@ -219,17 +221,7 @@ function StrategyPanel({ slug, ventureId, strategy }: { slug: string; ventureId:
 	const submit = (event: FormEvent) => {
 		event.preventDefault();
 
-		if (draft === null || unchanged) return;
-
-		if (!askingReason) {
-			setAskingReason(true);
-
-			queueMicrotask(() => reasonRef.current?.focus());
-
-			return;
-		}
-
-		if (reason.trim() === "") return;
+		if (draft === null || unchanged || reason.trim() === "") return;
 
 		revise.mutate({ payload: { ventureId, ...draft }, reason: reason.trim() });
 	};
@@ -245,125 +237,111 @@ function StrategyPanel({ slug, ventureId, strategy }: { slug: string; ventureId:
 	const revisedAt = strategy.activatedAt ?? strategy.createdAt;
 
 	return (
-		<section className="strategy" aria-labelledby="strategy-heading">
-			<span className="node is-strategy" aria-hidden />
-			<div className="strategy-head">
+		<section aria-labelledby="strategy-heading">
+			<Sec title="Strategy" id="strategy-heading">
+				<span className="cap sec-note">
+					v{strategy.version} · {strategy.version === 1 ? "created" : "revised"} {ago(revisedAt, Date.now())}
+				</span>
+				<Link to="/v/$slug/history" params={{ slug }} className="btn ghost sm">
+					<Icon name="history" />
+					History
+				</Link>
+				{draft === null ? (
+					<button type="button" className="btn ghost sm" onClick={startEditing}>
+						<Icon name="edit" />
+						Revise
+					</button>
+				) : null}
 				<button
 					type="button"
-					className="icon-button collapse"
+					className="ib"
 					aria-expanded={open}
 					aria-controls="strategy-body"
 					aria-label={open ? "Collapse strategy" : "Expand strategy"}
+					data-tip={open ? "Collapse strategy" : "Expand strategy"}
 					onClick={() => setOpen(!open)}
 				>
-					<ChevronDown aria-hidden />
+					<Icon name={open ? "chevd" : "chevr"} />
 				</button>
-				<h2 id="strategy-heading">Strategy</h2>
-				<span className="data muted">v{strategy.version}</span>
-				<span className="muted">
-					· {strategy.version === 1 ? "created" : "revised"} {ago(revisedAt, Date.now())}
-				</span>
-				<Link to="/v/$slug/history" params={{ slug }} className="version-link">
-					<History aria-hidden size={13} />
-					History
-				</Link>
-				<div className="section-actions" style={{ marginLeft: "auto" }}>
-					{draft === null ? (
-						<button type="button" className="button is-ghost" onClick={startEditing}>
-							<Pencil aria-hidden />
-							Edit
-						</button>
-					) : null}
-				</div>
-			</div>
+			</Sec>
 
 			{open && draft === null ? (
-				<dl className="kernel" id="strategy-body">
-					{kernelFields.map(({ key, label, prompt }) => (
-						<KernelRow key={key} label={label}>
-							{strategy[key] === "" ? (
-								<button type="button" className="prompt" onClick={startEditing}>
-									{prompt}
-								</button>
-							) : (
-								strategy[key]
-							)}
-						</KernelRow>
-					))}
-				</dl>
+				<div className="strat" id="strategy-body">
+					<dl>
+						{kernelFields.map(({ key, label, prompt }) => (
+							<div key={key} className="strat-row">
+								<dt>{label}</dt>
+								{strategy[key] === "" ? (
+									<dd className="unset">
+										<button type="button" className="editable unset" onClick={startEditing}>
+											{prompt}
+										</button>
+									</dd>
+								) : (
+									<dd>{strategy[key]}</dd>
+								)}
+							</div>
+						))}
+					</dl>
+				</div>
 			) : null}
 
 			{draft === null ? null : (
-				<form className="kernel-edit" id="strategy-body" onSubmit={submit} onKeyDown={onKeyDown}>
-					{kernelFields.map(({ key, label, prompt }, index) => (
-						<label key={key} className="field">
-							<span className="field-label">{label}</span>
-							<textarea
-								className="textarea"
-								rows={2}
-								value={draft[key]}
-								placeholder={prompt}
-								required={key === "why" || key === "what"}
-								ref={index === 0 ? focusOnMount : undefined}
-								onChange={(event) => {
-									setDraft({ ...draft, [key]: event.target.value });
-
-									setAskingReason(false);
-								}}
-							/>
-						</label>
-					))}
-
-					{askingReason ? (
-						<div className="reason-row">
-							<label className="field">
-								<span className="field-label">Why are you revising it?</span>
-								<input
-									ref={reasonRef}
-									className="input"
-									value={reason}
-									required
-									maxLength={2000}
-									placeholder={`Kept with v${nextVersion} in the strategy history`}
-									onChange={(event) => setReason(event.target.value)}
-								/>
-							</label>
-						</div>
-					) : null}
-
+				<form className="strat" id="strategy-body" onSubmit={submit} onKeyDown={onKeyDown}>
+					<dl>
+						{kernelFields.map(({ key, label, prompt }, index) => (
+							<div key={key} className="strat-row">
+								<dt>
+									<label htmlFor={`strategy-${key}`}>{label}</label>
+								</dt>
+								<dd>
+									<textarea
+										id={`strategy-${key}`}
+										className="ta"
+										rows={2}
+										value={draft[key]}
+										placeholder={prompt}
+										required={key === "why" || key === "what"}
+										ref={index === 0 ? focusOnMount : undefined}
+										onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
+									/>
+								</dd>
+							</div>
+						))}
+					</dl>
 					{revise.isError ? (
-						<p className="error-text" role="alert">
+						<p className="err strat-err" role="alert">
 							{describeError(revise.error)}
 						</p>
 					) : null}
-
-					<div className="form-actions">
+					<div className="strat-foot">
+						<input
+							className="inp"
+							value={reason}
+							required
+							maxLength={2000}
+							aria-label="Why are you revising it?"
+							placeholder={
+								unchanged
+									? "Change a field to save a new version"
+									: `Why are you revising it? Kept with v${nextVersion} in the strategy history`
+							}
+							onChange={(event) => setReason(event.target.value)}
+						/>
+						<button type="button" className="btn ghost" onClick={cancel}>
+							Cancel<span className="kbd">esc</span>
+						</button>
 						<button
 							type="submit"
-							className="button is-primary"
-							disabled={unchanged || revise.isPending || (askingReason && reason.trim() === "")}
+							className="btn pri"
+							disabled={unchanged || revise.isPending || reason.trim() === ""}
 						>
-							{revise.isPending ? "Saving…" : askingReason ? `Save v${nextVersion}` : `Save as v${nextVersion}`}
+							{revise.isPending ? "Saving…" : `Save as v${nextVersion}`}
 						</button>
-						<button type="button" className="button is-ghost" onClick={cancel}>
-							Cancel
-						</button>
-						<span className="kbd-hint">
-							{unchanged ? "Change a field to save a new version" : "Esc to cancel"}
-						</span>
 					</div>
 				</form>
 			)}
 		</section>
-	);
-}
-
-function KernelRow({ label, children }: { label: string; children: React.ReactNode }) {
-	return (
-		<>
-			<dt>{label}</dt>
-			<dd>{children}</dd>
-		</>
 	);
 }
 
@@ -374,10 +352,13 @@ function useBetCache(slug: string) {
 		updateCockpit(client, slug, seq, (cockpit) => ({ ...cockpit, bets: replaceById(cockpit.bets, bet) }));
 }
 
-function BetItem(props: {
+const betStatuses = ["open", "won", "lost", "killed"] as const satisfies readonly BetStatus[];
+
+function BetCard(props: {
 	slug: string;
 	bet: Bet;
 	bets: Bet[];
+	numbers: Map<string, string>;
 	goals: Goal[];
 	fresh: boolean;
 	freshGoals: ReadonlySet<string>;
@@ -386,9 +367,10 @@ function BetItem(props: {
 	const { slug, bet, goals } = props;
 	const client = useQueryClient();
 	const storeBet = useBetCache(slug);
-	const settled = bet.status === "lost" || bet.status === "killed";
+	const settled = bet.status !== "open";
 	const [expanded, setExpanded] = useState(!settled);
 	const [settling, setSettling] = useState<Exclude<BetStatus, "open"> | null>(null);
+	const number = props.numbers.get(bet.id) ?? "B";
 
 	const update = useCommand<"bet.update", Bet>("bet.update", (response) => storeBet(response.seq, response.result));
 
@@ -410,7 +392,13 @@ function BetItem(props: {
 
 		setSettling(null);
 
-		if (response.result.bet.status !== "won") setExpanded(false);
+		setExpanded(false);
+
+		toast(
+			<>
+				Bet {number} marked <b>{response.result.bet.status}</b>
+			</>,
+		);
 	});
 
 	const saveField = (field: "hypothesis" | "action" | "killCriteria") => (value: string) =>
@@ -422,241 +410,224 @@ function BetItem(props: {
 		setStatus.mutate({ payload: { ventureId: bet.ventureId, betId: bet.id, status: settling, archiveGoals } });
 	};
 
-	const className = [
-		"bet",
-		settled ? "is-settled" : "",
-		bet.status === "won" ? "is-won" : "",
-		props.fresh ? "is-fresh" : "",
-	]
-		.filter(Boolean)
-		.join(" ");
-
-	if (!expanded) {
-		return (
-			<li className={className}>
-				<span className="node" aria-hidden />
-				<button type="button" className="collapsed-bet" aria-expanded={false} onClick={() => setExpanded(true)}>
-					<ChevronRight aria-hidden size={14} />
-					<span>{bet.hypothesis}</span>
-					<span className="tag">{bet.status}</span>
-					<span className="num">{goals.length === 1 ? "1 goal" : `${goals.length} goals`}</span>
-				</button>
-			</li>
-		);
-	}
+	const className = ["bet", settled ? "settled" : "", props.fresh ? "fresh" : ""].filter(Boolean).join(" ");
+	const goalWord = goals.length === 1 ? "goal" : "goals";
 
 	return (
-		<li className={className}>
-			<span className="node" aria-hidden />
-			<div className="bet-head">
-				<div className="bet-title">
+		<article className={className}>
+			<header className="bet-h">
+				<span className="bet-n">{number}</span>
+				<h3>
 					<Editable label="hypothesis" value={bet.hypothesis} required multiline save={saveField("hypothesis")} />
-				</div>
-				<div className="row-actions">
-					{goals.length === 0 ? (
-						<button
-							type="button"
-							className="icon-button"
-							aria-label="Archive bet"
-							title="Archive bet"
-							disabled={archive.isPending}
-							onClick={() => archive.mutate({ payload: { ventureId: bet.ventureId, betId: bet.id } })}
-						>
-							<Archive aria-hidden />
-						</button>
-					) : null}
-					{settled ? (
-						<button
-							type="button"
-							className="icon-button"
-							aria-label="Collapse bet"
-							title="Collapse"
-							onClick={() => setExpanded(false)}
-						>
-							<ChevronDown aria-hidden />
-						</button>
-					) : null}
-				</div>
-				<StatusControl status={bet.status} onPick={setSettling} />
-			</div>
-
-			<dl className="bet-fields">
-				<dt>Action</dt>
-				<dd>
-					<Editable label="action" value={bet.action} required multiline save={saveField("action")} />
-				</dd>
-				<dt>Kill criteria</dt>
-				<dd>
-					<Editable
-						label="kill criteria"
-						value={bet.killCriteria}
-						required
-						multiline
-						save={saveField("killCriteria")}
+				</h3>
+				{settled ? (
+					<span className="sel pill is-static">
+						<Dia status={bet.status} />
+						<span>{bet.status}</span>
+					</span>
+				) : (
+					<Select
+						className="sel pill"
+						title="Settle this bet"
+						value={settling ?? bet.status}
+						options={betStatuses.map((status) => ({
+							value: status,
+							label: status,
+							glyph: <Dia status={status} />,
+						}))}
+						onChange={(status) => setSettling(status === "open" ? null : status)}
 					/>
-				</dd>
-			</dl>
-
-			{settling === null ? null : (
-				<fieldset className="settle">
-					<legend className="visually-hidden">Mark bet {settling}</legend>
-					<p>
-						Mark this bet <strong>{settling}</strong>.{" "}
-						{goals.length > 0
-							? `Archive its ${goals.length === 1 ? "goal" : `${goals.length} goals`} too?`
-							: "It has no goals."}
-					</p>
-					{goals.length > 0 ? (
-						<>
-							<button
-								type="button"
-								className="button is-primary"
-								disabled={setStatus.isPending}
-								onClick={() => settle(true)}
-							>
-								Mark {settling} and archive {goals.length === 1 ? "goal" : "goals"}
-							</button>
-							<button
-								type="button"
-								className="button"
-								disabled={setStatus.isPending}
-								onClick={() => settle(false)}
-							>
-								Keep goals
-							</button>
-						</>
-					) : (
-						<button
-							type="button"
-							className="button is-primary"
-							disabled={setStatus.isPending}
-							onClick={() => settle(false)}
-						>
-							Mark {settling}
-						</button>
-					)}
-					<button type="button" className="button is-ghost" onClick={() => setSettling(null)}>
-						Cancel
+				)}
+				{goals.length === 0 ? (
+					<button
+						type="button"
+						className="ib"
+						aria-label="Archive bet"
+						data-tip="Archive bet"
+						disabled={archive.isPending}
+						onClick={() => archive.mutate({ payload: { ventureId: bet.ventureId, betId: bet.id } })}
+					>
+						<Icon name="archive" />
 					</button>
-					{setStatus.isError ? (
-						<p className="error-text" role="alert">
-							{describeError(setStatus.error)}
-						</p>
-					) : null}
-				</fieldset>
-			)}
+				) : null}
+				{settled ? (
+					<button
+						type="button"
+						className="ib"
+						aria-expanded={expanded}
+						aria-label={expanded ? "Collapse bet" : "Expand bet"}
+						data-tip={expanded ? "Collapse" : `Expand · ${goals.length} ${goalWord}`}
+						onClick={() => setExpanded(!expanded)}
+					>
+						<Icon name={expanded ? "chevd" : "chevr"} />
+					</button>
+				) : null}
+			</header>
 
 			{archive.isError ? (
-				<p className="error-text" role="alert">
+				<p className="err bet-err" role="alert">
 					{describeError(archive.error)}
 				</p>
 			) : null}
 
-			<GoalList
-				slug={slug}
-				ventureId={bet.ventureId}
-				betId={bet.id}
-				goals={goals}
-				bets={props.bets}
-				fresh={props.freshGoals}
-				progress={props.progress}
-			/>
-		</li>
+			{expanded ? (
+				<>
+					<dl className="bet-kv">
+						<dt className="cap">Action</dt>
+						<dd>
+							<Editable label="action" value={bet.action} required multiline save={saveField("action")} />
+						</dd>
+						<dt className="cap">Kill criteria</dt>
+						<dd>
+							<Editable
+								label="kill criteria"
+								value={bet.killCriteria}
+								required
+								multiline
+								save={saveField("killCriteria")}
+							/>
+						</dd>
+					</dl>
+
+					{settling === null ? null : (
+						<fieldset className="settle">
+							<legend className="vh">Mark bet {settling}</legend>
+							<p>
+								Mark this bet <b>{settling}</b>.{" "}
+								{goals.length > 0
+									? `Archive its ${goals.length === 1 ? "goal" : `${goals.length} goals`} too?`
+									: null}
+							</p>
+							{goals.length > 0 ? (
+								<>
+									<button
+										type="button"
+										className="btn pri sm"
+										disabled={setStatus.isPending}
+										onClick={() => settle(true)}
+									>
+										Mark {settling} and archive {goalWord}
+									</button>
+									<button
+										type="button"
+										className="btn sm"
+										disabled={setStatus.isPending}
+										onClick={() => settle(false)}
+									>
+										Keep {goalWord}
+									</button>
+								</>
+							) : (
+								<button
+									type="button"
+									className="btn pri sm"
+									disabled={setStatus.isPending}
+									onClick={() => settle(false)}
+								>
+									Mark {settling}
+								</button>
+							)}
+							<button type="button" className="btn ghost sm" onClick={() => setSettling(null)}>
+								Cancel
+							</button>
+							{setStatus.isError ? (
+								<p className="err" role="alert">
+									{describeError(setStatus.error)}
+								</p>
+							) : null}
+						</fieldset>
+					)}
+
+					<GoalList
+						slug={slug}
+						ventureId={bet.ventureId}
+						betId={bet.id}
+						goals={goals}
+						bets={props.bets}
+						numbers={props.numbers}
+						fresh={props.freshGoals}
+						progress={props.progress}
+					/>
+				</>
+			) : null}
+		</article>
 	);
 }
 
-function StatusControl({
-	status,
-	onPick,
-}: {
-	status: BetStatus;
-	onPick: (status: Exclude<BetStatus, "open">) => void;
-}) {
-	const statusClass = status === "won" ? "is-won" : status === "open" ? "" : "is-settled";
-
-	if (status !== "open") {
-		return (
-			<span className={`status-pill ${statusClass}`}>
-				<span className="pixel" aria-hidden />
-				{status}
-			</span>
-		);
-	}
-
-	return (
-		<label className="status-pill" title="Settle this bet">
-			<span className="pixel" aria-hidden />
-			<span className="visually-hidden">Bet status</span>
-			<select
-				className="status-select"
-				value="open"
-				onChange={(event) => {
-					const value = event.target.value;
-
-					if (value === "won" || value === "lost" || value === "killed") onPick(value);
-				}}
-			>
-				<option value="open">open</option>
-				<option value="won">won</option>
-				<option value="lost">lost</option>
-				<option value="killed">killed</option>
-			</select>
-			<ChevronDown aria-hidden size={12} />
-		</label>
-	);
-}
-
-function GoalList(props: {
+interface GoalListProps {
 	slug: string;
 	ventureId: string;
 	betId: string | null;
 	goals: Goal[];
 	bets: Bet[];
+	numbers: Map<string, string>;
 	fresh: ReadonlySet<string>;
 	progress: Record<string, WorkProgress>;
-	loose?: boolean;
-}) {
+}
+
+function GoalList(props: GoalListProps) {
 	const [adding, setAdding] = useState(false);
+	const loose = props.betId === null;
 
 	return (
-		<ul className={props.loose === true ? "goals is-loose" : "goals"}>
-			{props.goals.map((goal) => (
-				<GoalRow
-					key={goal.id}
-					slug={props.slug}
-					goal={goal}
-					bets={props.bets}
-					fresh={props.fresh.has(goal.id)}
-					progress={props.progress[goal.id]}
-				/>
-			))}
-			{props.goals.length === 0 && !adding ? (
-				<li className="goal-empty">
-					{props.loose === true ? "Every goal tests a bet." : "No goals test this bet yet."}
-				</li>
-			) : null}
-			<li>
-				{adding ? (
-					<AddGoalForm
+		<>
+			<ul className="goals">
+				{props.goals.map((goal) => (
+					<GoalRow
+						key={goal.id}
 						slug={props.slug}
-						ventureId={props.ventureId}
-						betId={props.betId}
-						close={() => setAdding(false)}
+						goal={goal}
+						bets={props.bets}
+						numbers={props.numbers}
+						loose={loose}
+						fresh={props.fresh.has(goal.id)}
+						progress={props.progress[goal.id]}
 					/>
-				) : (
-					<button type="button" className="add-row" onClick={() => setAdding(true)}>
-						<Plus aria-hidden />
-						Add goal
-					</button>
-				)}
-			</li>
-		</ul>
+				))}
+				{props.goals.length === 0 && !adding ? (
+					<li className="goals-none">{loose ? "Every goal tests a bet." : "No goals test this bet yet."}</li>
+				) : null}
+			</ul>
+			{adding ? (
+				<AddGoalForm
+					slug={props.slug}
+					ventureId={props.ventureId}
+					betId={props.betId}
+					close={() => setAdding(false)}
+				/>
+			) : (
+				<button type="button" className="addline" onClick={() => setAdding(true)}>
+					<Icon name="plus" />
+					{loose ? "Add a goal that tests no bet" : "Add goal"}
+				</button>
+			)}
+		</>
 	);
 }
 
-function GoalRow(props: { slug: string; goal: Goal; bets: Bet[]; fresh: boolean; progress: WorkProgress | undefined }) {
-	const { slug, goal, bets, fresh, progress } = props;
+function LooseGoals(props: Omit<GoalListProps, "betId">) {
+	return (
+		<section aria-labelledby="loose-heading">
+			<Sec title="Not tied to a bet" id="loose-heading" count={props.goals.length} />
+			<article className="bet">
+				<GoalList {...props} betId={null} />
+			</article>
+		</section>
+	);
+}
+
+function GoalRow(props: {
+	slug: string;
+	goal: Goal;
+	bets: Bet[];
+	numbers: Map<string, string>;
+	loose: boolean;
+	fresh: boolean;
+	progress: WorkProgress | undefined;
+}) {
+	const { slug, goal, bets, progress } = props;
 	const client = useQueryClient();
+	const now = Date.now();
 
 	const storeGoal = (seq: number, next: Goal) =>
 		updateCockpit(client, slug, seq, (cockpit) => ({ ...cockpit, goals: replaceById(cockpit.goals, next) }));
@@ -674,88 +645,86 @@ function GoalRow(props: { slug: string; goal: Goal; bets: Bet[]; fresh: boolean;
 
 	const base = { ventureId: goal.ventureId, goalId: goal.id };
 	const linkable = bets.filter((bet) => bet.status === "open" || bet.id === goal.betId);
+	const className = ["goal", props.loose ? "loose" : "", props.fresh ? "fresh" : ""].filter(Boolean).join(" ");
 
 	return (
-		<li className={fresh ? "goal is-fresh" : "goal"}>
-			<span className="goal-node" aria-hidden />
-			<span className="goal-outcome">
-				<Editable
-					label="outcome"
-					value={goal.outcome}
-					required
-					save={(value) => update.mutateAsync({ payload: { ...base, outcome: value } })}
-				/>
-			</span>
-			<span className="goal-signal">
-				<Editable
-					label="signal"
-					value={goal.signal}
-					required
-					save={(value) => update.mutateAsync({ payload: { ...base, signal: value } })}
-				/>
-			</span>
-			<span className={goal.horizon === null ? "goal-horizon" : "goal-horizon data"}>
+		<li className={className}>
+			<Dia status={progressStatus(progress)} />
+			<div className="goal-t">
+				<b>
+					<Editable
+						label="outcome"
+						value={goal.outcome}
+						required
+						save={(value) => update.mutateAsync({ payload: { ...base, outcome: value } })}
+					/>
+				</b>
+				<span>
+					<Editable
+						label="signal"
+						value={goal.signal}
+						required
+						save={(value) => update.mutateAsync({ payload: { ...base, signal: value } })}
+					/>
+				</span>
+			</div>
+			<span className="tag plain">
 				<Editable
 					label="horizon"
 					type="date"
 					value={goal.horizon ?? ""}
 					placeholder="No horizon"
-					display={goal.horizon === null ? undefined : formatDate(goal.horizon)}
+					display={goal.horizon === null ? undefined : shortDate(goal.horizon, now)}
 					save={(value) => update.mutateAsync({ payload: { ...base, horizon: value === "" ? null : value } })}
 				/>
 			</span>
-			<span className="goal-work">
-				{progress === undefined ? null : (
-					<Link
-						to="/v/$slug/work"
-						params={{ slug }}
-						hash={`goal-${goal.id}`}
-						className="num"
-						title="Open this goal's work"
-					>
-						<Progress done={progress.done} total={progress.total} />
-						{progress.done}/{progress.total} done
-					</Link>
+			<Link
+				to="/v/$slug/work"
+				params={{ slug }}
+				hash={`goal-${goal.id}`}
+				className="goal-p mono"
+				data-tip="Open this goal’s work"
+			>
+				{progress === undefined || progress.total === 0 ? (
+					"No work"
+				) : (
+					<>
+						<Pips done={progress.done} total={progress.total} />
+						{progress.done}/{progress.total}
+					</>
 				)}
-			</span>
-			<span className="row-actions">
-				<label className="visually-hidden" htmlFor={`bet-of-${goal.id}`}>
-					Bet this goal tests
-				</label>
-				<select
-					id={`bet-of-${goal.id}`}
-					className="select goal-bet"
-					value={goal.betId ?? ""}
-					title="Bet this goal tests"
-					onChange={(event) =>
-						update.mutate({ payload: { ...base, betId: event.target.value === "" ? null : event.target.value } })
-					}
-				>
-					<option value="">No bet</option>
-					{linkable.map((bet) => (
-						<option key={bet.id} value={bet.id}>
-							{bet.hypothesis}
-						</option>
-					))}
-				</select>
-				<button
-					type="button"
-					className="icon-button"
-					aria-label="Archive goal"
-					title="Archive goal"
-					disabled={archive.isPending}
-					onClick={() => archive.mutate({ payload: base })}
-				>
-					<Archive aria-hidden />
-				</button>
-			</span>
+			</Link>
+			<Select
+				className="sel pill"
+				title="Bet this goal tests"
+				value={goal.betId ?? ""}
+				options={[
+					{ value: "", label: "No bet" },
+					...linkable.map((bet) => ({
+						value: bet.id,
+						label: props.numbers.get(bet.id) ?? "Bet",
+						sub: bet.hypothesis,
+					})),
+				]}
+				onChange={(betId) => update.mutate({ payload: { ...base, betId: betId === "" ? null : betId } })}
+			/>
+			<button
+				type="button"
+				className="ib goal-x"
+				aria-label="Archive goal"
+				data-tip="Archive goal"
+				disabled={archive.isPending}
+				onClick={() => archive.mutate({ payload: base })}
+			>
+				<Icon name="archive" />
+			</button>
 			{update.isError || archive.isError ? (
-				<span className="error-text goal-error" role="alert">
+				<span className="err goal-err" role="alert">
 					{describeError(update.error ?? archive.error)}
 					{archive.error instanceof ApiRequestError && archive.error.details.rule === "goal_has_work" ? (
 						<>
 							{". "}
-							<Link to="/v/$slug/work" params={{ slug }} hash={`goal-${goal.id}`} className="inline-link">
+							<Link to="/v/$slug/work" params={{ slug }} hash={`goal-${goal.id}`}>
 								Open its work
 							</Link>
 						</>
@@ -784,7 +753,7 @@ function AddBetForm({ slug, ventureId, close }: { slug: string; ventureId: strin
 
 	return (
 		<form
-			className="inline-form is-bet"
+			className="bet add-bet"
 			onSubmit={submit}
 			onKeyDown={(event) => {
 				if (event.key === "Escape") close();
@@ -798,9 +767,9 @@ function AddBetForm({ slug, ventureId, close }: { slug: string; ventureId: strin
 				] as const
 			).map(([key, label, placeholder], index) => (
 				<label key={key} className="field">
-					<span className="field-label">{label}</span>
+					<span className="cap">{label}</span>
 					<input
-						className="input"
+						className="inp"
 						value={fields[key]}
 						required
 						placeholder={placeholder}
@@ -810,18 +779,17 @@ function AddBetForm({ slug, ventureId, close }: { slug: string; ventureId: strin
 				</label>
 			))}
 			{create.isError ? (
-				<p className="error-text" role="alert">
+				<p className="err" role="alert">
 					{describeError(create.error)}
 				</p>
 			) : null}
-			<div className="form-actions">
-				<button type="submit" className="button is-primary" disabled={create.isPending}>
+			<div className="form-acts">
+				<button type="submit" className="btn pri" disabled={create.isPending}>
 					{create.isPending ? "Adding…" : "Add bet"}
 				</button>
-				<button type="button" className="button is-ghost" onClick={close}>
-					Cancel
+				<button type="button" className="btn ghost" onClick={close}>
+					Cancel<span className="kbd">esc</span>
 				</button>
-				<span className="kbd-hint">Enter to add · Esc to cancel</span>
 			</div>
 		</form>
 	);
@@ -856,14 +824,14 @@ function AddGoalForm(props: { slug: string; ventureId: string; betId: string | n
 
 	return (
 		<form
-			className="inline-form is-goal"
+			className="add-goal"
 			onSubmit={submit}
 			onKeyDown={(event) => {
 				if (event.key === "Escape") props.close();
 			}}
 		>
 			<input
-				className="input"
+				className="inp"
 				aria-label="Outcome"
 				placeholder="Outcome"
 				value={fields.outcome}
@@ -872,7 +840,7 @@ function AddGoalForm(props: { slug: string; ventureId: string; betId: string | n
 				onChange={(event) => setFields({ ...fields, outcome: event.target.value })}
 			/>
 			<input
-				className="input"
+				className="inp"
 				aria-label="Signal"
 				placeholder="Signal you'll measure"
 				value={fields.signal}
@@ -880,22 +848,20 @@ function AddGoalForm(props: { slug: string; ventureId: string; betId: string | n
 				onChange={(event) => setFields({ ...fields, signal: event.target.value })}
 			/>
 			<input
-				className="input data"
+				className="inp"
 				aria-label="Horizon"
 				type="date"
 				value={fields.horizon}
 				onChange={(event) => setFields({ ...fields, horizon: event.target.value })}
 			/>
-			<div className="form-actions">
-				<button type="submit" className="button is-primary" disabled={create.isPending}>
-					Add
-				</button>
-				<button type="button" className="button is-ghost" onClick={props.close}>
-					Cancel
-				</button>
-			</div>
+			<button type="submit" className="btn pri" disabled={create.isPending}>
+				Add
+			</button>
+			<button type="button" className="btn ghost" onClick={props.close}>
+				Cancel
+			</button>
 			{create.isError ? (
-				<p className="error-text" role="alert">
+				<p className="err" role="alert">
 					{describeError(create.error)}
 				</p>
 			) : null}
@@ -906,7 +872,7 @@ function AddGoalForm(props: { slug: string; ventureId: string; betId: string | n
 function RecentActivity({ slug, ventureId, lastSeq }: { slug: string; ventureId: string; lastSeq: number }) {
 	const events = useQuery({
 		queryKey: [...keys.events(slug), "recent", lastSeq],
-		queryFn: () => api.events(slug, null, 10),
+		queryFn: () => api.events(slug, null, 6),
 		placeholderData: (previous) => previous,
 	});
 
@@ -914,47 +880,23 @@ function RecentActivity({ slug, ventureId, lastSeq }: { slug: string; ventureId:
 	const fresh = useFreshIds(ventureId, items);
 
 	return (
-		<>
-			<div className="aside-head">
-				<h2 id="recent-heading">Recent activity</h2>
-				<Link to="/v/$slug/activity" params={{ slug }}>
-					All activity
+		<section aria-labelledby="recent-heading">
+			<Sec title="Recent activity" id="recent-heading">
+				<Link to="/v/$slug/activity" params={{ slug }} className="btn ghost sm">
+					All
 				</Link>
-			</div>
+			</Sec>
 			{events.isPending ? (
-				<div className="skeleton-stack" aria-busy="true">
-					{[90, 70, 80].map((width) => (
-						<span key={width} className="skeleton" style={{ width: `${width}%` }} />
-					))}
-				</div>
+				<Skeleton label="Loading activity…" widths={[90, 70, 80]} />
 			) : events.isError ? (
-				<p className="error-text">{describeError(events.error)}</p>
+				<p className="err">{describeError(events.error)}</p>
 			) : (
-				<ol className="feed">
+				<ol className="log">
 					{events.data.events.map((event) => (
-						<EventItem key={event.seq} event={event} fresh={fresh.has(String(event.seq))} />
+						<EventItem key={event.seq} event={event} slug={slug} fresh={fresh.has(String(event.seq))} />
 					))}
 				</ol>
 			)}
-		</>
-	);
-}
-
-function CockpitSkeleton() {
-	return (
-		<>
-			<header className="topbar">
-				<span className="skeleton" style={{ width: 180 }} />
-			</header>
-			<div className="cockpit">
-				<div className="cockpit-main skeleton-stack" aria-busy="true">
-					<span className="visually-hidden">Loading venture…</span>
-					{[60, 90, 85, 40, 75, 70].map((width) => (
-						<span key={width} className="skeleton" style={{ width: `${width}%` }} />
-					))}
-				</div>
-				<aside className="cockpit-aside" />
-			</div>
-		</>
+		</section>
 	);
 }

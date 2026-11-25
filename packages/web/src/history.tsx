@@ -3,6 +3,10 @@ import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router"
 import { diffWords } from "diff";
 import { PageError } from "./holding.tsx";
 import { queries } from "./live.ts";
+import { accent, Icon } from "./marks.tsx";
+import { Select } from "./menu.tsx";
+import { Hero, Skeleton } from "./parts.tsx";
+import { actorName } from "./thread-timeline.ts";
 import { ago, formatDateTime } from "./time.ts";
 
 const fields = [
@@ -18,117 +22,108 @@ export function HistoryPage() {
 	const navigate = useNavigate({ from: "/v/$slug/history" });
 	const versions = useQuery(queries.versions(slug));
 	const cockpit = useQuery(queries.cockpit(slug));
+	const list = versions.data?.versions ?? [];
 
-	const header = (
-		<header className="topbar">
-			<Link to="/v/$slug" params={{ slug }} className="crumb">
-				{cockpit.data?.venture.name ?? slug}
-			</Link>
-			<span className="muted" aria-hidden>
-				/
-			</span>
-			<h1>Strategy history</h1>
-		</header>
+	const hero = (
+		<Hero
+			cap={
+				<>
+					<Link to="/v/$slug" params={{ slug }}>
+						<Icon name="right" className="back" />
+						{cockpit.data?.venture.name ?? slug}
+					</Link>
+					{versions.isSuccess ? ` · ${list.length === 1 ? "1 version" : `${list.length} versions`}` : null}
+				</>
+			}
+			title="Strategy history"
+		/>
 	);
 
 	if (versions.isPending) {
 		return (
-			<>
-				{header}
-				<div className="page skeleton-stack" aria-busy="true">
-					<span className="skeleton" style={{ width: "40%" }} />
-					<span className="skeleton" style={{ width: "70%" }} />
-				</div>
-			</>
+			<div className="page" style={accent(slug)}>
+				{hero}
+				<Skeleton label="Loading versions…" widths={[40, 70]} />
+			</div>
 		);
 	}
 
 	if (versions.isError) return <PageError error={versions.error} retry={() => void versions.refetch()} />;
 
-	const list = versions.data.versions;
 	const latest = list[0]?.version ?? 1;
 	const selectedNumber = search.v ?? latest;
 	const selected = list.find((version) => version.version === selectedNumber) ?? list[0];
 
-	if (selected === undefined) return header;
+	if (selected === undefined) return <div className="page">{hero}</div>;
 
 	const baseNumber = search.from ?? selected.version - 1;
 	const base = list.find((version) => version.version === baseNumber && version.version < selected.version) ?? null;
-
-	const pick = (v: number) => void navigate({ search: { v } });
+	const changed = base === null ? 0 : fields.filter(({ key }) => base[key] !== selected[key]).length;
+	const now = Date.now();
 
 	return (
-		<>
-			{header}
-			<div className="history">
-				<ol className="versions" aria-label="Versions">
+		<div className="page" style={accent(slug)}>
+			{hero}
+			<div className="hist">
+				<ol aria-label="Versions">
 					{list.map((version) => (
 						<li key={version.id}>
 							<button
 								type="button"
-								className={version.status === "active" ? "version is-active" : "version"}
-								aria-current={version.version === selected.version}
-								onClick={() => pick(version.version)}
+								className="ver"
+								aria-current={version.version === selected.version ? "true" : undefined}
+								onClick={() => void navigate({ search: { v: version.version } })}
 							>
-								<span className="version-top">
-									<span className="pixel" aria-hidden />
-									<span className="data">v{version.version}</span>
-									{version.status === "active" ? <span className="tag">active</span> : null}
-									<span className="muted" style={{ marginLeft: "auto" }}>
-										{ago(version.activatedAt ?? version.createdAt, Date.now())}
-									</span>
-								</span>
-								<span className="version-reason">
+								<b>v{version.version}</b>
+								<span>
 									{version.reason ?? (version.version === 1 ? "First version" : "No reason recorded")}
 								</span>
+								<time className="mono" dateTime={version.activatedAt ?? version.createdAt}>
+									{ago(version.activatedAt ?? version.createdAt, now)}
+									{version.status === "active" ? <span className="tag acc">Active</span> : null}
+								</time>
 							</button>
 						</li>
 					))}
 				</ol>
 
-				<div className="diff-page">
-					<div className="compare">
-						<span className="muted">Compare</span>
-						<select
-							className="select data"
-							aria-label="Compare from version"
-							value={base?.version ?? ""}
-							disabled={selected.version === 1}
-							onChange={(event) =>
-								void navigate({ search: { v: selected.version, from: Number(event.target.value) } })
-							}
-						>
-							{selected.version === 1 ? <option value="">nothing</option> : null}
-							{list
-								.filter((version) => version.version < selected.version)
-								.map((version) => (
-									<option key={version.id} value={version.version}>
-										v{version.version}
-									</option>
-								))}
-						</select>
-						<span className="muted">to</span>
-						<span className="data">v{selected.version}</span>
-						<span className="muted" style={{ marginLeft: "auto" }}>
-							{selected.createdBy} · {formatDateTime(selected.activatedAt ?? selected.createdAt)}
+				<div>
+					<div className="hist-bar">
+						<b>v{selected.version}</b>
+						<span className="cap">compared with</span>
+						{base === null ? (
+							<span className="tag">Nothing</span>
+						) : (
+							<Select
+								title="Compare from"
+								value={String(base.version)}
+								options={list
+									.filter((version) => version.version < selected.version)
+									.map((version) => ({
+										value: String(version.version),
+										label: `v${version.version}`,
+										sub: version.reason ?? (version.version === 1 ? "First version" : undefined),
+									}))}
+								onChange={(from) => void navigate({ search: { v: selected.version, from: Number(from) } })}
+							/>
+						)}
+						<i className="dots" />
+						<span className="cap">
+							{base === null ? null : `${changed === 1 ? "1 field" : `${changed} fields`} changed · `}
+							{actorName(selected.createdBy)} · {formatDateTime(selected.activatedAt ?? selected.createdAt)}
 						</span>
 					</div>
 
-					{selected.reason === null ? null : (
-						<div className="reason-card">
-							<p className="field-label">Reason for v{selected.version}</p>
-							<p>{selected.reason}</p>
-						</div>
-					)}
+					{selected.reason === null ? null : <p className="rev-why hist-why">{selected.reason}</p>}
 
-					<dl>
+					<dl className="strat">
 						{fields.map(({ key, label }) => (
 							<DiffField key={key} label={label} before={base?.[key] ?? null} after={selected[key]} />
 						))}
 					</dl>
 				</div>
 			</div>
-		</>
+		</div>
 	);
 }
 
@@ -145,30 +140,42 @@ function diffParts(before: string, after: string) {
 	});
 }
 
-export function DiffField({ label, before, after }: { label: string; before: string | null; after: string }) {
+export function DiffField({
+	label,
+	before,
+	after,
+	className = "strat-row",
+}: {
+	label: string;
+	before: string | null;
+	after: string;
+	className?: string;
+}) {
 	const same = before !== null && before === after;
+	const changed = before !== null && !same;
 
 	return (
-		<div className={same ? "diff-field is-same" : "diff-field"}>
-			<dt>
+		<div className={same ? `${className} same` : className}>
+			<dt className={className === "strat-row" ? undefined : "cap"}>
 				{label}
-				{same ? <span className="visually-hidden"> (unchanged)</span> : null}
+				{same ? <span className="vh"> (unchanged)</span> : null}
+				{changed && className === "strat-row" ? <span className="cap dim">Changed</span> : null}
 			</dt>
 			<dd>
 				{before === null || same ? (
 					after === "" ? (
-						<span className="muted">Empty</span>
+						<span className="mute">Empty</span>
 					) : (
 						after
 					)
 				) : (
 					diffParts(before, after).map((part) =>
 						part.kind === "added" ? (
-							<ins key={part.key} className="diff-add">
+							<ins key={part.key} className="ins">
 								{part.value}
 							</ins>
 						) : part.kind === "removed" ? (
-							<del key={part.key} className="diff-remove">
+							<del key={part.key} className="del">
 								{part.value}
 							</del>
 						) : (

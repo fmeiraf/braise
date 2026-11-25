@@ -1,169 +1,408 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Outlet, useNavigate, useParams } from "@tanstack/react-router";
-import { Activity, Bot, CircleDot, Inbox, Layers, ListTree, MessagesSquare, PanelsTopLeft, Plus } from "lucide-react";
-import { useFreshVentures } from "./fresh.ts";
+import { Link, Outlet, useLocation, useNavigate, useParams } from "@tanstack/react-router";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { queries, rememberVenture, useHintStream } from "./live.ts";
-import { BraiseMark, VentureRings } from "./rings.tsx";
+import { accent, Crest, Drone, Elapsed, hueOf, Icon, type IconName, isSquare, You } from "./marks.tsx";
+import { Select } from "./menu.tsx";
+import { Palette } from "./palette.tsx";
+import { ago } from "./time.ts";
+import { useToasts } from "./toast.ts";
+import { ThreadLink, useWorking } from "./working.tsx";
 
-const dayMs = 24 * 60 * 60 * 1000;
+const weekMs = 7 * 24 * 60 * 60 * 1000;
+
+const scopedViews = ["overview", "work", "threads", "activity"] as const;
+
+type View = (typeof scopedViews)[number] | "inbox" | "agents" | "new";
+
+const fixedViews = new Set<View>(["work", "threads", "inbox"]);
+
+function viewOf(pathname: string) {
+	const tail = pathname
+		.replace(/^\/v\/[^/]+/u, "")
+		.replace(/\/$/u, "")
+		.slice(1);
+
+	return (tail === "" || tail === "history" ? "overview" : tail) as View;
+}
+
+function scopedPath(view: View, slug: string | null) {
+	const prefix = slug === null ? "" : `/v/${slug}`;
+
+	return view === "overview" ? prefix || "/" : `${prefix}/${view}`;
+}
+
+const keyViews: Record<string, View> = { "1": "overview", "2": "work", "3": "threads", "4": "activity" };
 
 export function Shell() {
 	const client = useQueryClient();
 	const stream = useHintStream(client);
 	const ventures = useQuery(queries.ventures());
-	const activeRuns = useQuery(queries.activeRuns());
 	const inbox = useQuery(queries.inbox());
-	const waiting = inbox.data?.pending.length ?? 0;
-	const fresh = useFreshVentures();
+	const agents = useQuery(queries.agents());
+	const working = useWorking();
+	const navigate = useNavigate();
+	const pathname = useLocation({ select: (location) => location.pathname });
 	const { slug } = useParams({ strict: false });
+	const [palette, setPalette] = useState(false);
+	const scope = slug ?? null;
+	const view = viewOf(pathname);
+	const rows = ventures.data?.ventures ?? [];
+	const scopeVenture = rows.find((venture) => venture.slug === scope);
+	const waiting = inbox.data?.pending.length ?? 0;
 	const now = Date.now();
 
-	for (const venture of ventures.data?.ventures ?? []) rememberVenture(venture.id, venture.slug, venture.lastSeq);
+	for (const venture of rows) rememberVenture(venture.id, venture.slug, venture.lastSeq);
 
-	const scopeSlug = slug ?? null;
-	const overviewPath = scopeSlug === null ? "/" : `/v/${scopeSlug}`;
-	const activityPath = scopeSlug === null ? "/activity" : `/v/${scopeSlug}/activity`;
-	const workPath = scopeSlug === null ? "/work" : `/v/${scopeSlug}/work`;
-	const threadsPath = scopeSlug === null ? "/threads" : `/v/${scopeSlug}/threads`;
-	const runs = activeRuns.data?.runs ?? [];
-	const oldestRun = runs[0];
-	const navigate = useNavigate();
+	useEffect(() => {
+		document.documentElement.style.setProperty("--acc", scope === null ? "var(--ink)" : hueOf(scope));
+	}, [scope]);
 
-	const runHref =
-		oldestRun === undefined
-			? null
-			: `${oldestRun.ventureSlug === null ? "" : `/v/${encodeURIComponent(oldestRun.ventureSlug)}`}/threads?thread=${encodeURIComponent(oldestRun.threadId)}`;
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.defaultPrevented) return;
+
+			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+				event.preventDefault();
+
+				setPalette(true);
+
+				return;
+			}
+
+			const target = event.target;
+
+			if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+			if (target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable]") !== null)
+				return;
+
+			const key = event.key.toLowerCase();
+			const scoped = keyViews[key];
+
+			if (scoped !== undefined) void navigate({ to: scopedPath(scoped, scope) });
+			else if (key === "i") void navigate({ to: "/inbox" });
+			else if (key === "a") void navigate({ to: "/agents" });
+			else if (key === "h") void navigate({ to: "/" });
+		};
+
+		document.addEventListener("keydown", onKeyDown);
+
+		return () => document.removeEventListener("keydown", onKeyDown);
+	}, [navigate, scope]);
+
+	const slot = (target: View, key: string, label: string, count = 0) => (
+		<Link
+			to={target === "inbox" || target === "agents" ? `/${target}` : scopedPath(target, scope)}
+			className="slot"
+			aria-current={view === target ? "page" : undefined}
+			activeOptions={{ exact: true, includeSearch: false }}
+			data-tip={`${label}|press ${key}`}
+		>
+			<Icon name={target as IconName} />
+			<span>{label}</span>
+			{count === 0 ? null : <span className="n">{count}</span>}
+		</Link>
+	);
 
 	return (
-		<div className="shell">
-			<nav className="rail" aria-label="Main">
-				<Link to="/" className="rail-brand" aria-label="braise, Holding">
-					<BraiseMark size={30} live={runs.length > 0} />
-					<span className="rail-wordmark">braise</span>
+		<div className="app">
+			<nav className="rail" aria-label="Ventures">
+				<Link
+					to="/"
+					className="r-i"
+					aria-label="Holding"
+					aria-current={scope === null && scopedViews.includes(view as never) ? "page" : undefined}
+					activeOptions={{ exact: true }}
+					style={{ "--acc": "var(--ink)" } as React.CSSProperties}
+					data-tip="Holding|all ventures"
+					data-side="r"
+				>
+					<Icon name="holding" />
 				</Link>
+				<span className="r-sep" />
+				{rows.map((venture) => {
+					const live = working.some((item) => item.run.ventureSlug === venture.slug);
+					const quiet = !live && now - Date.parse(venture.lastActivityAt) > weekMs;
 
-				<div className="rail-section">
-					<Link
-						to="/inbox"
-						className="rail-item"
-						title={waiting === 0 ? "Nothing needs you" : `${waiting} waiting for your decision`}
-					>
-						<Inbox aria-hidden />
-						<span className="rail-label">Inbox</span>
-						{waiting === 0 ? null : <span className="rail-count is-waiting">{waiting}</span>}
-					</Link>
-					{oldestRun === undefined ? (
-						<span className="rail-item" aria-disabled="true" title="No agent is working right now">
-							<CircleDot aria-hidden />
-							<span className="rail-label">No runs</span>
-						</span>
-					) : (
-						<a
-							href={runHref ?? undefined}
-							className="rail-item is-running"
-							title={`An agent is working on “${oldestRun.threadTitle}”`}
-							onClick={(event) => {
-								if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
-
-								event.preventDefault();
-
-								if (runHref !== null) void navigate({ href: runHref });
-							}}
+					return (
+						<Link
+							key={venture.id}
+							to="/v/$slug"
+							params={{ slug: venture.slug }}
+							className={quiet ? "r-i quiet" : "r-i"}
+							aria-label={venture.name}
+							aria-current={venture.slug === scope ? "true" : undefined}
+							style={accent(venture.slug)}
+							data-tip={`${venture.name}|${live ? "an agent is working" : `v${venture.strategyVersion} · ${ago(venture.lastActivityAt, now)}`}`}
+							data-side="r"
 						>
-							<span className="rail-run-mark" aria-hidden>
-								<span className="pixel is-live" />
-							</span>
-							<span className="rail-label">{runs.length} running</span>
-						</a>
-					)}
-					<Link to="/agents" className="rail-item" title="What each agent may change">
-						<Bot aria-hidden />
-						<span className="rail-label">Agents</span>
-					</Link>
-				</div>
-
-				<div className="rail-divider" />
-
-				<div className="rail-section">
-					<Link
-						to="/"
-						className={scopeSlug === null ? "rail-item is-scope" : "rail-item"}
-						activeOptions={{ exact: true }}
-					>
-						<Layers aria-hidden />
-						<span className="rail-label">Holding</span>
-					</Link>
-					<div className="rail-heading">
-						<span>Ventures</span>
-						<Link to="/new" className="rail-add" aria-label="New venture" title="New venture">
-							<Plus aria-hidden />
+							<Crest seed={venture.slug} size={20} live={live} />
+							{live ? <i className="r-live" /> : null}
 						</Link>
-					</div>
-					{(ventures.data?.ventures ?? []).map((venture) => {
-						const recent = now - Date.parse(venture.lastActivityAt) < dayMs;
+					);
+				})}
+				<Link
+					to="/new"
+					className="r-i r-add"
+					aria-label="New venture"
+					aria-current={view === "new" ? "page" : undefined}
+					style={{ "--acc": "var(--ink)" } as React.CSSProperties}
+					data-tip="New venture"
+					data-side="r"
+				>
+					<Icon name="plus" />
+				</Link>
+				<span className="grow" />
+				<button
+					type="button"
+					className="r-i"
+					aria-label="Jump to anything"
+					data-tip="Jump to anything|⌘K"
+					data-side="r"
+					onClick={() => setPalette(true)}
+				>
+					<Icon name="search" />
+				</button>
+				<span className="r-i" data-tip="You|owner" data-side="r">
+					<You size={16} />
+				</span>
+			</nav>
 
-						const live = runs.some((run) => run.ventureSlug === venture.slug);
+			<main key={pathname} className={fixedViews.has(view) ? "main fixed enter" : "main enter"}>
+				<Outlet />
+			</main>
+
+			<footer className="deck">
+				<span />
+				<Dock view={view} scope={scope}>
+					<Select
+						className="hot-scope"
+						title="Go to"
+						above
+						tip="Switch venture|H goes to the holding"
+						value={scope ?? ""}
+						options={[
+							{ value: "", label: "Holding", glyph: <Icon name="holding" />, sub: "All ventures" },
+							...rows.map((venture) => ({
+								value: venture.slug,
+								label: venture.name,
+								glyph: <Crest seed={venture.slug} size={14} />,
+								sub: `v${venture.strategyVersion}`,
+								accent: hueOf(venture.slug),
+							})),
+						]}
+						onChange={(next) =>
+							void navigate({
+								to: scopedPath(
+									scopedViews.includes(view as never) ? view : "overview",
+									next === "" ? null : next,
+								),
+							})
+						}
+					>
+						{scope === null ? <Icon name="holding" /> : <Crest seed={scope} size={16} />}
+						<span>{scope === null ? "Holding" : (scopeVenture?.name ?? scope)}</span>
+						<Icon name="chevd" className="chev" />
+					</Select>
+					<i className="dock-sep" />
+					{slot("overview", "1", "Overview")}
+					{slot("work", "2", "Work")}
+					{slot("threads", "3", "Threads")}
+					{slot("activity", "4", "Activity")}
+					<i className="dock-sep" />
+					{slot("inbox", "I", "Inbox", waiting)}
+					{slot("agents", "A", "Agents")}
+				</Dock>
+				<div className="party">
+					{(agents.data?.agents ?? []).map((agent) => {
+						const busy = working.find((item) => item.agent?.id === agent.id);
+
+						if (busy === undefined) {
+							return (
+								<Link
+									key={agent.id}
+									to="/agents"
+									className="pf"
+									data-tip={`${agent.name}|idle · ${agent.model}`}
+								>
+									<Drone square={isSquare(agent)} size={16} />
+									<span>{agent.name}</span>
+								</Link>
+							);
+						}
 
 						return (
-							<Link
-								key={venture.id}
-								to="/v/$slug"
-								params={{ slug: venture.slug }}
-								className={venture.slug === scopeSlug ? "rail-item is-scope" : "rail-item"}
-								title={
-									live
-										? `${venture.name}: an agent is working`
-										: recent
-											? `${venture.name}: active today`
-											: venture.name
-								}
+							<ThreadLink
+								key={agent.id}
+								ventureSlug={busy.run.ventureSlug}
+								threadId={busy.run.threadId}
+								className="pf run"
+								style={accent(busy.run.ventureSlug)}
+								tip={`${agent.name}|working on “${busy.run.threadTitle}”`}
 							>
-								<span className={fresh.has(venture.id) ? "rail-rings is-simmering" : "rail-rings"}>
-									<VentureRings
-										id={venture.id}
-										version={venture.strategyVersion}
-										live={live}
-										quiet={!recent && !live}
-									/>
-								</span>
-								<span className="rail-label">{venture.name}</span>
-							</Link>
+								<Drone square={isSquare(agent)} size={16} run />
+								<span>{agent.name}</span>
+								<Elapsed since={busy.run.startedAt ?? busy.run.createdAt} />
+							</ThreadLink>
 						);
 					})}
 				</div>
+			</footer>
 
-				<div className="rail-divider" />
+			<Tips />
+			<Toasts down={stream === "down"} />
+			{palette ? <Palette scope={scope} close={() => setPalette(false)} /> : null}
+		</div>
+	);
+}
 
-				<div className="rail-section">
-					<Link to={overviewPath} className="rail-item" activeOptions={{ exact: true }}>
-						<PanelsTopLeft aria-hidden />
-						<span className="rail-label">Overview</span>
-					</Link>
-					<Link to={workPath} className="rail-item" activeOptions={{ exact: true, includeSearch: false }}>
-						<ListTree aria-hidden />
-						<span className="rail-label">Work</span>
-					</Link>
-					<Link to={threadsPath} className="rail-item" activeOptions={{ exact: true, includeSearch: false }}>
-						<MessagesSquare aria-hidden />
-						<span className="rail-label">Threads</span>
-					</Link>
-					<Link to={activityPath} className="rail-item" activeOptions={{ exact: true }}>
-						<Activity aria-hidden />
-						<span className="rail-label">Activity</span>
-					</Link>
+function Dock({ view, scope, children }: { view: View; scope: string | null; children: React.ReactNode }) {
+	const dock = useRef<HTMLElement>(null);
+	const thumb = useRef<HTMLElement>(null);
+	const last = useRef<{ x: number; w: number } | null>(null);
+
+	useLayoutEffect(() => {
+		const current = dock.current?.querySelector<HTMLElement>(".slot[aria-current]");
+		const mark = thumb.current;
+
+		if (mark === null) return;
+
+		if (current === null || current === undefined) {
+			mark.style.opacity = "0";
+
+			last.current = null;
+
+			return;
+		}
+
+		const next = { x: current.offsetLeft, w: current.offsetWidth };
+		const before = last.current;
+
+		mark.style.opacity = "";
+
+		mark.style.left = `${next.x}px`;
+
+		mark.style.width = `${next.w}px`;
+
+		if (
+			before !== null &&
+			(before.x !== next.x || before.w !== next.w) &&
+			!window.matchMedia("(prefers-reduced-motion: reduce)").matches
+		) {
+			mark.animate(
+				[
+					{ left: `${before.x}px`, width: `${before.w}px` },
+					{ left: `${next.x}px`, width: `${next.w}px` },
+				],
+				{ duration: 300, easing: "cubic-bezier(.2,.8,.2,1)" },
+			);
+		}
+
+		last.current = next;
+	});
+
+	return (
+		<nav className="dock" ref={dock} aria-label="Views" data-view={view} data-scope={scope ?? ""}>
+			<i className="thumb" ref={thumb} />
+			{children}
+		</nav>
+	);
+}
+
+interface Tip {
+	label: string;
+	hint: string | null;
+	rect: DOMRect;
+	side: boolean;
+}
+
+function Tips() {
+	const [tip, setTip] = useState<Tip | null>(null);
+	const box = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const show = (event: Event) => {
+			const source = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-tip]") : null;
+			const byPointer = event.type === "focusin" && source?.matches(":focus-visible") !== true;
+
+			if (source === null || byPointer || source.getAttribute("aria-expanded") === "true") {
+				setTip(null);
+
+				return;
+			}
+
+			const [label = "", hint] = (source.dataset.tip ?? "").split("|");
+
+			setTip({ label, hint: hint ?? null, rect: source.getBoundingClientRect(), side: source.dataset.side === "r" });
+		};
+
+		const hide = () => setTip(null);
+
+		document.addEventListener("mouseover", show);
+
+		document.addEventListener("focusin", show);
+
+		document.addEventListener("mousedown", hide);
+
+		document.addEventListener("keydown", hide);
+
+		return () => {
+			document.removeEventListener("mouseover", show);
+
+			document.removeEventListener("focusin", show);
+
+			document.removeEventListener("mousedown", hide);
+
+			document.removeEventListener("keydown", hide);
+		};
+	}, []);
+
+	useLayoutEffect(() => {
+		const element = box.current;
+
+		if (element === null || tip === null) return;
+
+		const { rect } = tip;
+		const below = rect.top - element.offsetHeight - 8 < 4;
+		const x = tip.side ? rect.right + 10 : rect.left + rect.width / 2 - element.offsetWidth / 2;
+
+		const y = tip.side
+			? rect.top + rect.height / 2 - element.offsetHeight / 2
+			: below
+				? rect.bottom + 8
+				: rect.top - element.offsetHeight - 8;
+
+		element.style.left = `${Math.max(6, Math.min(x, window.innerWidth - element.offsetWidth - 6))}px`;
+
+		element.style.top = `${y}px`;
+	}, [tip]);
+
+	return (
+		<div className={tip === null ? "tip" : "tip on"} role="tooltip" ref={box}>
+			{tip?.label}
+			{tip === null || tip.hint === null ? null : <small>{tip.hint}</small>}
+		</div>
+	);
+}
+
+function Toasts({ down }: { down: boolean }) {
+	const toasts = useToasts();
+
+	return (
+		<div className="toasts" aria-live="polite">
+			{down ? (
+				<output className="toast is-down">
+					<i className="need" aria-hidden="true" />
+					<span>Reconnecting to live updates…</span>
+				</output>
+			) : null}
+			{toasts.map((item) => (
+				<div key={item.id} className={item.leaving ? "toast bye" : "toast"}>
+					<Icon name={item.icon} />
+					<span>{item.body}</span>
 				</div>
-
-				{stream === "down" ? (
-					<output className="rail-foot reconnect">
-						<span className="pixel" aria-hidden />
-						Reconnecting to live updates…
-					</output>
-				) : null}
-			</nav>
-
-			<main className="main">
-				<Outlet />
-			</main>
+			))}
 		</div>
 	);
 }

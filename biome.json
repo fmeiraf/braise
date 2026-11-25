@@ -21,6 +21,15 @@
 		}
 	},
 	"files": {
-		"includes": ["**", "!!**/dist", "!!**/coverage", "!package-lock.json", "!!.agents", "!!.claude"]
+		"includes": [
+			"**",
+			"!!**/dist",
+			"!!**/coverage",
+			"!package-lock.json",
+			"!!.agents",
+			"!!.claude",
+			"!ui-prototype*.html",
+			"!model-sheet.html"
+		]
 	}
 }

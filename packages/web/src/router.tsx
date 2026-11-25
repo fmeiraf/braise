@@ -114,7 +114,7 @@ export const router = createRouter({
 	defaultPreload: "intent",
 	defaultErrorComponent: ({ error, reset }) => <PageError error={error} retry={reset} />,
 	defaultNotFoundComponent: () => (
-		<div className="page-error">
+		<div className="page-error" role="alert">
 			<p>There's nothing at this address.</p>
 		</div>
 	),

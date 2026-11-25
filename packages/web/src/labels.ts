@@ -1,4 +1,4 @@
-import type { Capability, DomainEvent } from "@braise/core";
+import type { Bet, Capability, DomainEvent } from "@braise/core";
 
 const fieldNames: Record<string, string> = {
 	why: "why",
@@ -175,3 +175,10 @@ export const capabilityPhrases = {
 	links: "link and unlink its threads",
 	propose: "propose changes to strategy, bets and goals",
 } as const satisfies Record<Capability, string>;
+
+/** Numbers a venture's bets in the order they were made: B1, B2, … */
+export function betNumbers(bets: readonly Pick<Bet, "id" | "createdAt">[]) {
+	return new Map(
+		bets.toSorted((a, b) => a.createdAt.localeCompare(b.createdAt)).map((bet, index) => [bet.id, `B${index + 1}`]),
+	);
+}

@@ -86,7 +86,7 @@ export function Editable({
 		return (
 			<button
 				type="button"
-				className={empty ? "editable is-empty" : "editable"}
+				className={empty ? "editable unset" : "editable"}
 				aria-label={`Edit ${label}`}
 				onClick={() => setDraft(value)}
 			>
@@ -110,12 +110,12 @@ export function Editable({
 	return (
 		<span className="editing">
 			{multiline === true ? (
-				<textarea {...common} className="textarea" rows={1} onChange={(event) => setDraft(event.target.value)} />
+				<textarea {...common} className="ta" rows={2} onChange={(event) => setDraft(event.target.value)} />
 			) : (
-				<input {...common} className="input" type={type} onChange={(event) => setDraft(event.target.value)} />
+				<input {...common} className="inp" type={type} onChange={(event) => setDraft(event.target.value)} />
 			)}
 			{error === null ? null : (
-				<span className="error-text" role="alert">
+				<span className="err" role="alert">
 					{error}
 				</span>
 			)}

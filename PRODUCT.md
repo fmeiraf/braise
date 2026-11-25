@@ -9,8 +9,8 @@ web
 ## Stack
 
 Vite + React SPA (`packages/web`), TanStack Router + TanStack Query, zod schemas shared
-from `@braise/core`, plain CSS on the brand tokens (`assets/brand.css`), and headless
-accessible primitives (Radix or Base UI). Talks only to the braise API over HTTP + SSE.
+from `@braise/core`, and plain CSS with the app's own controls (`packages/web/DESIGN.md`;
+no component or icon library). Talks only to the braise API over HTTP + SSE.
 Local-first: runs on the owner's machine; cloud deployment is possible later but out of
 scope. See `docs/architecture.md`.
 

@@ -1,0 +1,73 @@
+import type { ActiveRun, AgentOverview } from "@braise/core";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import type { CSSProperties, ReactNode } from "react";
+import { queries } from "./live.ts";
+
+export interface Working {
+	run: ActiveRun;
+	agent: AgentOverview | null;
+}
+
+/** The runs in flight, each with the agent that is doing it. */
+export function useWorking() {
+	const runs = useQuery(queries.activeRuns()).data?.runs ?? [];
+	const threads = useQuery({ ...queries.threads({}), enabled: runs.length > 0 }).data?.threads ?? [];
+	const agents = useQuery(queries.agents()).data?.agents ?? [];
+
+	return runs.map((run) => {
+		const profileId = threads.find((thread) => thread.id === run.threadId)?.agentProfileId;
+
+		return { run, agent: agents.find((agent) => agent.id === profileId) ?? null } satisfies Working;
+	});
+}
+
+/** Looks an agent up by its profile id or its actor (`agent:<id>`). */
+export function useAgentLookup() {
+	const agents = useQuery(queries.agents()).data?.agents ?? [];
+
+	return (actorOrId: string) => agents.find((agent) => agent.id === actorOrId || agent.actor === actorOrId);
+}
+
+export function workingLabel(working: Working | undefined) {
+	return `${working?.agent?.name ?? "An agent"} is working`;
+}
+
+/** A link to a thread, in its venture's Threads view or the Holding's. */
+export function ThreadLink(props: {
+	ventureSlug: string | null;
+	threadId: string;
+	className?: string;
+	style?: CSSProperties;
+	tip?: string;
+	current?: boolean;
+	children: ReactNode;
+}) {
+	const search = { thread: props.threadId };
+	const current = props.current === true ? "page" : undefined;
+
+	return props.ventureSlug === null ? (
+		<Link
+			to="/threads"
+			search={search}
+			className={props.className}
+			style={props.style}
+			data-tip={props.tip}
+			aria-current={current}
+		>
+			{props.children}
+		</Link>
+	) : (
+		<Link
+			to="/v/$slug/threads"
+			params={{ slug: props.ventureSlug }}
+			search={search}
+			className={props.className}
+			style={props.style}
+			data-tip={props.tip}
+			aria-current={current}
+		>
+			{props.children}
+		</Link>
+	);
+}
