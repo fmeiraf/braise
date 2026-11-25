@@ -112,7 +112,9 @@ Planned (order may change):
 4. **Agent proposal → inbox → owner approves:** agent change sets for strategy, bets
    and goals, the global inbox, owner edits, staleness. Spec:
    `docs/slices/04-proposals-inbox.md`.
-5. Grants and access requests; Pi runner as the second adapter.
+5. **Grants, access requests and the Pi runner:** agent profiles in Postgres,
+   capabilities granted per profile, access requests in the inbox, the Agents view, GPT
+   on Pi. Spec: `docs/slices/05-grants-pi.md`.
 
 Milestone: braise manages itself as a venture (dogfooding).
 
@@ -160,6 +162,24 @@ Milestone: braise manages itself as a venture (dogfooding).
   their events carry `proposalId`, which leads back to the agent's run. Invariant 2
   holds: approve is one command, so the applied events share one transaction and
   one `seq` range. The process rules held unchanged.
+- **Slice 5, Grants, access requests and Pi** (2026-11-24): `agent_profiles` (moved
+  from code), `agent_grants` and `access_requests`; the fixed allowlist replaced by
+  capabilities checked per command in the pipeline; `access.request` filed by the API on
+  every out-of-grant attempt; `access.approve/deny` and `grant.add/revoke` as global
+  commands with braise lines in the requesting thread; access requests in the inbox, the
+  Agents view, the agent picker on new threads; GPT on Pi (`pi-agent-core` + `pi-ai`,
+  `openai-codex` over SSE) behind the unchanged runtime contract, with the worker
+  choosing the runtime per run. Demo scenario 1–6 verified in the running app with real
+  GPT and Claude runs; the spec's tests pass against real Postgres, and the Pi adapter
+  runs in-process against MSW serving a recorded Codex stream.
+  Rule review (process rule 3): invariant 4 now holds as written: grants are enforced
+  in the pipeline and an out-of-grant attempt becomes an inbox `access_request`; owner-only
+  commands are refused outright, since no grant could allow them. Invariant 7 holds with
+  a second runtime: the Pi adapter needed no change to the contract. Invariant 3 holds:
+  Pi runs without durability, and its OAuth tokens stay in Pi's own login file (a login,
+  not braise state). Invariant 8 holds: grant and access commands write no domain events,
+  and their record is the `commands` table plus the grant and request rows. The process
+  rules held unchanged.
 
 ## Decisions log
 
@@ -229,7 +249,8 @@ Milestone: braise manages itself as a venture (dogfooding).
   changes or the command succeeds. It lives in a ref, not React state, so two quick
   commands never share a key.
 - 2026-11-24: Agent runtimes by model family, behind one braise contract: Anthropic
-  models on the Claude Agent SDK, GPT on its own runtime, the rest on Pi + pi-durable.
+  models on the Claude Agent SDK, GPT on its own runtime, the rest on Pi + pi-durable
+  (superseded for GPT in slice 5: GPT runs on Pi).
   Each runtime owns its loop and durability; braise owns threads, runs, run events and
   jobs. pi-durable stores only in SQLite/JSONL/IndexedDB/Chord (checked at 1.6.0), so
   the Pi adapter's storage is decided in slice 5.
@@ -247,7 +268,8 @@ Milestone: braise manages itself as a venture (dogfooding).
   duplicate jobs are no-ops. One active run per thread, two at once overall. A restart
   marks running runs `interrupted` (keeping their partial text) and the owner retries;
   there is no auto-resume and no durability layer on top of the Agent SDK.
-- 2026-11-24: Claude runs with `claude-opus-5-5` (override `BRAISE_AGENT_MODEL`) on the
+- 2026-11-24: Claude runs with `claude-opus-5-5` (override `BRAISE_AGENT_MODEL`, removed
+  in slice 5) on the
   owner's local Claude Code login; no API key. The Agent SDK runs with built-in tools
   off, `persistSession: false` (no transcripts on disk, invariant 3) and the braise
   tools as an in-process MCP server; each run rebuilds its context from Postgres. The
@@ -286,3 +308,38 @@ Milestone: braise manages itself as a venture (dogfooding).
 - 2026-11-24: Inbox UI: a global `/inbox` list and review pane, a pending count in the
   rail (a resin badge: the one attention signal in the rail), and a per-venture Needs you
   list in the cockpit aside.
+- 2026-11-24: Grants (owner): named capabilities (`work`, `links`, `propose`) held by
+  an agent profile across all ventures, fixed in `@braise/core`. Agents see every tool;
+  the pipeline refuses a command whose capability the profile doesn't hold. Owner-only
+  commands belong to no capability and are refused without an access request. Reads
+  stay open through the reader role and are not a grant.
+- 2026-11-24: Agent profiles live in `agent_profiles` (seeded by migration: Claude with
+  all three capabilities, keeping its slice 4 access, and GPT with none). The model is a
+  column on the profile; `BRAISE_AGENT_MODEL` is gone. A thread picks its profile when it
+  starts (default Claude) and every run in it uses that profile.
+- 2026-11-24: Access requests (owner): an out-of-grant attempt runs `access.request` as
+  the agent with the same run, then answers 403 `not_granted` with the request id; the
+  tool turns that into a non-error "Access requested" result and the run continues. One
+  pending request per profile and capability (later attempts bump `attempts`).
+  Approving grants the capability until revoked; nothing is replayed. Approve and deny
+  post a braise line in the requesting thread.
+- 2026-11-24: Grant and access commands are global: no venture lock, no domain events, a
+  third pipeline outcome that `NOTIFY`s an `access` hint over SSE. Grant history lives in
+  `agent_grants` rows (revoking closes a row, granting adds one). Revoking takes effect on
+  the agent's next command; running runs are not stopped.
+- 2026-11-24: Pi runtime (owner): GPT models run on Pi (`@earendil-works/pi-agent-core`
+  and `pi-ai` 1.6.0, pinned) with the `openai-codex` provider on the owner's Pi login, no
+  API key, transport SSE. No pi-durable and no session storage: like Claude, a restart
+  marks running runs interrupted and the owner retries. GPT's model is `gpt-6.2-sol`, the
+  newest in pi-ai 1.6.0's Codex catalog.
+- 2026-11-24: braise reads and refreshes Pi's `auth.json` through its own small
+  `CredentialStore`, locked with `proper-lockfile` on the same file Pi locks, so braise and
+  the `pi` CLI never write it at once. `PI_CODING_AGENT_DIR` moves it, as for Pi.
+- 2026-11-24: The Pi adapter is tested in-process against MSW serving a recorded Codex
+  stream (scrubbed of account identifiers), unlike the Claude adapter, whose SDK runs in a
+  child process.
+- 2026-11-24: braise's workspace export condition is `@braise/source`, not `source`,
+  because published dependencies (Pi's packages) claim `source` for files they don't ship.
+- 2026-11-24: Agents UI: an Agents entry in the rail's attention section with one switch
+  per capability (no confirmation; reversible and recorded), access requests in the
+  global inbox beside proposals, and a "with <agent>" picker on new threads.

@@ -1,4 +1,4 @@
-import type { DomainEvent } from "@braise/core";
+import type { Capability, DomainEvent } from "@braise/core";
 
 const fieldNames: Record<string, string> = {
 	why: "why",
@@ -169,3 +169,9 @@ export function labelEvent(event: Pick<DomainEvent, "type" | "payload">) {
 }
 
 export const kindLabel = { for_profit: "For profit", non_profit: "Non-profit" } as const;
+
+export const capabilityPhrases = {
+	work: "create, edit, reorder and set the status of work items",
+	links: "link and unlink its threads",
+	propose: "propose changes to strategy, bets and goals",
+} as const satisfies Record<Capability, string>;

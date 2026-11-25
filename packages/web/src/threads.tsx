@@ -1,5 +1,6 @@
 import {
 	activeRunStatuses,
+	defaultAgentProfileId,
 	type LinkTarget,
 	type Run,
 	type RunStatus,
@@ -12,7 +13,7 @@ import {
 } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ArrowUp, ChevronRight, Inbox, Link2, Plus, RotateCcw, Square, X } from "lucide-react";
+import { ArrowUp, ChevronRight, Inbox, KeyRound, Link2, Plus, RotateCcw, Square, X } from "lucide-react";
 import {
 	type ChangeEvent,
 	type KeyboardEvent,
@@ -32,6 +33,7 @@ import { PageError } from "./holding.tsx";
 import { keys, queries } from "./live.ts";
 import { useThreadStream } from "./thread-stream.ts";
 import {
+	accessRequestOf,
 	actorName,
 	buildTimeline,
 	describeCall,
@@ -212,7 +214,7 @@ function ThreadList({ scope, selectedId }: { scope: Scope; selectedId: string | 
 					{describeError(threads.error)}
 				</p>
 			) : threads.data.threads.length === 0 ? (
-				<p className="thread-list-note muted">No threads yet. Start one to talk with Claude.</p>
+				<p className="thread-list-note muted">No threads yet. Start one to talk with an agent.</p>
 			) : (
 				<ul>
 					{threads.data.threads.map((thread) => (
@@ -309,6 +311,9 @@ function NewThread({
 	open: (threadId: string) => void;
 }) {
 	const client = useQueryClient();
+	const agents = useQuery(queries.agents());
+	const [agentId, setAgentId] = useState(defaultAgentProfileId);
+	const agentName = agents.data?.agents.find((agent) => agent.id === agentId)?.name ?? actorName(`agent:${agentId}`);
 
 	const start = useCommand<"thread.start", { thread: { id: string } }>("thread.start", (response) => {
 		void client.invalidateQueries({ queryKey: keys.threads });
@@ -322,11 +327,29 @@ function NewThread({
 		<section className="conversation" aria-label="New thread">
 			<div className="conversation-scroll">
 				<div className="new-thread">
-					<h2>New thread</h2>
+					<div className="new-thread-head">
+						<h2>New thread</h2>
+						<label className="new-thread-agent">
+							<span>with</span>
+							<select
+								className="select"
+								value={agentId}
+								onChange={(event) => setAgentId(event.target.value)}
+								disabled={agents.data === undefined}
+							>
+								{(agents.data?.agents ?? [{ id: defaultAgentProfileId, name: agentName }]).map((agent) => (
+									<option key={agent.id} value={agent.id}>
+										{agent.name}
+									</option>
+								))}
+							</select>
+						</label>
+					</div>
 					<p className="muted">
 						{scope.venture === null
-							? "Ask Claude about any venture. It can read everything in braise and change work items."
-							: `Ask Claude about ${scope.venture.name}. It can read everything in braise and change work items.`}
+							? `Ask ${agentName} about any venture.`
+							: `Ask ${agentName} about ${scope.venture.name}.`}{" "}
+						It reads everything in braise; what it may change is up to you in <Link to="/agents">Agents</Link>.
 					</p>
 					<p className="muted">Type @ to link work items, goals, bets or ventures.</p>
 				</div>
@@ -338,11 +361,13 @@ function NewThread({
 				activeRun={null}
 				error={start.error}
 				autoFocus
+				agentName={agentName}
 				submit={(body, links, sent) =>
 					start.mutate(
 						{
 							payload: {
 								...(scope.venture === null ? {} : { ventureId: scope.venture.id }),
+								agentProfileId: agentId,
 								body,
 								links: links.map(({ type, id }) => ({ type, id })),
 							},
@@ -435,7 +460,7 @@ function Conversation({ threadId, scope }: { threadId: string; scope: Scope }) {
 			{archived ? (
 				<p className="conversation-archived muted">This thread is archived.</p>
 			) : (
-				<PostComposer threadId={threadId} scope={scope} activeRun={activeRun} />
+				<PostComposer threadId={threadId} scope={scope} activeRun={activeRun} agentName={detail.data.agent.name} />
 			)}
 		</section>
 	);
@@ -470,7 +495,17 @@ function Timeline({ detail, live }: { detail: ThreadDetail; live: LiveRuns }) {
 	);
 }
 
-function PostComposer({ threadId, scope, activeRun }: { threadId: string; scope: Scope; activeRun: Run | null }) {
+function PostComposer({
+	threadId,
+	scope,
+	activeRun,
+	agentName,
+}: {
+	threadId: string;
+	scope: Scope;
+	activeRun: Run | null;
+	agentName: string;
+}) {
 	const client = useQueryClient();
 
 	const refresh = () => {
@@ -491,6 +526,7 @@ function PostComposer({ threadId, scope, activeRun }: { threadId: string; scope:
 			error={post.error ?? cancel.error}
 			stop={activeRun === null ? undefined : () => cancel.mutate({ payload: { runId: activeRun.id } })}
 			stopping={cancel.isPending}
+			agentName={agentName}
 			submit={(body, links, sent) =>
 				post.mutate(
 					{ payload: { threadId, body, links: links.map(({ type, id }) => ({ type, id })) } },
@@ -524,6 +560,7 @@ function ConversationHead({ detail, scope }: { detail: ThreadDetail; scope: Scop
 				{detail.venture === null || scope.venture !== null ? null : (
 					<span className="conversation-venture">{detail.venture.name}</span>
 				)}
+				<span className="conversation-agent">with {detail.agent.name}</span>
 			</div>
 			<div className="conversation-links">
 				{detail.links.map((item) => (
@@ -767,6 +804,7 @@ function Composer({
 	autoFocus = false,
 	stop,
 	stopping = false,
+	agentName,
 	submit,
 }: {
 	scope: Scope;
@@ -777,6 +815,7 @@ function Composer({
 	autoFocus?: boolean;
 	stop?: () => void;
 	stopping?: boolean;
+	agentName: string;
 	submit: (body: string, links: DraftLink[], sent: () => void) => void;
 }) {
 	const [body, setBody] = useState("");
@@ -920,7 +959,7 @@ function Composer({
 					className="composer-field"
 					rows={1}
 					value={body}
-					placeholder={working ? "Claude is working on a reply…" : "Message Claude"}
+					placeholder={working ? `${agentName} is working on a reply…` : `Message ${agentName}`}
 					aria-label="Message"
 					aria-describedby={hintId}
 					aria-activedescendant={mention !== null && options.length > 0 ? `${listId}-${active.index}` : undefined}
@@ -949,7 +988,7 @@ function Composer({
 			<p className="composer-hint" id={hintId}>
 				{error === null ? (
 					working ? (
-						"Claude is replying. Stop it, or wait to send the next message."
+						`${agentName} is replying. Stop it, or wait to send the next message.`
 					) : (
 						<>
 							<kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line · <kbd>@</kbd> to link
@@ -998,6 +1037,32 @@ function SystemLine({ message }: { message: ThreadMessage }) {
 				</time>
 			</p>
 		</li>
+	);
+}
+
+function AccessLinks({ segments }: { segments: Segment[] }) {
+	const requests = new Map(
+		segments
+			.flatMap((segment) => (segment.kind === "tools" ? segment.calls : []))
+			.map(accessRequestOf)
+			.filter((request) => request !== null)
+			.map((request) => [request.id, request]),
+	);
+
+	if (requests.size === 0) return null;
+
+	return (
+		<ul className="proposal-links">
+			{[...requests.values()].map((request) => (
+				<li key={request.id}>
+					<Link to="/inbox" search={{ access: request.id }} className="proposal-link is-access">
+						<KeyRound aria-hidden />
+						<span className="proposal-link-title">Access requested · {request.label}</span>
+						<span className="proposal-link-meta">decide in the inbox</span>
+					</Link>
+				</li>
+			))}
+		</ul>
 	);
 }
 
@@ -1108,6 +1173,7 @@ function RunEntry({
 					</p>
 				) : null}
 				<ProposalLinks segments={segments} />
+				<AccessLinks segments={segments} />
 				{active ? null : <RunFoot run={run} latest={latest} />}
 			</div>
 		</li>
@@ -1200,7 +1266,7 @@ function prettyOutput(output: string) {
 
 function ToolRow({ call }: { call: ToolCall }) {
 	const { action, detail } = describeCall(call);
-	const write = writeTools.has(call.name);
+	const write = writeTools.has(call.name) && accessRequestOf(call) === null;
 	const failed = call.result?.isError === true;
 	const sql = call.name === "query" ? (call.input as { sql?: unknown }).sql : undefined;
 

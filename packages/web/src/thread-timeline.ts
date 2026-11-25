@@ -173,9 +173,20 @@ function tableOf(sql: unknown) {
 	return match?.[1] ?? null;
 }
 
+export function accessRequestOf(call: ToolCall) {
+	const requested = call.result === null ? undefined : field(parsed(call.result.output), "accessRequested");
+	const id = field(requested, "accessRequestId");
+	const label = field(requested, "label");
+
+	return typeof id === "string" && typeof label === "string" ? { id, label } : null;
+}
+
 export function describeCall(call: ToolCall) {
 	const output = call.result === null ? null : parsed(call.result.output);
 	const title = field(output, "title") ?? field(call.input, "title");
+	const access = accessRequestOf(call);
+
+	if (access !== null) return { action: `Access requested · ${access.label}`, detail: null };
 
 	switch (call.name) {
 		case "describe_schema":
@@ -222,7 +233,10 @@ export function describeCall(call: ToolCall) {
 }
 
 export function summarizeTools(calls: ToolCall[]) {
-	const changes = calls.filter((call) => writeTools.has(call.name) && call.result?.isError === false).length;
+	const changes = calls.filter(
+		(call) => writeTools.has(call.name) && call.result?.isError === false && accessRequestOf(call) === null,
+	).length;
+
 	const failures = calls.filter((call) => call.result?.isError === true).length;
 	const parts = [`${calls.length} ${calls.length === 1 ? "step" : "steps"}`];
 
@@ -238,6 +252,8 @@ export function proposalsOf(segments: Segment[]) {
 		segment.kind === "tools"
 			? segment.calls.flatMap((call) => {
 					if (call.name !== "propose_changes" || call.result === null || call.result.isError) return [];
+
+					if (accessRequestOf(call) !== null) return [];
 
 					const id = field(parsed(call.result.output), "proposalId");
 					const title = field(call.input, "title");
@@ -263,6 +279,8 @@ export function actorName(actor: string) {
 	if (actor === "braise") return "braise";
 
 	if (actor === "agent:claude") return "Claude";
+
+	if (actor === "agent:gpt") return "GPT";
 
 	return actor.startsWith("agent:") ? actor.slice("agent:".length) : actor;
 }

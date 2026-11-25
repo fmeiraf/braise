@@ -1,5 +1,6 @@
 import type {
 	ActiveRun,
+	AgentOverview,
 	ApiError,
 	Bet,
 	Cockpit,
@@ -88,6 +89,7 @@ export const api = {
 	thread: (id: string) => request<ThreadDetail>(`/api/threads/${encodeURIComponent(id)}`),
 	activeRuns: () => request<{ runs: ActiveRun[] }>("/api/runs/active"),
 	inbox: () => request<Inbox>("/api/inbox"),
+	agents: () => request<{ agents: AgentOverview[] }>("/api/agents"),
 	proposal: (id: string) => request<ProposalDetail>(`/api/proposals/${encodeURIComponent(id)}`),
 	linkTargets: (query: string, ventureId: string | null) =>
 		request<{ targets: LinkTarget[] }>(

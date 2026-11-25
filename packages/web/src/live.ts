@@ -18,6 +18,7 @@ export const keys = {
 	thread: (id: string) => ["threads", "detail", id] as const,
 	activeRuns: ["runs", "active"] as const,
 	inbox: ["inbox"] as const,
+	agents: ["agents"] as const,
 	proposal: (id: string) => ["proposal", id] as const,
 };
 
@@ -33,8 +34,15 @@ export const queries = {
 	thread: (id: string) => queryOptions({ queryKey: keys.thread(id), queryFn: () => api.thread(id) }),
 	activeRuns: () => queryOptions({ queryKey: keys.activeRuns, queryFn: api.activeRuns }),
 	inbox: () => queryOptions({ queryKey: keys.inbox, queryFn: api.inbox }),
+	agents: () => queryOptions({ queryKey: keys.agents, queryFn: api.agents }),
 	proposal: (id: string) => queryOptions({ queryKey: keys.proposal(id), queryFn: () => api.proposal(id) }),
 };
+
+export function applyAccessHint(client: QueryClient) {
+	void client.invalidateQueries({ queryKey: keys.inbox });
+
+	void client.invalidateQueries({ queryKey: keys.agents });
+}
 
 export function applyThreadHint(client: QueryClient, hint: ThreadHint) {
 	void client.invalidateQueries({ queryKey: keys.thread(hint.threadId) });
@@ -203,6 +211,12 @@ export function useHintStream(client: QueryClient) {
 				heard();
 
 				applyThreadHint(client, JSON.parse(event.data as string) as ThreadHint);
+			});
+
+			next.addEventListener("access", () => {
+				heard();
+
+				applyAccessHint(client);
 			});
 
 			next.addEventListener("reset", () => {

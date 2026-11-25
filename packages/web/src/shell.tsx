@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate, useParams } from "@tanstack/react-router";
-import { Activity, CircleDot, Inbox, Layers, ListTree, MessagesSquare, PanelsTopLeft, Plus } from "lucide-react";
+import { Activity, Bot, CircleDot, Inbox, Layers, ListTree, MessagesSquare, PanelsTopLeft, Plus } from "lucide-react";
 import { useFreshVentures } from "./fresh.ts";
 import { queries, rememberVenture, useHintStream } from "./live.ts";
 import { BraiseMark, VentureRings } from "./rings.tsx";
@@ -61,7 +61,7 @@ export function Shell() {
 						<a
 							href={runHref ?? undefined}
 							className="rail-item is-running"
-							title={`Claude is working on “${oldestRun.threadTitle}”`}
+							title={`An agent is working on “${oldestRun.threadTitle}”`}
 							onClick={(event) => {
 								if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
 
@@ -76,6 +76,10 @@ export function Shell() {
 							<span className="rail-label">{runs.length} running</span>
 						</a>
 					)}
+					<Link to="/agents" className="rail-item" title="What each agent may change">
+						<Bot aria-hidden />
+						<span className="rail-label">Agents</span>
+					</Link>
 				</div>
 
 				<div className="rail-divider" />

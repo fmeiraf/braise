@@ -1,6 +1,7 @@
 import type { Run, RunEvent, ThreadDetail } from "@braise/core";
 import { describe, expect, it } from "vitest";
 import {
+	accessRequestOf,
 	actorName,
 	applyDelta,
 	buildTimeline,
@@ -76,6 +77,7 @@ describe("buildTimeline", () => {
 			thread: {
 				id: "t1",
 				ventureId: null,
+				agentProfileId: "claude",
 				title: "T",
 				lastSeq: 2,
 				createdBy: "owner",
@@ -83,6 +85,7 @@ describe("buildTimeline", () => {
 				updatedAt: at,
 				archivedAt: null,
 			},
+			agent: { id: "claude", name: "Claude" },
 			venture: null,
 			links: [],
 			messages: [
@@ -166,7 +169,33 @@ describe("describeCall and summarizeTools", () => {
 	});
 
 	it("names actors", () => {
-		expect([actorName("owner"), actorName("agent:claude"), actorName("agent:pi")]).toEqual(["You", "Claude", "pi"]);
+		expect([actorName("owner"), actorName("agent:claude"), actorName("agent:gpt"), actorName("agent:pi")]).toEqual([
+			"You",
+			"Claude",
+			"GPT",
+			"pi",
+		]);
+	});
+
+	it("names a refused write as an access request, not a change", () => {
+		const refused = {
+			id: "call-access",
+			name: "create_work_item",
+			input: { title: "Print loyalty cards" },
+			result: {
+				output: JSON.stringify({
+					accessRequested: { accessRequestId: "ar-1", capability: "work", label: "Work items" },
+					message: "Access requested · Work items.",
+				}),
+				isError: false,
+			},
+		};
+
+		expect(describeCall(refused)).toEqual({ action: "Access requested · Work items", detail: null });
+
+		expect(accessRequestOf(refused)).toEqual({ id: "ar-1", label: "Work items" });
+
+		expect(summarizeTools([refused])).toBe("1 step");
 	});
 });
 

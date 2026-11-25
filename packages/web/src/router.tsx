@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { z } from "zod";
 import { HoldingActivityPage, VentureActivityPage } from "./activity.tsx";
+import { AgentsPage } from "./agents.tsx";
 import { CockpitPage } from "./cockpit.tsx";
 import { CreateVenture } from "./create-venture.tsx";
 import { HistoryPage } from "./history.tsx";
@@ -51,8 +52,14 @@ const holdingThreadsRoute = createRoute({
 const inboxRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/inbox",
-	validateSearch: z.object({ proposal: z.string().optional() }),
+	validateSearch: z.object({ proposal: z.string().optional(), access: z.string().optional() }),
 	component: InboxPage,
+});
+
+const agentsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/agents",
+	component: AgentsPage,
 });
 
 const ventureRoute = createRoute({ getParentRoute: () => rootRoute, path: "/v/$slug" });
@@ -98,6 +105,7 @@ const routeTree = rootRoute.addChildren([
 	holdingWorkRoute,
 	holdingThreadsRoute,
 	inboxRoute,
+	agentsRoute,
 	ventureRoute.addChildren([cockpitRoute, historyRoute, ventureWorkRoute, ventureThreadsRoute, ventureActivityRoute]),
 ]);
 

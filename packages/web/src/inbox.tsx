@@ -1,6 +1,10 @@
 import {
 	type Bet,
+	capabilityCommands,
+	capabilityLabels,
 	changeLabels,
+	type InboxAccessRequest,
+	type InboxItem,
 	type InboxProposal,
 	isBetRef,
 	type ProposalChangeDetail,
@@ -15,7 +19,7 @@ import { ApiRequestError } from "./api.ts";
 import { describeError } from "./errors.ts";
 import { DiffField } from "./history.tsx";
 import { PageError } from "./holding.tsx";
-import { plural } from "./labels.ts";
+import { capabilityPhrases, plural } from "./labels.ts";
 import { keys, queries, refreshVenture } from "./live.ts";
 import { ringColor } from "./rings.tsx";
 import { actorName } from "./thread-timeline.ts";
@@ -127,7 +131,8 @@ export function InboxPage() {
 	if (inbox.isError) return <PageError error={inbox.error} retry={() => void inbox.refetch()} />;
 
 	const { pending, decided } = inbox.data;
-	const selectedId = search.proposal ?? pending[0]?.id ?? null;
+	const selectedId = search.access ?? search.proposal ?? pending[0]?.id ?? null;
+	const selected = [...pending, ...decided].find((item) => item.id === selectedId);
 
 	return (
 		<>
@@ -139,7 +144,9 @@ export function InboxPage() {
 			<div className="threads-layout">
 				<nav className="thread-list inbox-list" aria-label="Inbox">
 					{pending.length === 0 ? (
-						<p className="thread-list-note muted">Nothing needs you. Proposals from agents land here.</p>
+						<p className="thread-list-note muted">
+							Nothing needs you. Agents' proposals and access requests land here.
+						</p>
 					) : (
 						<ul>
 							{pending.map((item) => (
@@ -167,19 +174,72 @@ export function InboxPage() {
 					<div className="inbox-empty">
 						<InboxIcon aria-hidden />
 						<p>
-							When Claude proposes a change to a strategy, a bet or a goal, you review it here and nothing
-							changes until you approve.
+							When an agent proposes a change to a strategy, a bet or a goal, or asks for access it doesn't have,
+							you decide here. Nothing changes until you approve.
 						</p>
 					</div>
-				) : (
+				) : selected?.kind === "access_request" ? (
+					<AccessReview key={`${selected.id}:${selected.status}`} item={selected} />
+				) : search.access === undefined ? (
 					<Review key={selectedId} proposalId={selectedId} />
+				) : (
+					<div className="review">
+						<p className="inbox-note muted">This access request is no longer in the inbox.</p>
+					</div>
 				)}
 			</div>
 		</>
 	);
 }
 
-function InboxRow({ item, selected }: { item: InboxProposal; selected: boolean }) {
+function InboxRow({ item, selected }: { item: InboxItem; selected: boolean }) {
+	return item.kind === "proposal" ? (
+		<ProposalRow item={item} selected={selected} />
+	) : (
+		<AccessRow item={item} selected={selected} />
+	);
+}
+
+function accessTitle(item: InboxAccessRequest) {
+	return `${item.agent.name} asks for ${capabilityLabels[item.capability]}`;
+}
+
+function AccessRow({ item, selected }: { item: InboxAccessRequest; selected: boolean }) {
+	const now = Date.now();
+	const decided = item.status !== "pending";
+	const at = item.decidedAt ?? item.createdAt;
+
+	return (
+		<Link
+			to="/inbox"
+			search={{ access: item.id }}
+			className={["thread-row inbox-row", selected ? "is-selected" : "", decided ? "is-decided" : ""].join(" ")}
+			aria-current={selected ? "page" : undefined}
+			style={item.venture === null ? undefined : ({ "--ring": ringColor(item.venture.id) } as CSSProperties)}
+		>
+			<span className={`inbox-mark is-access is-${item.status}`} aria-hidden />
+			<span className="thread-row-main">
+				<span className="thread-row-top">
+					<span className="thread-row-title">{accessTitle(item)}</span>
+					<time className="thread-row-time" dateTime={at} title={formatDateTime(at)}>
+						{ago(at, now)}
+					</time>
+				</span>
+				<span className="thread-row-snippet">
+					<span className="inbox-venture">{item.venture?.name ?? "Holding"}</span> · {item.summary}
+					{decided ? ` · ${item.status === "approved" ? "granted" : "denied"}` : ""}
+				</span>
+				{item.attempts > 1 ? (
+					<span className="thread-row-links">
+						<span className="tag num">Tried {item.attempts}×</span>
+					</span>
+				) : null}
+			</span>
+		</Link>
+	);
+}
+
+function ProposalRow({ item, selected }: { item: InboxProposal; selected: boolean }) {
 	const now = Date.now();
 	const decided = item.status !== "pending";
 
@@ -308,7 +368,7 @@ function ReviewBody({ detail }: { detail: ProposalDetail }) {
 
 	const blocked =
 		stale.length > 0
-			? "Part of this proposal is out of date. Reject it and ask Claude for a fresh one."
+			? `Part of this proposal is out of date. Reject it and ask ${actorName(proposal.createdBy)} for a fresh one.`
 			: kept === 0
 				? "Include at least one change, or reject the proposal."
 				: refDropped
@@ -405,7 +465,7 @@ function ReviewBody({ detail }: { detail: ProposalDetail }) {
 							/>
 						</label>
 						<label className="field">
-							<span className="field-label">Note for Claude</span>
+							<span className="field-label">Note for {actorName(proposal.createdBy)}</span>
 							<input
 								className="input"
 								value={note}
@@ -431,6 +491,226 @@ function ReviewBody({ detail }: { detail: ProposalDetail }) {
 			) : null}
 		</div>
 	);
+}
+
+const attemptLabels: Record<string, string> = {
+	title: "Title",
+	description: "Description",
+	function: "Function",
+	priority: "Priority",
+	status: "Status",
+	index: "Position",
+	goalId: "Goal",
+	parentId: "Parent",
+	workItemId: "Work item",
+	threadId: "Thread",
+	link: "Link",
+	reason: "Reason",
+	changes: "Changes",
+};
+
+function attemptValue(value: unknown) {
+	if (typeof value === "string") return value;
+
+	if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+	return JSON.stringify(value);
+}
+
+function isIdField(key: string) {
+	return key.endsWith("Id") || key === "link" || key === "changes";
+}
+
+function AccessReview({ item }: { item: InboxAccessRequest }) {
+	const client = useQueryClient();
+	const [note, setNote] = useState("");
+	const pending = item.status === "pending";
+	const now = Date.now();
+	const label = capabilityLabels[item.capability];
+
+	const settle = () => {
+		void client.invalidateQueries({ queryKey: keys.inbox });
+
+		void client.invalidateQueries({ queryKey: keys.agents });
+
+		void client.invalidateQueries({ queryKey: keys.thread(item.thread.id) });
+	};
+
+	const approve = useCommand("access.approve", () => {
+		settle();
+
+		deny.reset();
+	});
+
+	const deny = useCommand("access.deny", () => {
+		settle();
+
+		approve.reset();
+	});
+
+	const busy = approve.isPending || deny.isPending;
+	const error = approve.error ?? deny.error;
+	const trimmed = note.trim() === "" ? undefined : note.trim();
+	const threadSearch = { thread: item.thread.id };
+	const fields = Object.entries(item.payload).filter(([key]) => key !== "ventureId");
+
+	return (
+		<div
+			className="review"
+			style={item.venture === null ? undefined : ({ "--ring": ringColor(item.venture.id) } as CSSProperties)}
+		>
+			<div className="review-scroll">
+				<header className="review-head">
+					<p className="review-venture">
+						{item.venture === null ? (
+							<span>Holding</span>
+						) : (
+							<>
+								<span className="ring-dot" aria-hidden />
+								<Link to="/v/$slug" params={{ slug: item.venture.slug }}>
+									{item.venture.name}
+								</Link>
+							</>
+						)}
+					</p>
+					<h1 className="review-title">{accessTitle(item)}</h1>
+					<p className="review-meta">
+						Refused in{" "}
+						{item.thread.ventureSlug === null ? (
+							<Link to="/threads" search={threadSearch}>
+								{item.thread.title}
+							</Link>
+						) : (
+							<Link to="/v/$slug/threads" params={{ slug: item.thread.ventureSlug }} search={threadSearch}>
+								{item.thread.title}
+							</Link>
+						)}{" "}
+						·{" "}
+						<time dateTime={item.createdAt} title={formatDateTime(item.createdAt)}>
+							{ago(item.createdAt, now)}
+						</time>
+						{item.attempts > 1 ? <> · tried {plural(item.attempts, "time")}</> : null}
+					</p>
+				</header>
+
+				{pending ? null : (
+					<p className={`decision-line is-${item.status}`}>
+						<span className={`inbox-mark is-access is-${item.status}`} aria-hidden />
+						<span>
+							{item.status === "approved" ? `You granted ${label}` : `You denied ${label}`}
+							{item.decidedAt === null ? null : (
+								<>
+									{" "}
+									<time dateTime={item.decidedAt} title={formatDateTime(item.decidedAt)}>
+										{ago(item.decidedAt, now)}
+									</time>
+								</>
+							)}
+							{item.note === null ? null : <> · “{item.note}”</>}
+						</span>
+					</p>
+				)}
+
+				<section className="access-section" aria-labelledby="access-tried">
+					<h2 id="access-tried">What it tried</h2>
+					<p className="access-summary">{item.summary.charAt(0).toUpperCase() + item.summary.slice(1)}</p>
+					{fields.length === 0 ? null : (
+						<dl className="access-payload">
+							{fields.map(([key, value]) => (
+								<div key={key}>
+									<dt>{attemptLabels[key] ?? key}</dt>
+									{item.references[key] === undefined ? (
+										<dd className={isIdField(key) ? "num" : undefined}>{attemptValue(value)}</dd>
+									) : (
+										<dd title={attemptValue(value)}>{item.references[key]}</dd>
+									)}
+								</div>
+							))}
+						</dl>
+					)}
+				</section>
+
+				<section className="access-section" aria-labelledby="access-grant">
+					<h2 id="access-grant">
+						{item.status === "pending"
+							? "What approving grants"
+							: item.status === "approved"
+								? "What you granted"
+								: "What it asked for"}
+					</h2>
+					<p className="access-summary">
+						{item.status === "denied" ? (
+							<>
+								To let {item.agent.name} {capabilityPhrases[item.capability]}, grant it in{" "}
+								<Link to="/agents">Agents</Link>.
+							</>
+						) : (
+							<>
+								{item.agent.name} may {capabilityPhrases[item.capability]} in every venture until you revoke it
+								in <Link to="/agents">Agents</Link>. What it tried isn't replayed; it tries again when you ask.
+							</>
+						)}
+					</p>
+					<ul className="access-commands">
+						{capabilityCommands[item.capability].map((command) => (
+							<li key={command} className="access-command num">
+								{command}
+							</li>
+						))}
+					</ul>
+				</section>
+			</div>
+
+			{pending ? (
+				<form
+					className="decision-bar"
+					onSubmit={(event) => {
+						event.preventDefault();
+
+						approve.mutate({ payload: { accessRequestId: item.id, note: trimmed } });
+					}}
+				>
+					<div className="decision-fields is-single">
+						<label className="field">
+							<span className="field-label">Note for {item.agent.name}</span>
+							<input
+								className="input"
+								value={note}
+								placeholder="Optional, shown in the thread"
+								onChange={(event) => setNote(event.target.value)}
+							/>
+						</label>
+					</div>
+					<div className="decision-actions">
+						<output className={error === null ? "decision-hint" : "decision-hint error-text"}>
+							{error === null ? null : accessError(error)}
+						</output>
+						<button
+							type="button"
+							className="button"
+							disabled={busy}
+							onClick={() => deny.mutate({ payload: { accessRequestId: item.id, note: trimmed } })}
+						>
+							<X aria-hidden />
+							Deny
+						</button>
+						<button type="submit" className="button is-primary" disabled={busy}>
+							<Check aria-hidden />
+							Approve
+						</button>
+					</div>
+				</form>
+			) : null}
+		</div>
+	);
+}
+
+function accessError(error: unknown) {
+	if (error instanceof ApiRequestError && error.details.rule === "access_decided") {
+		return "This request was already decided, maybe in another tab.";
+	}
+
+	return describeError(error);
 }
 
 function approvalError(error: unknown) {
@@ -507,7 +787,9 @@ function Change({
 				{change.stale === null ? null : <span className="tag is-stale">Stale · {change.stale}</span>}
 				{left ? <span className="tag">{pending ? "Left out" : "Not applied"}</span> : null}
 				{edited ? (
-					<span className="tag">{creates ? "Edited · diff against Claude’s version" : "Edited"}</span>
+					<span className="tag">
+						{creates ? `Edited · diff against ${actorName(detail.proposal.createdBy)}’s version` : "Edited"}
+					</span>
 				) : null}
 				{pending ? (
 					<div className="change-actions">
@@ -716,7 +998,7 @@ function InboxSkeleton() {
 
 export function NeedsYou({ ventureId }: { ventureId: string }) {
 	const inbox = useQuery(queries.inbox());
-	const items = (inbox.data?.pending ?? []).filter((item) => item.venture.id === ventureId);
+	const items = (inbox.data?.pending ?? []).filter((item) => item.venture?.id === ventureId);
 	const now = Date.now();
 
 	if (items.length === 0) return null;
@@ -730,13 +1012,22 @@ export function NeedsYou({ ventureId }: { ventureId: string }) {
 			<ul>
 				{items.map((item) => (
 					<li key={item.id}>
-						<Link to="/inbox" search={{ proposal: item.id }} className="needs-you-row">
-							<span className="needs-you-title">{item.title}</span>
-							<span className="needs-you-meta">
-								{plural(item.changeCount, "change")} · {ago(item.createdAt, now)}
-								{item.staleCount > 0 ? " · stale" : ""}
-							</span>
-						</Link>
+						{item.kind === "proposal" ? (
+							<Link to="/inbox" search={{ proposal: item.id }} className="needs-you-row">
+								<span className="needs-you-title">{item.title}</span>
+								<span className="needs-you-meta">
+									{plural(item.changeCount, "change")} · {ago(item.createdAt, now)}
+									{item.staleCount > 0 ? " · stale" : ""}
+								</span>
+							</Link>
+						) : (
+							<Link to="/inbox" search={{ access: item.id }} className="needs-you-row">
+								<span className="needs-you-title">{accessTitle(item)}</span>
+								<span className="needs-you-meta">
+									{item.summary} · {ago(item.createdAt, now)}
+								</span>
+							</Link>
+						)}
 					</li>
 				))}
 			</ul>
