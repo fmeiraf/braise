@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --conditions=source
+#!/usr/bin/env -S node --conditions=@braise/source
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createDatabase, migrateDatabase } from "./db/client.ts";
@@ -34,7 +34,7 @@ async function main(args: string[]) {
 
 			const child = spawn(
 				process.execPath,
-				["--watch", "--conditions=source", fileURLToPath(import.meta.url), "serve"],
+				["--watch", "--conditions=@braise/source", fileURLToPath(import.meta.url), "serve"],
 				{ stdio: "inherit" },
 			);
 

@@ -126,9 +126,9 @@ export function createAgentWorker(deps: {
 	hub: HintHub;
 	boss: PgBoss;
 	services: Services;
-	runtime: AgentRuntime;
+	runtimes: AgentRuntime[];
 }) {
-	const { db, reader, hub, boss, services, runtime } = deps;
+	const { db, reader, hub, boss, services, runtimes } = deps;
 	const active = new Map<string, { controller: AbortController; reason: "cancel" | "shutdown" | null }>();
 
 	const unsubscribe = hub.subscribe((message) => {
@@ -183,6 +183,10 @@ export function createAgentWorker(deps: {
 
 				entry.controller.abort();
 			}
+
+			const runtime = runtimes.find((candidate) => candidate.name === run.runtime);
+
+			if (runtime === undefined) throw new Error(`braise has no runtime ${run.runtime}`);
 
 			await runtime.run(
 				{

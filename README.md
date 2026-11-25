@@ -35,9 +35,10 @@ Database tasks run through the `braise` bin from `@braise/api`:
 `npm test` needs the Postgres container: the API suites run against `braise_test`.
 
 Agent threads run Claude through the Claude Agent SDK on the local Claude Code login:
-install the `claude` CLI and sign in once (`claude`, then `/login`). No API key is
-needed. `BRAISE_AGENT_MODEL` in `.env` overrides the model (default `claude-opus-5-5`).
-Tests never call the model.
+install the `claude` CLI and sign in once (`claude`, then `/login`). GPT runs on Pi
+with Pi's OpenAI Codex login: install `pi` and sign in once (`pi`, then `/login`,
+OpenAI Codex). No API key is needed for either. Each agent's model lives on its row in
+`agent_profiles`. Tests never call a model.
 
 ## Structure
 

@@ -1,8 +1,8 @@
 import { defineConfig } from "vitest/config";
 
 const sourceConditions = {
-	resolve: { conditions: ["source"] },
-	ssr: { resolve: { conditions: ["source"] } },
+	resolve: { conditions: ["@braise/source"] },
+	ssr: { resolve: { conditions: ["@braise/source"] } },
 };
 
 export default defineConfig({

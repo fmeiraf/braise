@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
 		plugins: [react()],
 		publicDir: new URL("../../assets/web", import.meta.url).pathname,
 		envDir: repoRoot,
-		resolve: { conditions: ["source"] },
+		resolve: { conditions: ["@braise/source"] },
 		server: {
 			port: 5400,
 			strictPort: true,

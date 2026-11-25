@@ -1,5 +1,7 @@
 import { serve } from "@hono/node-server";
 import { claudeRuntime } from "./agent/claude.ts";
+import { createPiRuntime } from "./agent/pi.ts";
+import { fileCredentialStore, piAuthFile } from "./agent/pi-credentials.ts";
 import { runQueueServices, startBoss } from "./agent/queue.ts";
 import { openReader } from "./agent/reader.ts";
 import { createAgentWorker } from "./agent/worker.ts";
@@ -24,7 +26,9 @@ export async function startServer() {
 
 	const reader = await openReader(db, env.DATABASE_URL);
 
-	const worker = createAgentWorker({ db, reader, hub, boss, services, runtime: claudeRuntime });
+	const runtimes = [claudeRuntime, createPiRuntime(fileCredentialStore(piAuthFile()))];
+
+	const worker = createAgentWorker({ db, reader, hub, boss, services, runtimes });
 
 	await worker.start();
 

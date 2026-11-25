@@ -9,7 +9,7 @@
 		"types": ["vite/client"],
 		"declaration": false,
 		"declarationMap": false,
-		"customConditions": ["source"]
+		"customConditions": ["@braise/source"]
 	},
 	"include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
 }
