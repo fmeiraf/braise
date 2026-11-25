@@ -65,7 +65,7 @@ rounded:
   row: "9px"
   field: "10px"
   card: "14px"
-  dock: "999px"
+  dock: "10px"
 spacing:
   1: "4px"
   2: "8px"
@@ -93,7 +93,7 @@ Five principles, settled by the owner:
    references such as bet numbers. Amber (`beacon`) means "needs you". Green and red are
    for diffs and outcomes.
 3. **No top bar.** Location is carried by the rail, the dock and each page's own title.
-4. **The dock is one fully rounded pill.** Keyboard keys (1–4, I, A, H, ⌘K) live in
+4. **The dock sits on the ground, like the rail.** No capsule, border or shadow: flat 10px tabs with a sliding selection. Keyboard keys (1–4, I, A, H, ⌘K) live in
    tooltips.
 5. **Reading sizes for things you read.** Strategy, messages and proposed changes are
    set at 15.5–16px; chrome stays at 12–13.5px.
@@ -156,7 +156,7 @@ inspector and the sticky verdict bar.
 
 ## Shapes
 
-Controls 8px, rows 9px, fields 10px, cards 14px, the dock and chips fully rounded.
+Controls 8px, rows 9px, fields 10px, cards 14px, the dock tabs and agent chips 10px, the same as rail items.
 Status marks are diamonds (`Dia`), priority is stacked chevrons (`Rank`), agents are an
 open ring around a round (Claude Agent SDK) or square (Pi) core (`Drone`), the owner is
 a solid diamond (`You`).
