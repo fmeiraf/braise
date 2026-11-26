@@ -1,6 +1,6 @@
 import type { ActiveRun, LinkTarget, Run, ThreadDetail, ThreadSummary, WorkItem } from "@braise/core";
 import { and, eq, sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { braiseTools, maxQueryRows, readOnly } from "../src/agent/tools.ts";
 import { claimRun, recoverRuns } from "../src/agent/worker.ts";
 import { deltaChannel } from "../src/channels.ts";
@@ -8,8 +8,6 @@ import { commands, events, workItems } from "../src/db/schema.ts";
 import { createVenture, freshKey, openTestDatabase, testUrl } from "./database.test-utils.ts";
 
 const database = await openTestDatabase();
-
-beforeAll(() => database.hub.start());
 
 afterAll(() => database.close());
 
@@ -213,13 +211,13 @@ describe("runs", () => {
 	it("marks running runs interrupted on recovery, and retries only the latest failed run", async () => {
 		const started = await ok<Started>("thread.start", { body: "Interrupted work" });
 
-		const claimed = await claimRun(database.db, started.run.id);
+		const claimed = await database.run(claimRun(started.run.id));
 
 		expect(claimed?.status).toBe("running");
 
-		expect(await claimRun(database.db, started.run.id)).toBeUndefined();
+		expect(await database.run(claimRun(started.run.id))).toBeUndefined();
 
-		await recoverRuns(database.db, database.services);
+		await database.run(recoverRuns());
 
 		const detail = await read<ThreadDetail>(`/threads/${started.thread.id}`);
 
@@ -246,7 +244,7 @@ describe("runs", () => {
 	it("records a cancel request on a running run and refuses it once finished", async () => {
 		const started = await ok<Started>("thread.start", { body: "Running cancel" });
 
-		await claimRun(database.db, started.run.id);
+		await database.run(claimRun(started.run.id));
 
 		const requested = await ok<{ run: Run }>("run.cancel", { runId: started.run.id });
 
@@ -254,7 +252,7 @@ describe("runs", () => {
 
 		expect(requested.run.cancelRequestedAt).not.toBeNull();
 
-		await recoverRuns(database.db, database.services);
+		await database.run(recoverRuns());
 
 		expect(await refused("run.cancel", { runId: started.run.id })).toMatchObject({ rule: "run_not_active" });
 	});

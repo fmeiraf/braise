@@ -3,7 +3,7 @@ import { Agent, type AgentEvent, type AgentMessage, type AgentTool as PiTool } f
 import { type AssistantMessage, type CredentialStore, createModels } from "@earendil-works/pi-ai";
 import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex";
 import { z } from "zod";
-import type { AgentRuntime, AgentTool, RunSignal } from "./runtime.ts";
+import { type AgentTool, promiseRuntime, type RunSignal } from "./runtime.ts";
 
 export const piProvider = "openai-codex";
 
@@ -157,63 +157,60 @@ export function createPiRuntime(credentials: CredentialStore) {
 
 	models.setProvider(openaiCodexProvider());
 
-	return {
-		name: "pi",
-		async run(input, onSignal, abort) {
+	return promiseRuntime("pi", async (input, onSignal, abort) => {
+		if (abort.aborted) return;
+
+		const model = models.getModel(piProvider, input.model);
+
+		if (model === undefined) throw new Error(`Pi has no ${piProvider} model ${input.model}`);
+
+		if ((await credentials.read(piProvider)) === undefined) throw new Error(piLoginHint);
+
+		let turns = 0;
+
+		let limited = false;
+
+		const agent = new Agent({
+			initialState: { systemPrompt: input.systemPrompt, model, tools: input.tools.map(toPiTool), messages: [] },
+			streamFn: (streamModel, context, options) =>
+				models.streamSimple(streamModel, context, { ...options, transport: "sse" }),
+			transport: "sse",
+			toolExecution: "sequential",
+			finishTurn: () => {
+				turns += 1;
+
+				if (turns < maxTurns) return undefined;
+
+				limited = true;
+
+				return { action: "end" };
+			},
+		});
+
+		const translate = createPiTranslator();
+
+		const unsubscribe = agent.subscribe(async (event) => {
+			for (const signal of translate(event)) {
+				await onSignal(
+					limited && signal.type === "finished" && signal.status === "succeeded"
+						? { ...signal, status: "failed", error: turnLimitMessage }
+						: signal,
+				);
+			}
+		});
+
+		const stop = () => agent.abort();
+
+		abort.addEventListener("abort", stop, { once: true });
+
+		try {
 			if (abort.aborted) return;
 
-			const model = models.getModel(piProvider, input.model);
+			await agent.prompt(input.prompt);
+		} finally {
+			abort.removeEventListener("abort", stop);
 
-			if (model === undefined) throw new Error(`Pi has no ${piProvider} model ${input.model}`);
-
-			if ((await credentials.read(piProvider)) === undefined) throw new Error(piLoginHint);
-
-			let turns = 0;
-
-			let limited = false;
-
-			const agent = new Agent({
-				initialState: { systemPrompt: input.systemPrompt, model, tools: input.tools.map(toPiTool), messages: [] },
-				streamFn: (streamModel, context, options) =>
-					models.streamSimple(streamModel, context, { ...options, transport: "sse" }),
-				transport: "sse",
-				toolExecution: "sequential",
-				finishTurn: () => {
-					turns += 1;
-
-					if (turns < maxTurns) return undefined;
-
-					limited = true;
-
-					return { action: "end" };
-				},
-			});
-
-			const translate = createPiTranslator();
-
-			const unsubscribe = agent.subscribe(async (event) => {
-				for (const signal of translate(event)) {
-					await onSignal(
-						limited && signal.type === "finished" && signal.status === "succeeded"
-							? { ...signal, status: "failed", error: turnLimitMessage }
-							: signal,
-					);
-				}
-			});
-
-			const stop = () => agent.abort();
-
-			abort.addEventListener("abort", stop, { once: true });
-
-			try {
-				if (abort.aborted) return;
-
-				await agent.prompt(input.prompt);
-			} finally {
-				abort.removeEventListener("abort", stop);
-
-				unsubscribe();
-			}
-		},
-	} satisfies AgentRuntime;
+			unsubscribe();
+		}
+	});
 }

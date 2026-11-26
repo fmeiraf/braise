@@ -1,27 +1,31 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { activeRunStatuses, type RunDelta, type RunStatus, type RunUsage } from "@braise/core";
+import { activeRunStatuses, type RunStatus, type RunUsage } from "@braise/core";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import type { PgBoss } from "pg-boss";
+import { Cause, Effect, Exit, Fiber, FiberSet, Layer, Stream } from "effect";
 import { deltaChannel } from "../channels.ts";
-import type { Database } from "../db/client.ts";
+import { Database, query, Tx, transaction } from "../db/effect.ts";
 import { runEvents, runs } from "../db/schema.ts";
-import type { HintHub } from "../hints.ts";
-import { notifyThread, type Services } from "../pipeline.ts";
+import { HintHub } from "../hints.ts";
+import { notifyThread } from "../pipeline.ts";
 import { appendMessage, lockThread } from "../thread-handlers.ts";
 import { loadRunContext, renderPrompt, renderSystemPrompt } from "./context.ts";
-import { createDeltaPublisher } from "./deltas.ts";
-import { runQueue } from "./queue.ts";
-import type { Reader } from "./reader.ts";
-import type { AgentRuntime, RunSignal } from "./runtime.ts";
+import { makeDeltaPublisher } from "./deltas.ts";
+import { Boss, RunQueue, runQueue } from "./queue.ts";
+import { AgentReader } from "./reader.ts";
+import { type AgentRuntime, type RunSignal, RuntimeError } from "./runtime.ts";
 import { braiseTools } from "./tools.ts";
 
 export const maxConcurrentRuns = 2;
 
 const interruptedMessage = "braise stopped while the agent was working";
 
+const shutdownTimeout = "10 seconds";
+
 type RunRow = typeof runs.$inferSelect;
+
+type StopReason = "cancel" | "shutdown";
 
 interface Outcome {
 	status: RunStatus;
@@ -29,272 +33,380 @@ interface Outcome {
 	error: string | null;
 }
 
-async function nextEventSeq(db: Database, runId: string) {
-	const [row] = await db
-		.select({ next: sql<number>`coalesce(max(${runEvents.seq}) + 1, 0)::int` })
-		.from(runEvents)
-		.where(eq(runEvents.runId, runId));
-
-	return row?.next ?? 0;
-}
-
-export async function finishRun(db: Database, runId: string, outcome: Outcome) {
-	const seq = await nextEventSeq(db, runId);
-
-	await db.transaction(async (tx) => {
-		const [run] = await tx.select().from(runs).where(eq(runs.id, runId));
-
-		if (run === undefined) return;
-
-		const thread = await lockThread(tx, run.threadId);
-
-		await tx
-			.update(runs)
-			.set({
-				status: outcome.status,
-				usage: outcome.usage === null ? null : { ...outcome.usage },
-				error: outcome.error === null ? null : { message: outcome.error },
-				finishedAt: sql`now()`,
-			})
-			.where(eq(runs.id, runId));
-
-		await tx.insert(runEvents).values({ runId, seq, type: "run.finished", payload: { status: outcome.status } });
-
-		const texts = await tx
-			.select({ payload: runEvents.payload })
-			.from(runEvents)
-			.where(and(eq(runEvents.runId, runId), eq(runEvents.type, "message")))
-			.orderBy(asc(runEvents.seq));
-
-		const body = texts
-			.map((row) => (typeof row.payload.text === "string" ? row.payload.text : ""))
-			.filter((text) => text !== "")
-			.join("\n\n");
-
-		if (body !== "") await appendMessage(tx, thread, { author: run.actor, body, runId });
-
-		await notifyThread(tx, thread);
-	});
-}
-
-export async function recoverRuns(db: Database, services: Services) {
-	const interrupted = await db.select({ id: runs.id }).from(runs).where(eq(runs.status, "running"));
-
-	for (const run of interrupted) {
-		await finishRun(db, run.id, { status: "interrupted", usage: null, error: interruptedMessage });
-	}
-
-	const queued = await db.select({ id: runs.id }).from(runs).where(eq(runs.status, "queued"));
-
-	for (const run of queued) await services.enqueueRun(run.id);
-
-	return { interrupted: interrupted.length, requeued: queued.length };
-}
-
-async function cancelRequested(db: Database, runId: string) {
-	const [row] = await db.select({ cancelRequestedAt: runs.cancelRequestedAt }).from(runs).where(eq(runs.id, runId));
-
-	return row?.cancelRequestedAt !== null && row?.cancelRequestedAt !== undefined;
-}
-
-async function failRun(db: Database, runId: string, thread: { id: string; ventureId: string | null }, message: string) {
-	await db
-		.update(runs)
-		.set({ status: "failed", error: { message }, finishedAt: sql`now()` })
-		.where(and(eq(runs.id, runId), inArray(runs.status, [...activeRunStatuses])));
-
-	await notifyThread(db, thread);
-}
-
-export async function claimRun(db: Database, runId: string) {
-	const [claimed] = await db
-		.update(runs)
-		.set({ status: "running", startedAt: sql`now()` })
-		.where(and(eq(runs.id, runId), eq(runs.status, "queued")))
-		.returning();
-
-	return claimed;
+interface ActiveRun {
+	fiber: Fiber.Fiber<void, unknown>;
+	stop: { reason: StopReason | null };
 }
 
 function errorMessage(error: unknown) {
 	return error instanceof Error ? error.message : String(error);
 }
 
-export function createAgentWorker(deps: {
-	db: Database;
-	reader: Reader;
-	hub: HintHub;
-	boss: PgBoss;
-	services: Services;
-	runtimes: AgentRuntime[];
-}) {
-	const { db, reader, hub, boss, services, runtimes } = deps;
-	const active = new Map<string, { controller: AbortController; reason: "cancel" | "shutdown" | null }>();
+const nextEventSeq = Effect.fn("nextEventSeq")(function* (runId: string) {
+	const db = yield* Database;
 
-	const unsubscribe = hub.subscribe((message) => {
-		if (message.type !== "control") return;
+	const [row] = yield* query(() =>
+		db
+			.select({ next: sql<number>`coalesce(max(${runEvents.seq}) + 1, 0)::int` })
+			.from(runEvents)
+			.where(eq(runEvents.runId, runId)),
+	);
 
-		const entry = active.get(message.runId);
+	return row?.next ?? 0;
+});
 
-		if (entry === undefined) return;
+export const finishRun = Effect.fn("finishRun")(function* (runId: string, outcome: Outcome) {
+	const seq = yield* nextEventSeq(runId);
 
-		entry.reason = "cancel";
+	yield* transaction(
+		Effect.gen(function* () {
+			const tx = yield* Tx;
 
-		entry.controller.abort();
-	});
+			const [run] = yield* query(() => tx.select().from(runs).where(eq(runs.id, runId)));
 
-	async function execute(run: RunRow) {
-		const entry = { controller: new AbortController(), reason: null as "cancel" | "shutdown" | null };
-		const thread = { id: run.threadId, ventureId: null as string | null };
-		let seq = 0;
+			if (run === undefined) return;
 
-		const result: {
-			finished: Extract<RunSignal, { type: "finished" }> | null;
-			partial: { block: number; text: string } | null;
-		} = { finished: null, partial: null };
+			const thread = yield* query(() => lockThread(tx, run.threadId));
 
-		active.set(run.id, entry);
-
-		const append = async (type: string, payload: Record<string, unknown>) => {
-			await db.insert(runEvents).values({ runId: run.id, seq, type, payload });
-
-			seq += 1;
-
-			await notifyThread(db, thread);
-		};
-
-		const deltas = createDeltaPublisher(async (delta: RunDelta) => {
-			await db.execute(sql`SELECT pg_notify(${deltaChannel}, ${JSON.stringify(delta)})`);
-		});
-
-		let workDir: string | null = null;
-
-		try {
-			workDir = await mkdtemp(join(tmpdir(), "braise-run-"));
-
-			const context = await loadRunContext(db, run);
-
-			thread.ventureId = context.scope?.id ?? null;
-
-			await append("run.started", { model: run.model });
-
-			if (await cancelRequested(db, run.id)) {
-				entry.reason = "cancel";
-
-				entry.controller.abort();
-			}
-
-			const runtime = runtimes.find((candidate) => candidate.name === run.runtime);
-
-			if (runtime === undefined) throw new Error(`braise has no runtime ${run.runtime}`);
-
-			await runtime.run(
-				{
-					model: run.model,
-					systemPrompt: renderSystemPrompt(context),
-					prompt: renderPrompt(context),
-					tools: braiseTools({ db, reader, services, actor: run.actor, runId: run.id, threadId: run.threadId }),
-					workDir,
-				},
-				async (signal) => {
-					switch (signal.type) {
-						case "delta":
-							result.partial =
-								result.partial?.block === signal.block
-									? { block: signal.block, text: result.partial.text + signal.text }
-									: { block: signal.block, text: signal.text };
-
-							deltas.push({ threadId: run.threadId, runId: run.id, ...signal });
-
-							return;
-						case "message":
-							result.partial = null;
-
-							return append("message", { block: signal.block, text: signal.text });
-						case "tool.call":
-							return append("tool.call", {
-								toolUseId: signal.toolUseId,
-								name: signal.name,
-								input: signal.input,
-							});
-						case "tool.result":
-							return append("tool.result", {
-								toolUseId: signal.toolUseId,
-								output: signal.output,
-								isError: signal.isError,
-							});
-						case "finished":
-							result.finished = signal;
-					}
-				},
-				entry.controller.signal,
+			yield* query(() =>
+				tx
+					.update(runs)
+					.set({
+						status: outcome.status,
+						usage: outcome.usage === null ? null : { ...outcome.usage },
+						error: outcome.error === null ? null : { message: outcome.error },
+						finishedAt: sql`now()`,
+					})
+					.where(eq(runs.id, runId)),
 			);
-		} catch (error) {
-			if (!entry.controller.signal.aborted) {
-				console.error(`agent: run ${run.id} failed`, error);
 
-				result.finished = { type: "finished", status: "failed", usage: null, error: errorMessage(error) };
-			}
-		} finally {
-			active.delete(run.id);
+			yield* query(() =>
+				tx.insert(runEvents).values({ runId, seq, type: "run.finished", payload: { status: outcome.status } }),
+			);
 
-			await deltas.drained();
+			const texts = yield* query(() =>
+				tx
+					.select({ payload: runEvents.payload })
+					.from(runEvents)
+					.where(and(eq(runEvents.runId, runId), eq(runEvents.type, "message")))
+					.orderBy(asc(runEvents.seq)),
+			);
 
-			if (workDir !== null) await rm(workDir, { recursive: true, force: true });
-		}
+			const body = texts
+				.map((row) => (typeof row.payload.text === "string" ? row.payload.text : ""))
+				.filter((text) => text !== "")
+				.join("\n\n");
 
-		const { finished, partial } = result;
+			if (body !== "") yield* query(() => appendMessage(tx, thread, { author: run.actor, body, runId }));
 
-		const outcome: Outcome =
-			entry.reason === "cancel"
-				? { status: "cancelled", usage: finished?.usage ?? null, error: null }
-				: entry.reason === "shutdown"
-					? { status: "interrupted", usage: finished?.usage ?? null, error: interruptedMessage }
-					: (finished ?? { status: "failed", usage: null, error: "The agent stopped without a result" });
+			yield* query(() => notifyThread(tx, thread));
+		}),
+	);
+});
 
-		try {
-			if (entry.controller.signal.aborted && partial !== null && partial.text.trim() !== "") {
-				await append("message", { block: partial.block, text: partial.text, partial: true });
-			}
+export const recoverRuns = Effect.fn("recoverRuns")(function* () {
+	const db = yield* Database;
+	const queue = yield* RunQueue;
 
-			await finishRun(db, run.id, outcome);
-		} catch (error) {
-			console.error(`agent: finishing run ${run.id} failed; marking it failed`, error);
+	const interrupted = yield* query(() => db.select({ id: runs.id }).from(runs).where(eq(runs.status, "running")));
 
-			await failRun(db, run.id, thread, `braise could not save the run's end: ${errorMessage(error)}`);
-		}
+	for (const run of interrupted) {
+		yield* finishRun(run.id, { status: "interrupted", usage: null, error: interruptedMessage });
 	}
 
-	return {
-		async start() {
-			const recovered = await recoverRuns(db, services);
+	const queued = yield* query(() => db.select({ id: runs.id }).from(runs).where(eq(runs.status, "queued")));
+
+	for (const run of queued) yield* query(() => queue.enqueueRun(run.id));
+
+	return { interrupted: interrupted.length, requeued: queued.length };
+});
+
+const cancelRequested = Effect.fn("cancelRequested")(function* (runId: string) {
+	const db = yield* Database;
+
+	const [row] = yield* query(() =>
+		db.select({ cancelRequestedAt: runs.cancelRequestedAt }).from(runs).where(eq(runs.id, runId)),
+	);
+
+	return row?.cancelRequestedAt !== null && row?.cancelRequestedAt !== undefined;
+});
+
+const failRun = Effect.fn("failRun")(function* (
+	runId: string,
+	thread: { id: string; ventureId: string | null },
+	message: string,
+) {
+	const db = yield* Database;
+
+	yield* query(() =>
+		db
+			.update(runs)
+			.set({ status: "failed", error: { message }, finishedAt: sql`now()` })
+			.where(and(eq(runs.id, runId), inArray(runs.status, [...activeRunStatuses]))),
+	);
+
+	yield* query(() => notifyThread(db, thread));
+});
+
+export const claimRun = Effect.fn("claimRun")(function* (runId: string) {
+	const db = yield* Database;
+
+	const [claimed] = yield* query(() =>
+		db
+			.update(runs)
+			.set({ status: "running", startedAt: sql`now()` })
+			.where(and(eq(runs.id, runId), eq(runs.status, "queued")))
+			.returning(),
+	);
+
+	return claimed;
+});
+
+function outcomeOf(
+	run: RunRow,
+	stop: { reason: StopReason | null },
+	exit: Exit.Exit<void, unknown>,
+	finished: Extract<RunSignal, { type: "finished" }> | null,
+) {
+	const usage = finished?.usage ?? null;
+
+	if (stop.reason === "cancel") return { status: "cancelled", usage, error: null } satisfies Outcome;
+
+	if (stop.reason === "shutdown") return { status: "interrupted", usage, error: interruptedMessage } satisfies Outcome;
+
+	if (Exit.isFailure(exit)) {
+		const error = Cause.squash(exit.cause);
+
+		console.error(`agent: run ${run.id} failed`, error);
+
+		return { status: "failed", usage: null, error: errorMessage(error) } satisfies Outcome;
+	}
+
+	return (
+		finished ?? ({ status: "failed", usage: null, error: "The agent stopped without a result" } satisfies Outcome)
+	);
+}
+
+export function agentWorkerLayer(runtimes: AgentRuntime[]) {
+	return Layer.effectDiscard(
+		Effect.gen(function* () {
+			const db = yield* Database;
+			const reader = yield* AgentReader;
+			const services = yield* RunQueue;
+			const boss = yield* Boss;
+			const hub = yield* HintHub;
+			const context = yield* Effect.context<Database | RunQueue>();
+			const active = new Map<string, ActiveRun>();
+			const jobs = yield* FiberSet.make<void, unknown>();
+			const runJob = yield* FiberSet.runtimePromise(jobs)<Database | RunQueue>();
+			let stopping = false;
+
+			const agentWork = (
+				run: RunRow,
+				stop: { reason: StopReason | null },
+				state: {
+					seq: number;
+					thread: { id: string; ventureId: string | null };
+					finished: Extract<RunSignal, { type: "finished" }> | null;
+					partial: { block: number; text: string } | null;
+				},
+				append: (type: string, payload: Record<string, unknown>) => Effect.Effect<void, unknown>,
+			) =>
+				Effect.gen(function* () {
+					const workDir = yield* Effect.acquireRelease(
+						Effect.promise(() => mkdtemp(join(tmpdir(), "braise-run-"))),
+						(dir) => Effect.promise(() => rm(dir, { recursive: true, force: true })),
+					);
+
+					const deltas = yield* makeDeltaPublisher((delta) =>
+						query(() => db.execute(sql`SELECT pg_notify(${deltaChannel}, ${JSON.stringify(delta)})`)),
+					);
+
+					yield* Effect.addFinalizer(() => deltas.drained);
+
+					const runContext = yield* query(() => loadRunContext(db, run));
+
+					state.thread.ventureId = runContext.scope?.id ?? null;
+
+					yield* append("run.started", { model: run.model });
+
+					if (yield* cancelRequested(run.id)) {
+						stop.reason = "cancel";
+
+						return yield* Effect.interrupt;
+					}
+
+					const runtime = runtimes.find((candidate) => candidate.name === run.runtime);
+
+					if (runtime === undefined) {
+						return yield* new RuntimeError({ message: `braise has no runtime ${run.runtime}` });
+					}
+
+					const onSignal = (signal: RunSignal) => {
+						switch (signal.type) {
+							case "delta":
+								state.partial =
+									state.partial?.block === signal.block
+										? { block: signal.block, text: state.partial.text + signal.text }
+										: { block: signal.block, text: signal.text };
+
+								return Effect.asVoid(deltas.push({ threadId: run.threadId, runId: run.id, ...signal }));
+							case "message":
+								state.partial = null;
+
+								return append("message", { block: signal.block, text: signal.text });
+							case "tool.call":
+								return append("tool.call", {
+									toolUseId: signal.toolUseId,
+									name: signal.name,
+									input: signal.input,
+								});
+							case "tool.result":
+								return append("tool.result", {
+									toolUseId: signal.toolUseId,
+									output: signal.output,
+									isError: signal.isError,
+								});
+							case "finished":
+								return Effect.sync(() => {
+									state.finished = signal;
+								});
+						}
+					};
+
+					yield* runtime.run(
+						{
+							model: run.model,
+							systemPrompt: renderSystemPrompt(runContext),
+							prompt: renderPrompt(runContext),
+							tools: braiseTools({
+								db,
+								reader,
+								services,
+								actor: run.actor,
+								runId: run.id,
+								threadId: run.threadId,
+							}),
+							workDir,
+						},
+						onSignal,
+					);
+				}).pipe(Effect.scoped);
+
+			const execute = Effect.fn("execute")(function* (run: RunRow) {
+				const stop = { reason: null as StopReason | null };
+
+				const state = {
+					seq: 0,
+					thread: { id: run.threadId, ventureId: null as string | null },
+					finished: null as Extract<RunSignal, { type: "finished" }> | null,
+					partial: null as { block: number; text: string } | null,
+				};
+
+				const append = (type: string, payload: Record<string, unknown>) =>
+					Effect.uninterruptible(
+						Effect.gen(function* () {
+							yield* query(() => db.insert(runEvents).values({ runId: run.id, seq: state.seq, type, payload }));
+
+							state.seq += 1;
+
+							yield* query(() => notifyThread(db, state.thread));
+						}),
+					);
+
+				const fiber = yield* Effect.forkChild(agentWork(run, stop, state, append).pipe(Effect.provide(context)));
+
+				active.set(run.id, { fiber, stop });
+
+				if (stopping) {
+					stop.reason = "shutdown";
+
+					yield* Fiber.interrupt(fiber);
+				}
+
+				const exit = yield* Fiber.await(fiber);
+
+				active.delete(run.id);
+
+				const outcome = outcomeOf(run, stop, exit, state.finished);
+
+				const { partial } = state;
+
+				yield* Effect.gen(function* () {
+					if (stop.reason !== null && partial !== null && partial.text.trim() !== "") {
+						yield* append("message", { block: partial.block, text: partial.text, partial: true });
+					}
+
+					yield* finishRun(run.id, outcome);
+				}).pipe(
+					Effect.catch((error) => {
+						console.error(`agent: finishing run ${run.id} failed; marking it failed`, error);
+
+						return failRun(run.id, state.thread, `braise could not save the run's end: ${errorMessage(error)}`);
+					}),
+				);
+			});
+
+			const claimAndExecute = Effect.fn("claimAndExecute")(function* (runId: string) {
+				const run = yield* claimRun(runId);
+
+				if (run !== undefined) yield* execute(run);
+			});
+
+			const control = yield* hub.subscribe;
+
+			yield* Stream.fromSubscription(control).pipe(
+				Stream.runForEach((message) =>
+					Effect.sync(() => {
+						if (message.type !== "control") return;
+
+						const entry = active.get(message.runId);
+
+						if (entry === undefined) return;
+
+						entry.stop.reason = "cancel";
+
+						entry.fiber.interruptUnsafe();
+					}),
+				),
+				Effect.forkScoped,
+			);
+
+			yield* Effect.addFinalizer(() =>
+				Effect.gen(function* () {
+					stopping = true;
+
+					const running = [...active.values()];
+
+					for (const entry of running) entry.stop.reason = "shutdown";
+
+					yield* Effect.forEach(running, (entry) => Fiber.interrupt(entry.fiber), {
+						concurrency: "unbounded",
+						discard: true,
+					});
+
+					yield* FiberSet.awaitEmpty(jobs);
+				}).pipe(
+					Effect.timeout(shutdownTimeout),
+					Effect.catch((error) => Effect.sync(() => console.error("agent: shutdown did not finish", error))),
+				),
+			);
+
+			const recovered = yield* recoverRuns();
 
 			if (recovered.interrupted > 0) console.log(`agent: marked ${recovered.interrupted} run(s) interrupted`);
 
-			await boss.work<{ runId: string }>(
-				runQueue,
-				{ localConcurrency: maxConcurrentRuns, batchSize: 1 },
-				async ([job]) => {
-					if (job === undefined) return;
+			yield* query(() =>
+				boss.work<{ runId: string }>(
+					runQueue,
+					{ localConcurrency: maxConcurrentRuns, batchSize: 1 },
+					async ([job]) => {
+						if (job === undefined) return;
 
-					const run = await claimRun(db, job.data.runId);
-
-					if (run !== undefined) await execute(run);
-				},
+						await runJob(claimAndExecute(job.data.runId));
+					},
+				),
 			);
-		},
-		async stop() {
-			unsubscribe();
-
-			for (const entry of active.values()) {
-				entry.reason = "shutdown";
-
-				entry.controller.abort();
-			}
-
-			await boss.stop({ graceful: true, timeout: 10_000 });
-		},
-	};
+		}),
+	);
 }
-
-export type AgentWorker = ReturnType<typeof createAgentWorker>;

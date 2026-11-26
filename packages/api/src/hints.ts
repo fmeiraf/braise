@@ -1,4 +1,5 @@
 import type { RunDelta, StreamHint, ThreadHint } from "@braise/core";
+import { Cause, Context, Deferred, Effect, Layer, PubSub, Schedule, type Scope } from "effect";
 import pg from "pg";
 import { z } from "zod";
 import { accessChannel, deltaChannel, notifyChannel, runControlChannel, threadChannel } from "./channels.ts";
@@ -10,6 +11,8 @@ export type HubMessage =
 	| { type: "control"; runId: string }
 	| { type: "access" }
 	| { type: "reset" };
+
+const reconnectDelay = "1 second";
 
 const threadHint = z.object({ threadId: z.uuid(), ventureId: z.uuid().nullable() });
 
@@ -57,10 +60,6 @@ export function parseHubMessage(channel: string, payload: string) {
 	}
 }
 
-type Listener = (message: HubMessage) => void;
-
-const reconnectDelayMs = 1_000;
-
 export function parseNotification(payload: string) {
 	const [ventureId, seq] = payload.split(":");
 	const parsedSeq = Number(seq);
@@ -70,37 +69,13 @@ export function parseNotification(payload: string) {
 	return { ventureId, seq: parsedSeq } satisfies StreamHint;
 }
 
-export function createHintHub(connectionString: string) {
-	const listeners = new Set<Listener>();
-	let client: pg.Client | null = null;
-	let closed = false;
-	let reconnectTimer: NodeJS.Timeout | null = null;
+const channels = [notifyChannel, threadChannel, deltaChannel, runControlChannel, accessChannel];
 
-	const broadcast = (message: HubMessage) => {
-		for (const listener of listeners) listener(message);
-	};
+function listen(connectionString: string, pubsub: PubSub.PubSub<HubMessage>, ended: Deferred.Deferred<void>) {
+	return Effect.promise(async () => {
+		const client = new pg.Client({ connectionString });
 
-	const scheduleReconnect = () => {
-		if (closed || reconnectTimer !== null) return;
-
-		reconnectTimer = setTimeout(() => {
-			reconnectTimer = null;
-
-			connect().then(
-				() => broadcast({ type: "reset" }),
-				(error: unknown) => {
-					console.error("hint stream: reconnect failed", error);
-
-					scheduleReconnect();
-				},
-			);
-		}, reconnectDelayMs);
-	};
-
-	const connect = async () => {
-		const next = new pg.Client({ connectionString });
-
-		next.on("notification", (message) => {
+		client.on("notification", (message) => {
 			const parsed = message.payload === undefined ? null : parseHubMessage(message.channel, message.payload);
 
 			if (parsed === null) {
@@ -109,45 +84,66 @@ export function createHintHub(connectionString: string) {
 				return;
 			}
 
-			broadcast(parsed);
+			PubSub.publishUnsafe(pubsub, parsed);
 		});
 
-		next.on("error", (error) => {
+		client.on("error", (error) => {
 			console.error("hint stream: LISTEN connection failed", error);
 		});
 
-		next.on("end", () => {
-			if (client === next) client = null;
-
-			scheduleReconnect();
+		client.on("end", () => {
+			Deferred.doneUnsafe(ended, Effect.void);
 		});
 
-		await next.connect();
+		await client.connect();
 
-		for (const channel of [notifyChannel, threadChannel, deltaChannel, runControlChannel, accessChannel]) {
-			await next.query(`LISTEN ${channel}`);
-		}
+		for (const channel of channels) await client.query(`LISTEN ${channel}`);
 
-		client = next;
-	};
-
-	return {
-		start: connect,
-		subscribe(listener: Listener) {
-			listeners.add(listener);
-
-			return () => listeners.delete(listener);
-		},
-		async close() {
-			closed = true;
-
-			if (reconnectTimer !== null) clearTimeout(reconnectTimer);
-
-			listeners.clear();
-
-			await client?.end();
-		},
-	};
+		return client;
+	});
 }
 
-export type HintHub = ReturnType<typeof createHintHub>;
+export interface HintHubShape {
+	readonly subscribe: Effect.Effect<PubSub.Subscription<HubMessage>, never, Scope.Scope>;
+}
+
+export class HintHub extends Context.Service<HintHub, HintHubShape>()("braise/HintHub") {
+	static layer(connectionString: string) {
+		return Layer.effect(
+			HintHub,
+			Effect.gen(function* () {
+				const pubsub = yield* Effect.acquireRelease(PubSub.unbounded<HubMessage>(), PubSub.shutdown);
+				const connected = yield* Deferred.make<void, never>();
+
+				const session = Effect.scoped(
+					Effect.gen(function* () {
+						const ended = yield* Deferred.make<void>();
+
+						yield* Effect.acquireRelease(listen(connectionString, pubsub, ended), (client) =>
+							Effect.promise(() => client.end()),
+						);
+
+						const first = yield* Deferred.succeed(connected, undefined);
+
+						if (!first) yield* PubSub.publish(pubsub, { type: "reset" });
+
+						yield* Deferred.await(ended);
+					}),
+				);
+
+				yield* session.pipe(
+					Effect.onError((cause) => Deferred.failCause(connected, cause)),
+					Effect.catchCause((cause) =>
+						Effect.sync(() => console.error("hint stream: reconnect failed", Cause.pretty(cause))),
+					),
+					Effect.repeat(Schedule.spaced(reconnectDelay)),
+					Effect.forkScoped,
+				);
+
+				yield* Deferred.await(connected);
+
+				return { subscribe: PubSub.subscribe(pubsub) } satisfies HintHubShape;
+			}),
+		);
+	}
+}

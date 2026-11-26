@@ -1,10 +1,8 @@
 import type { Cockpit, DomainEvent, StrategyVersion } from "@braise/core";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { freshKey, openTestDatabase } from "./database.test-utils.ts";
 
 const database = await openTestDatabase();
-
-beforeAll(() => database.hub.start());
 
 afterAll(() => database.close());
 

@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { zstdDecompressSync } from "node:zlib";
+import { Effect, Fiber } from "effect";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -15,6 +16,18 @@ const codexUrl = "https://chatgpt.com/backend-api/codex/responses";
 
 const requests: Record<string, unknown>[] = [];
 
+let stallSecond = false;
+
+let stalled = Promise.withResolvers<void>();
+
+function stallSecondRequest() {
+	stallSecond = true;
+
+	stalled = Promise.withResolvers<void>();
+
+	return stalled.promise;
+}
+
 const server = setupServer(
 	http.post(codexUrl, async ({ request }) => {
 		const raw = Buffer.from(await request.arrayBuffer());
@@ -22,6 +35,12 @@ const server = setupServer(
 		const body = request.headers.get("content-encoding") === "zstd" ? zstdDecompressSync(raw) : raw;
 
 		requests.push(JSON.parse(body.toString("utf8")) as Record<string, unknown>);
+
+		if (stallSecond && requests.length === 2) {
+			stalled.resolve();
+
+			return new Promise<never>(() => undefined);
+		}
 
 		return new HttpResponse(requests.length === 1 ? toolCallStream : replyStream, {
 			headers: { "content-type": "text/event-stream" },
@@ -49,6 +68,8 @@ afterAll(() => server.close());
 
 beforeEach(async () => {
 	requests.length = 0;
+
+	stallSecond = false;
 
 	dir = await mkdtemp(join(tmpdir(), "braise-pi-"));
 
@@ -98,12 +119,12 @@ describe("the Pi runtime", () => {
 
 		const signals: RunSignal[] = [];
 
-		await createPiRuntime(fileCredentialStore(authFile)).run(
-			input(),
-			async (signal) => {
-				signals.push(signal);
-			},
-			new AbortController().signal,
+		await Effect.runPromise(
+			createPiRuntime(fileCredentialStore(authFile)).run(input(), (signal) =>
+				Effect.sync(() => {
+					signals.push(signal);
+				}),
+			),
 		);
 
 		expect(echoes).toContain("hello");
@@ -144,30 +165,26 @@ describe("the Pi runtime", () => {
 		expect(JSON.stringify(requests[1])).toContain("echo: hello");
 	});
 
-	it("stops after the abort without asking the model again", async () => {
+	it("stops when interrupted while it waits for the model", async () => {
 		await logIn();
 
-		const controller = new AbortController();
+		const stall = stallSecondRequest();
 
-		const runtime = createPiRuntime(fileCredentialStore(authFile));
+		const fiber = Effect.runFork(createPiRuntime(fileCredentialStore(authFile)).run(input(), () => Effect.void));
 
-		await runtime.run(
-			input(),
-			async (signal) => {
-				if (signal.type === "tool.result") controller.abort();
-			},
-			controller.signal,
-		);
+		await stall;
 
-		expect(requests).toHaveLength(1);
+		await Effect.runPromise(Fiber.interrupt(fiber));
+
+		expect(requests).toHaveLength(2);
+
+		expect(echoes).toContain("hello");
 	});
 
 	it("fails with the login hint when Pi has no Codex login", async () => {
 		const runtime = createPiRuntime(fileCredentialStore(authFile));
 
-		await expect(runtime.run(input(), async () => undefined, new AbortController().signal)).rejects.toThrow(
-			piLoginHint,
-		);
+		await expect(Effect.runPromise(runtime.run(input(), () => Effect.void))).rejects.toThrow(piLoginHint);
 
 		expect(requests).toEqual([]);
 	});

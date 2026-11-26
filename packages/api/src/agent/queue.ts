@@ -1,3 +1,4 @@
+import { Context, Effect, Layer } from "effect";
 import { PgBoss } from "pg-boss";
 import type { Services } from "../pipeline.ts";
 
@@ -23,4 +24,27 @@ export function runQueueServices(boss: PgBoss) {
 			await boss.send(runQueue, { runId }, { singletonKey: runId });
 		},
 	} satisfies Services;
+}
+
+const stopTimeoutMs = 10_000;
+
+export class Boss extends Context.Service<Boss, PgBoss>()("braise/Boss") {
+	static layer(connectionString: string) {
+		return Layer.effect(
+			Boss,
+			Effect.acquireRelease(
+				Effect.promise(() => startBoss(connectionString)),
+				(boss) => Effect.promise(() => boss.stop({ graceful: true, timeout: stopTimeoutMs })),
+			),
+		);
+	}
+}
+
+export class RunQueue extends Context.Service<RunQueue, Services>()("braise/RunQueue") {
+	static readonly layer = Layer.effect(
+		this,
+		Effect.gen(function* () {
+			return runQueueServices(yield* Boss);
+		}),
+	);
 }

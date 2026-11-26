@@ -1,6 +1,7 @@
 import type { RunDelta } from "@braise/core";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { createDeltaPublisher, maxDeltaLength, mergeDeltas, splitDelta } from "./deltas.ts";
+import { makeDeltaPublisher, maxDeltaLength, mergeDeltas, splitDelta } from "./deltas.ts";
 
 const base = { threadId: "t", runId: "r" };
 
@@ -48,22 +49,46 @@ describe("splitDelta", () => {
 	});
 });
 
-describe("createDeltaPublisher", () => {
-	it("publishes everything pushed, merged, in order", async () => {
+describe("makeDeltaPublisher", () => {
+	it("publishes everything pushed, in order, before it is drained", async () => {
 		const published: RunDelta[] = [];
 
-		const publisher = createDeltaPublisher(async (piece) => {
-			published.push(piece);
-		});
+		await Effect.runPromise(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const publisher = yield* makeDeltaPublisher((piece) => Effect.sync(() => published.push(piece)));
 
-		publisher.push(delta(0, 0, "Hel"));
+					yield* publisher.push(delta(0, 0, "Hel"));
 
-		publisher.push(delta(0, 3, "lo"));
+					yield* publisher.push(delta(0, 3, "lo"));
 
-		publisher.push(delta(1, 0, "!"));
+					yield* publisher.push(delta(1, 0, "!"));
 
-		await publisher.drained();
+					yield* publisher.drained;
+				}),
+			),
+		);
 
-		expect(published.map((piece) => `${piece.block}:${piece.text}`).join("|")).toBe("0:Hel|0:lo|1:!");
+		expect(mergeDeltas(published)).toEqual([delta(0, 0, "Hello"), delta(1, 0, "!")]);
+	});
+
+	it("still drains when a publish fails", async () => {
+		const published: string[] = [];
+
+		await Effect.runPromise(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const publisher = yield* makeDeltaPublisher((piece) =>
+						piece.text === "boom" ? Effect.fail("refused") : Effect.sync(() => published.push(piece.text)),
+					);
+
+					yield* publisher.push(delta(0, 0, "boom"));
+
+					yield* publisher.drained;
+				}),
+			),
+		);
+
+		expect(published).toEqual([]);
 	});
 });

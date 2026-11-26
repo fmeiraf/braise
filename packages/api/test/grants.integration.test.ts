@@ -1,6 +1,6 @@
 import type { AgentOverview, Inbox, InboxAccessRequest, Run, ThreadDetail } from "@braise/core";
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { braiseTools } from "../src/agent/tools.ts";
 import { accessRequests, agentGrants, commands, workItems } from "../src/db/schema.ts";
 import { handlers } from "../src/handlers.ts";
@@ -8,8 +8,6 @@ import { executeCommand } from "../src/pipeline.ts";
 import { createVenture, freshKey, openTestDatabase } from "./database.test-utils.ts";
 
 const database = await openTestDatabase();
-
-beforeAll(() => database.hub.start());
 
 afterAll(() => database.close());
 
@@ -94,7 +92,7 @@ async function gptCapability(capability: string) {
 
 function nextAccessHint() {
 	return new Promise<void>((resolve) => {
-		const unsubscribe = database.hub.subscribe((message) => {
+		const unsubscribe = database.subscribe((message) => {
 			if (message.type !== "access") return;
 
 			unsubscribe();

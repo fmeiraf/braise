@@ -1,61 +1,76 @@
-import { serve } from "@hono/node-server";
+import { type ServerType, serve } from "@hono/node-server";
+import { Cause, Effect, Exit, Layer } from "effect";
 import { claudeRuntime } from "./agent/claude.ts";
 import { createPiRuntime } from "./agent/pi.ts";
 import { fileCredentialStore, piAuthFile } from "./agent/pi-credentials.ts";
-import { runQueueServices, startBoss } from "./agent/queue.ts";
-import { openReader } from "./agent/reader.ts";
-import { createAgentWorker } from "./agent/worker.ts";
+import { Boss, RunQueue } from "./agent/queue.ts";
+import { AgentReader } from "./agent/reader.ts";
+import type { AgentRuntime } from "./agent/runtime.ts";
+import { agentWorkerLayer } from "./agent/worker.ts";
 import { createApp } from "./app.ts";
-import { createDatabase, migrateDatabase } from "./db/client.ts";
+import { Database } from "./db/effect.ts";
 import { readEnv } from "./env.ts";
-import { createHintHub } from "./hints.ts";
+import { HintHub } from "./hints.ts";
 
-export async function startServer() {
+export function infrastructureLayer(connectionString: string, options: { max?: number } = {}) {
+	return Layer.mergeAll(RunQueue.layer, AgentReader.layer(connectionString)).pipe(
+		Layer.provideMerge(
+			Layer.mergeAll(
+				Database.layer(connectionString, options),
+				Boss.layer(connectionString),
+				HintHub.layer(connectionString),
+			),
+		),
+	);
+}
+
+function httpLayer(port: number) {
+	return Layer.effectDiscard(
+		Effect.gen(function* () {
+			const app = createApp({ db: yield* Database, hub: yield* HintHub, services: yield* RunQueue });
+
+			yield* Effect.acquireRelease(
+				Effect.callback<ServerType, Error>((resume) => {
+					const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
+						console.log(`braise api listening on http://127.0.0.1:${info.port}`);
+
+						resume(Effect.succeed(server));
+					});
+
+					server.once("error", (error) => resume(Effect.fail(error)));
+				}),
+				(server) => Effect.sync(() => server.close()),
+			);
+		}),
+	);
+}
+
+export function serverLayer(env: { DATABASE_URL: string; PORT: number }, runtimes: AgentRuntime[]) {
+	return Layer.mergeAll(agentWorkerLayer(runtimes), httpLayer(env.PORT)).pipe(
+		Layer.provide(infrastructureLayer(env.DATABASE_URL)),
+	);
+}
+
+export function startServer() {
 	const env = readEnv();
-	const { db, pool } = createDatabase(env.DATABASE_URL);
-
-	await migrateDatabase(db);
-
-	const hub = createHintHub(env.DATABASE_URL);
-
-	await hub.start();
-
-	const boss = await startBoss(env.DATABASE_URL);
-
-	const services = runQueueServices(boss);
-
-	const reader = await openReader(db, env.DATABASE_URL);
 
 	const runtimes = [claudeRuntime, createPiRuntime(fileCredentialStore(piAuthFile()))];
 
-	const worker = createAgentWorker({ db, reader, hub, boss, services, runtimes });
+	const fiber = Effect.runFork(Layer.launch(serverLayer(env, runtimes)));
 
-	await worker.start();
-
-	const server = serve(
-		{ fetch: createApp({ db, hub, services }).fetch, port: env.PORT, hostname: "127.0.0.1" },
-		(info) => {
-			console.log(`braise api listening on http://127.0.0.1:${info.port}`);
-		},
-	);
-
-	const shutdown = () => {
-		server.close();
-
-		worker
-			.stop()
-			.then(() => Promise.all([hub.close(), reader.end(), pool.end()]))
-			.then(
-				() => process.exit(0),
-				(error: unknown) => {
-					console.error(error);
-
-					process.exit(1);
-				},
-			);
-	};
+	const shutdown = () => fiber.interruptUnsafe();
 
 	process.once("SIGINT", shutdown);
 
 	process.once("SIGTERM", shutdown);
+
+	fiber.addObserver((exit) => {
+		if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
+			console.error(Cause.pretty(exit.cause));
+
+			process.exit(1);
+		}
+
+		process.exit(0);
+	});
 }

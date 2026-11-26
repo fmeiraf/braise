@@ -1,13 +1,16 @@
+import { Effect, Exit, Fiber, ManagedRuntime, Scope, Stream } from "effect";
 import pg from "pg";
-import { runQueueServices, startBoss } from "../src/agent/queue.ts";
-import { openReader } from "../src/agent/reader.ts";
+import { Boss, RunQueue } from "../src/agent/queue.ts";
+import { AgentReader } from "../src/agent/reader.ts";
 import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/client.ts";
+import { Database } from "../src/db/effect.ts";
 import { assertLocalDatabase, resetDatabase } from "../src/db/reset.ts";
 import { readEnv, testDatabaseUrl } from "../src/env.ts";
 import { handlers } from "../src/handlers.ts";
-import { createHintHub } from "../src/hints.ts";
+import { HintHub, type HubMessage } from "../src/hints.ts";
 import { executeCommand } from "../src/pipeline.ts";
+import { infrastructureLayer } from "../src/server.ts";
 
 export function testUrl() {
 	return testDatabaseUrl(readEnv().DATABASE_URL);
@@ -60,25 +63,46 @@ export async function setup() {
 }
 
 export async function openTestDatabase(url = testUrl()) {
-	const { db, pool } = createDatabase(url, { max: 20 });
-	const hub = createHintHub(url);
+	const runtime = ManagedRuntime.make(infrastructureLayer(url, { max: 20 }));
 
-	const boss = await startBoss(url);
-
-	const services = runQueueServices(boss);
-
-	const reader = await openReader(db, url);
+	const { db, hub, boss, services, reader } = await runtime.runPromise(
+		Effect.gen(function* () {
+			return {
+				db: yield* Database,
+				hub: yield* HintHub,
+				boss: yield* Boss,
+				services: yield* RunQueue,
+				reader: yield* AgentReader,
+			};
+		}),
+	);
 
 	const app = createApp({ db, hub, services });
 
 	return {
+		runtime,
 		db,
-		pool,
+		pool: db.$client,
 		hub,
 		boss,
 		services,
 		reader,
 		app,
+		run: runtime.runPromise,
+		subscribe(listener: (message: HubMessage) => void) {
+			const scope = Effect.runSync(Scope.make());
+			const subscription = Effect.runSync(Scope.provide(hub.subscribe, scope));
+
+			const fiber = Effect.runFork(
+				Stream.fromSubscription(subscription).pipe(
+					Stream.runForEach((message) => Effect.sync(() => listener(message))),
+				),
+			);
+
+			return () => {
+				Effect.runFork(Fiber.interrupt(fiber).pipe(Effect.andThen(Scope.close(scope, Exit.void))));
+			};
+		},
 		command(name: string, body: Record<string, unknown>, actor = "owner") {
 			return executeCommand(db, handlers, services, { name, body, actor });
 		},
@@ -89,15 +113,7 @@ export async function openTestDatabase(url = testUrl()) {
 				body: JSON.stringify(body),
 			});
 		},
-		async close() {
-			await boss.stop({ graceful: false });
-
-			await reader.end();
-
-			await hub.close();
-
-			await pool.end();
-		},
+		close: runtime.dispose,
 	};
 }
 

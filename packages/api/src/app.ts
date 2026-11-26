@@ -1,13 +1,12 @@
 import type { ThreadLinkType } from "@braise/core";
+import { Effect, Stream } from "effect";
 import { Hono } from "hono";
-import type { SSEStreamingApi } from "hono/streaming";
-import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { getAgents } from "./access-queries.ts";
 import type { Database } from "./db/client.ts";
 import { AppError } from "./errors.ts";
 import { handlers } from "./handlers.ts";
-import type { HintHub } from "./hints.ts";
+import type { HintHubShape, HubMessage } from "./hints.ts";
 import { executeCommand, type Services } from "./pipeline.ts";
 import { getInbox, getProposal } from "./proposal-queries.ts";
 import {
@@ -23,7 +22,7 @@ import { getActiveRuns, getLinkTargets, getThread, listThreads } from "./thread-
 
 const actor = "owner";
 
-const heartbeatMs = 15_000;
+const heartbeat = "15 seconds";
 
 const versionQuery = z.object({ version: z.coerce.number().int().positive().optional() });
 
@@ -53,10 +52,6 @@ function parseSubject(subject: string | undefined) {
 	return { type, id };
 }
 
-function sse(data: unknown) {
-	return JSON.stringify(data);
-}
-
 function parseQuery<Schema extends z.ZodType>(schema: Schema, query: Record<string, string>) {
 	const parsed = schema.safeParse(query);
 
@@ -80,23 +75,43 @@ async function readJson(request: Request) {
 	}
 }
 
-function keepAlive(stream: SSEStreamingApi, label: string) {
-	const heartbeat = setInterval(() => {
-		stream
-			.writeSSE({ event: "ping", data: "{}" })
-			.catch((error: unknown) => console.error(`${label}: ping failed`, error));
-	}, heartbeatMs);
+const encoder = new TextEncoder();
 
-	return () => clearInterval(heartbeat);
+const sseHeaders = {
+	"Transfer-Encoding": "chunked",
+	"Content-Type": "text/event-stream",
+	"Cache-Control": "no-cache",
+	Connection: "keep-alive",
+};
+
+function frame(event: string, data: unknown) {
+	return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-function write(stream: SSEStreamingApi, label: string, event: string, data: unknown) {
-	stream
-		.writeSSE({ event, data: sse(data) })
-		.catch((error: unknown) => console.error(`${label}: write failed`, error));
+function sseResponse(hub: HintHubShape, toFrame: (message: HubMessage) => Uint8Array | null) {
+	const frames = Stream.unwrap(
+		Effect.map(hub.subscribe, (subscription) =>
+			Stream.make(frame("ready", {})).pipe(
+				Stream.concat(
+					Stream.merge(
+						Stream.fromSubscription(subscription).pipe(
+							Stream.map(toFrame),
+							Stream.filter((bytes) => bytes !== null),
+						),
+						Stream.tick(heartbeat).pipe(
+							Stream.drop(1),
+							Stream.map(() => frame("ping", {})),
+						),
+					),
+				),
+			),
+		),
+	);
+
+	return new Response(Stream.toReadableStream(frames), { headers: sseHeaders });
 }
 
-export function createApp({ db, hub, services }: { db: Database; hub: HintHub; services: Services }) {
+export function createApp({ db, hub, services }: { db: Database; hub: HintHubShape; services: Services }) {
 	const app = new Hono().basePath("/api");
 
 	app.onError((error, c) => {
@@ -180,69 +195,35 @@ export function createApp({ db, hub, services }: { db: Database; hub: HintHub; s
 	app.get("/threads/:id/stream", (c) => {
 		const threadId = c.req.param("id");
 
-		return streamSSE(c, async (stream) => {
-			const label = "thread stream";
+		return sseResponse(hub, (message) => {
+			if (message.type === "reset") return frame("reset", {});
 
-			const closed = new Promise<void>((resolve) => {
-				stream.onAbort(resolve);
-			});
+			if (message.type === "thread" && message.threadId === threadId) {
+				return frame("hint", { threadId: message.threadId, ventureId: message.ventureId });
+			}
 
-			const unsubscribe = hub.subscribe((message) => {
-				if (message.type === "reset") write(stream, label, "reset", {});
+			if (message.type === "delta" && message.threadId === threadId) {
+				const { type: _type, ...delta } = message;
 
-				if (message.type === "thread" && message.threadId === threadId) {
-					write(stream, label, "hint", { threadId: message.threadId, ventureId: message.ventureId });
-				}
+				return frame("delta", delta);
+			}
 
-				if (message.type === "delta" && message.threadId === threadId) {
-					const { type: _type, ...delta } = message;
-
-					write(stream, label, "delta", delta);
-				}
-			});
-
-			await stream.writeSSE({ event: "ready", data: "{}" });
-
-			const stop = keepAlive(stream, label);
-
-			await closed;
-
-			stop();
-
-			unsubscribe();
+			return null;
 		});
 	});
 
-	app.get("/stream", (c) =>
-		streamSSE(c, async (stream) => {
-			const label = "hint stream";
+	app.get("/stream", () =>
+		sseResponse(hub, (message) => {
+			if (message.type === "hint") return frame("hint", { ventureId: message.ventureId, seq: message.seq });
 
-			const closed = new Promise<void>((resolve) => {
-				stream.onAbort(resolve);
-			});
+			if (message.type === "thread")
+				return frame("thread", { threadId: message.threadId, ventureId: message.ventureId });
 
-			const unsubscribe = hub.subscribe((message) => {
-				if (message.type === "hint")
-					write(stream, label, "hint", { ventureId: message.ventureId, seq: message.seq });
+			if (message.type === "access") return frame("access", {});
 
-				if (message.type === "thread") {
-					write(stream, label, "thread", { threadId: message.threadId, ventureId: message.ventureId });
-				}
+			if (message.type === "reset") return frame("reset", {});
 
-				if (message.type === "access") write(stream, label, "access", {});
-
-				if (message.type === "reset") write(stream, label, "reset", {});
-			});
-
-			await stream.writeSSE({ event: "ready", data: "{}" });
-
-			const stop = keepAlive(stream, label);
-
-			await closed;
-
-			stop();
-
-			unsubscribe();
+			return null;
 		}),
 	);
 

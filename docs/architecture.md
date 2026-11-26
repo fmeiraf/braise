@@ -370,3 +370,17 @@ Milestone: braise manages itself as a venture (dogfooding).
   `!important`.
 - 2026-11-25: Biome skips the design prototypes and sketches at the repo root
   (`ui-prototype*.html`, `model-sheet.html`). They are references, not shipped code.
+- 2026-11-25: Effect 4 (`effect`, stable modules only) runs the agent runtime and the
+  process lifecycle: `server.ts` (one layer graph, SIGINT/SIGTERM interrupt it and
+  finalizers run in reverse), `agent/worker.ts` (each run is a fiber; cancel and
+  shutdown interrupt it), `hints.ts` (PubSub fan-out, reconnect on a schedule), the
+  delta publisher and the two SSE routes. Commands, handlers, queries, zod, Drizzle and
+  Hono stay plain async. Drizzle is reached through `db/effect.ts` (`Database`, `Tx`,
+  `query`, `transaction`). A runtime is an `Effect`; its SDK callbacks stay sequential
+  so a signal is saved before the agent moves on, and interrupting it aborts the SDK
+  and waits for it to settle. Tests run the real layers through a `ManagedRuntime`
+  with `Effect.runPromise` on Vitest 4; a test layer must be real (Postgres, MSW),
+  never a stand-in service.
+- 2026-11-25: The worker is tested end to end (real pg-boss, Postgres and the Pi runtime
+  against MSW) in its own database, `braise_worker_test`, so its live worker never
+  claims jobs that other test files queue.

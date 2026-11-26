@@ -1,4 +1,5 @@
 import type { RunUsage } from "@braise/core";
+import { Data, Effect } from "effect";
 import type { z } from "zod";
 
 export interface ToolOutput {
@@ -28,7 +29,38 @@ export interface RunInput {
 	workDir: string;
 }
 
+export class RuntimeError extends Data.TaggedError("RuntimeError")<{
+	readonly message: string;
+	readonly cause?: unknown;
+}> {}
+
 export interface AgentRuntime {
 	name: string;
-	run(input: RunInput, onSignal: (signal: RunSignal) => Promise<void>, abort: AbortSignal): Promise<void>;
+	run<E>(input: RunInput, onSignal: (signal: RunSignal) => Effect.Effect<void, E>): Effect.Effect<void, RuntimeError>;
+}
+
+export type PromiseRun = (
+	input: RunInput,
+	onSignal: (signal: RunSignal) => Promise<void>,
+	abort: AbortSignal,
+) => Promise<void>;
+
+export function promiseRuntime(name: string, run: PromiseRun) {
+	return {
+		name,
+		run: (input, onSignal) =>
+			Effect.callback<void, RuntimeError>((resume, abort) => {
+				const settled = run(input, (signal) => Effect.runPromise(onSignal(signal)), abort).then(
+					() => resume(Effect.void),
+					(cause: unknown) =>
+						resume(
+							Effect.fail(
+								new RuntimeError({ message: cause instanceof Error ? cause.message : String(cause), cause }),
+							),
+						),
+				);
+
+				return Effect.promise(() => settled);
+			}),
+	} satisfies AgentRuntime;
 }

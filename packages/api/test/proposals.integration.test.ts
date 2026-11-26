@@ -1,6 +1,6 @@
 import type { Bet, Goal, Inbox, ProposalDetail, Run, ThreadDetail } from "@braise/core";
 import { and, asc, eq, gt } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { braiseTools } from "../src/agent/tools.ts";
 import { bets, events, goals, proposals, strategyVersions } from "../src/db/schema.ts";
 import { handlers } from "../src/handlers.ts";
@@ -8,8 +8,6 @@ import { executeCommand } from "../src/pipeline.ts";
 import { createVenture, freshKey, openTestDatabase } from "./database.test-utils.ts";
 
 const database = await openTestDatabase();
-
-beforeAll(() => database.hub.start());
 
 afterAll(() => database.close());
 

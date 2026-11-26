@@ -1,4 +1,5 @@
 import type { RunDelta } from "@braise/core";
+import { type Cause, Effect, Fiber, Queue } from "effect";
 
 export const maxDeltaLength = 1_000;
 
@@ -39,38 +40,24 @@ export function splitDelta(delta: RunDelta) {
 	return pieces;
 }
 
-export function createDeltaPublisher(publish: (delta: RunDelta) => Promise<void>) {
-	let buffer: RunDelta[] = [];
-	let flushing: Promise<void> | null = null;
+export function makeDeltaPublisher<E>(publish: (delta: RunDelta) => Effect.Effect<void, E>) {
+	return Effect.gen(function* () {
+		const queue = yield* Queue.unbounded<RunDelta, Cause.Done>();
 
-	const flush = async () => {
-		while (buffer.length > 0) {
-			const batch = buffer;
+		const publishBatch = (batch: RunDelta[]) =>
+			Effect.forEach(mergeDeltas(batch).flatMap(splitDelta), publish, { discard: true }).pipe(
+				Effect.catch((error) => Effect.sync(() => console.error("agent: publishing a live delta failed", error))),
+			);
 
-			buffer = [];
+		const consumer = yield* Queue.takeAll(queue).pipe(
+			Effect.flatMap(publishBatch),
+			Effect.forever,
+			Effect.forkScoped,
+		);
 
-			for (const delta of mergeDeltas(batch)) {
-				for (const piece of splitDelta(delta)) await publish(piece);
-			}
-		}
-
-		flushing = null;
-	};
-
-	return {
-		push(delta: RunDelta) {
-			buffer.push(delta);
-
-			flushing ??= flush().catch((error: unknown) => {
-				flushing = null;
-
-				buffer = [];
-
-				console.error("agent: publishing a live delta failed", error);
-			});
-		},
-		drained() {
-			return flushing ?? Promise.resolve();
-		},
-	};
+		return {
+			push: (delta: RunDelta) => Queue.offer(queue, delta),
+			drained: Queue.end(queue).pipe(Effect.andThen(Fiber.await(consumer)), Effect.asVoid),
+		};
+	});
 }

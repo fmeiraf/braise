@@ -3,13 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Run, ThreadDetail } from "@braise/core";
 import { eq } from "drizzle-orm";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { replyStream, toolCallStream } from "../src/agent/pi.fixture.ts";
 import { createPiRuntime, piProvider } from "../src/agent/pi.ts";
 import { fileCredentialStore } from "../src/agent/pi-credentials.ts";
-import { createAgentWorker } from "../src/agent/worker.ts";
+import { agentWorkerLayer } from "../src/agent/worker.ts";
 import { runs } from "../src/db/schema.ts";
 import { createIsolatedDatabase, freshKey, openTestDatabase } from "./database.test-utils.ts";
 
@@ -54,14 +55,11 @@ const codex = setupServer(
 	}),
 );
 
-const worker = createAgentWorker({
-	db: database.db,
-	reader: database.reader,
-	hub: database.hub,
-	boss: database.boss,
-	services: database.services,
-	runtimes: [createPiRuntime(fileCredentialStore(authFile))],
-});
+const worker = ManagedRuntime.make(
+	agentWorkerLayer([createPiRuntime(fileCredentialStore(authFile))]).pipe(
+		Layer.provide(Layer.succeedContext(await database.runtime.context())),
+	),
+);
 
 function base64Url(value: unknown) {
 	return Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -83,9 +81,7 @@ beforeAll(async () => {
 		}),
 	);
 
-	await database.hub.start();
-
-	await worker.start();
+	await worker.runPromise(Effect.void);
 });
 
 afterAll(async () => {
@@ -130,7 +126,7 @@ function settledStatus(runId: string, statuses: string[]) {
 			}, console.error);
 		};
 
-		const unsubscribe = database.hub.subscribe((message) => {
+		const unsubscribe = database.subscribe((message) => {
 			if (message.type === "thread") check();
 		});
 
@@ -142,7 +138,7 @@ function streamedText(runId: string, until: string) {
 	return new Promise<string>((resolve) => {
 		let text = "";
 
-		const unsubscribe = database.hub.subscribe((message) => {
+		const unsubscribe = database.subscribe((message) => {
 			if (message.type !== "delta" || message.runId !== runId) return;
 
 			text += message.text;
@@ -224,7 +220,7 @@ describe("the agent worker", () => {
 
 		await stall;
 
-		await worker.stop();
+		await worker.dispose();
 
 		expect(await runStatus(started.run.id)).toBe("interrupted");
 
