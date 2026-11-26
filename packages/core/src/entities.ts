@@ -1,8 +1,13 @@
 import type {
 	accessRequestStatuses,
+	assumptionStatuses,
 	betStatuses,
+	LegacyProposableCommand,
+	objectiveKinds,
+	objectiveStatuses,
 	ProposableCommand,
 	proposalStatuses,
+	readingSubjects,
 	runStatuses,
 	threadLinkTypes,
 	ventureKinds,
@@ -11,10 +16,19 @@ import type {
 	workStatuses,
 } from "./commands.ts";
 import type { Capability } from "./grants.ts";
+import type { BetMethod, BetResult, FailCause, Impact } from "./loop.ts";
 
 export type VentureKind = (typeof ventureKinds)[number];
 
+export type ObjectiveKind = (typeof objectiveKinds)[number];
+
+export type ObjectiveStatus = (typeof objectiveStatuses)[number];
+
+export type AssumptionStatus = (typeof assumptionStatuses)[number];
+
 export type BetStatus = (typeof betStatuses)[number];
+
+export type ReadingSubject = (typeof readingSubjects)[number];
 
 export type WorkStatus = (typeof workStatuses)[number];
 
@@ -58,35 +72,111 @@ export interface StrategyVersion {
 	reason: string | null;
 }
 
-export interface Bet {
+export interface DoneItem {
+	id: string;
+	text: string;
+	done: boolean;
+}
+
+export interface Objective {
 	id: string;
 	ventureId: string;
-	hypothesis: string;
-	action: string;
-	killCriteria: string;
-	status: BetStatus;
-	introducedIn: string;
+	kind: ObjectiveKind;
+	statement: string;
+	measure: string | null;
+	unit: string;
+	baseline: number | null;
+	target: number | null;
+	decision: string | null;
+	doneRule: string | null;
+	doneList: DoneItem[];
+	byDate: string | null;
+	guardrails: string;
+	budget: string;
+	status: ObjectiveStatus;
+	createdAt: string;
+	updatedAt: string;
+	closedAt: string | null;
+	archivedAt: string | null;
+}
+
+export interface Assumption {
+	id: string;
+	ventureId: string;
+	objectiveId: string | null;
+	statement: string;
+	impact: Impact;
+	confidence: number;
+	function: WorkFunction;
+	status: AssumptionStatus;
+	createdBy: string;
 	createdAt: string;
 	updatedAt: string;
 	archivedAt: string | null;
 }
 
-export interface Goal {
+export interface Bet {
 	id: string;
 	ventureId: string;
-	betId: string | null;
-	outcome: string;
+	assumptionId: string;
+	function: WorkFunction;
+	action: string;
 	signal: string;
-	horizon: string | null;
+	unit: string;
+	baseline: number | null;
+	passAt: number;
+	failAt: number;
+	method: BetMethod;
+	budget: string;
+	deadline: string;
+	status: BetStatus;
 	createdAt: string;
 	updatedAt: string;
+	closedAt: string | null;
 	archivedAt: string | null;
+}
+
+export interface Learning {
+	id: string;
+	ventureId: string;
+	betId: string;
+	assumptionId: string;
+	result: BetResult;
+	cause: FailCause | null;
+	statement: string;
+	value: number | null;
+	confidenceFrom: number;
+	confidenceTo: number;
+	function: WorkFunction;
+	createdBy: string;
+	createdAt: string;
+}
+
+export interface Reading {
+	id: string;
+	ventureId: string;
+	subjectType: ReadingSubject;
+	subjectId: string;
+	value: number;
+	takenOn: string;
+	source: string;
+	enteredBy: string;
+	createdAt: string;
+}
+
+/** A bet an agent proposed that waits in the inbox. */
+export interface ProposedBet {
+	proposalId: string;
+	assumptionId: string;
+	action: string;
+	createdBy: string;
 }
 
 export interface WorkItem {
 	id: string;
 	ventureId: string;
-	goalId: string;
+	betId: string | null;
+	objectiveId: string | null;
 	parentId: string | null;
 	depth: number;
 	position: number;
@@ -108,13 +198,15 @@ export interface WorkProgress {
 export interface VentureWork {
 	ventureId: string;
 	lastSeq: number;
-	goals: Goal[];
+	objectives: Objective[];
+	bets: Bet[];
 	workItems: WorkItem[];
 }
 
 export interface HoldingWork {
 	ventures: { id: string; slug: string; name: string; lastSeq: number }[];
-	goals: Goal[];
+	objectives: Objective[];
+	bets: Bet[];
 	workItems: WorkItem[];
 }
 
@@ -123,9 +215,9 @@ export interface HoldingRow {
 	slug: string;
 	name: string;
 	kind: VentureKind;
+	objective: string | null;
 	openBets: number;
-	goals: number;
-	unlinkedGoals: number;
+	openAssumptions: number;
 	strategyVersion: number;
 	lastSeq: number;
 	lastActivityAt: string;
@@ -134,8 +226,12 @@ export interface HoldingRow {
 export interface Cockpit {
 	venture: Venture;
 	strategy: StrategyVersion;
+	objectives: Objective[];
+	assumptions: Assumption[];
 	bets: Bet[];
-	goals: Goal[];
+	learnings: Learning[];
+	readings: Reading[];
+	proposedBets: ProposedBet[];
 	workProgress: Record<string, WorkProgress>;
 }
 
@@ -297,13 +393,13 @@ export interface LinkTarget {
 export type ChangeBase = { strategyVersion: number } | { updatedAt: string } | null;
 
 export interface ProposalChange {
-	command: ProposableCommand;
+	command: ProposableCommand | LegacyProposableCommand;
 	payload: Record<string, unknown>;
 	base: ChangeBase;
 }
 
 export interface AppliedChange {
-	command: ProposableCommand;
+	command: ProposableCommand | LegacyProposableCommand;
 	payload: Record<string, unknown>;
 }
 
@@ -391,5 +487,7 @@ export interface ProposalDetail {
 	venture: { id: string; slug: string; name: string; lastSeq: number };
 	thread: { id: string; title: string; ventureSlug: string | null };
 	changes: ProposalChangeDetail[];
-	bets: Pick<Bet, "id" | "hypothesis" | "status">[];
+	objectives: Pick<Objective, "id" | "statement" | "kind" | "status">[];
+	assumptions: Pick<Assumption, "id" | "statement" | "confidence" | "objectiveId">[];
+	bets: Pick<Bet, "id" | "action" | "status" | "assumptionId" | "method">[];
 }

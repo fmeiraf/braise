@@ -35,7 +35,7 @@ const threadsQuery = z.object({
 	ventureId: z.uuid().optional(),
 	subject: z
 		.string()
-		.regex(/^(work_item|goal|bet|venture):[0-9a-f-]{36}$/u)
+		.regex(/^(work_item|bet|assumption|objective|venture):[0-9a-f-]{36}$/u)
 		.optional(),
 });
 

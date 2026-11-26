@@ -2,16 +2,16 @@ import { eq } from "drizzle-orm";
 import pg from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 import { notifyChannel } from "../src/channels.ts";
-import { commands, events, goals } from "../src/db/schema.ts";
-import { createVenture, freshKey, openTestDatabase, testUrl } from "./database.test-utils.ts";
+import { assumptions, commands, events } from "../src/db/schema.ts";
+import { betPayload, createLoop, createVenture, freshKey, openTestDatabase, testUrl } from "./database.test-utils.ts";
 
 const database = await openTestDatabase();
 
 afterAll(() => database.close());
 
-function goalBody(ventureId: string, outcome: string, idempotencyKey = freshKey("goal")) {
+function hunchBody(ventureId: string, statement: string, idempotencyKey = freshKey("hunch")) {
 	return {
-		payload: { ventureId, betId: null, outcome, signal: "A number that moves", horizon: null },
+		payload: { ventureId, objectiveId: null, statement, function: "product" },
 		idempotencyKey,
 	};
 }
@@ -34,7 +34,7 @@ describe("command pipeline", () => {
 
 		const responses = await Promise.all(
 			Array.from({ length: count }, (_, index) =>
-				database.command("goal.create", goalBody(venture.id, `Goal ${index}`)),
+				database.command("assumption.create", hunchBody(venture.id, `Hunch ${index}`)),
 			),
 		);
 
@@ -48,16 +48,16 @@ describe("command pipeline", () => {
 	it("applies concurrent duplicates of one idempotency key once and answers both alike", async () => {
 		const venture = await createVenture(database);
 
-		const body = goalBody(venture.id, "Only once");
+		const body = hunchBody(venture.id, "Only once");
 
 		const [first, second] = await Promise.all([
-			database.command("goal.create", body),
-			database.command("goal.create", body),
+			database.command("assumption.create", body),
+			database.command("assumption.create", body),
 		]);
 
 		expect(second).toEqual(first);
 
-		const created = await database.db.select().from(goals).where(eq(goals.ventureId, venture.id));
+		const created = await database.db.select().from(assumptions).where(eq(assumptions.ventureId, venture.id));
 
 		expect(created).toHaveLength(1);
 
@@ -69,9 +69,9 @@ describe("command pipeline", () => {
 
 		const key = freshKey("reuse");
 
-		await database.command("goal.create", goalBody(venture.id, "First", key));
+		await database.command("assumption.create", hunchBody(venture.id, "First", key));
 
-		await expect(database.command("goal.create", goalBody(venture.id, "Second", key))).rejects.toMatchObject({
+		await expect(database.command("assumption.create", hunchBody(venture.id, "Second", key))).rejects.toMatchObject({
 			code: "idempotency_conflict",
 			status: 409,
 		});
@@ -80,57 +80,44 @@ describe("command pipeline", () => {
 	it("rolls back a rejected command completely, so its key can be retried", async () => {
 		const venture = await createVenture(database);
 
-		const other = await createVenture(database);
-
-		const otherBet = (await database.command("bet.create", {
-			payload: { ventureId: other.id, hypothesis: "H", action: "A", killCriteria: "K" },
-			idempotencyKey: freshKey("bet"),
-		})) as { result: { id: string } };
+		const other = await createLoop(database);
 
 		const key = freshKey("rollback");
 
 		await expect(
-			database.command("goal.create", {
-				payload: { ventureId: venture.id, betId: otherBet.result.id, outcome: "O", signal: "S", horizon: null },
+			database.command("bet.create", {
+				payload: betPayload(venture.id, other.assumption.id),
 				idempotencyKey: key,
 			}),
-		).rejects.toMatchObject({ code: "rule_violated", status: 422 });
+		).rejects.toMatchObject({ code: "not_found", status: 404 });
 
 		expect(await database.db.select().from(commands).where(eq(commands.idempotencyKey, key))).toEqual([]);
 
 		expect(await seqsOf(venture.id)).toEqual([1]);
 
-		const retried = await database.command("goal.create", goalBody(venture.id, "Retried", key));
+		const retried = await database.command("assumption.create", hunchBody(venture.id, "Retried", key));
 
 		expect(retried.seq).toBe(2);
 	});
 
-	it("refuses to archive a bet that still has live goals", async () => {
-		const venture = await createVenture(database);
+	it("refuses to archive a bet that still has live work", async () => {
+		const { ventureId, bet } = await createLoop(database);
 
-		const bet = (await database.command("bet.create", {
-			payload: { ventureId: venture.id, hypothesis: "H", action: "A", killCriteria: "K" },
-			idempotencyKey: freshKey("bet"),
-		})) as { result: { id: string } };
-
-		await database.command("goal.create", {
-			payload: { ventureId: venture.id, betId: bet.result.id, outcome: "O", signal: "S", horizon: null },
+		await database.command("work.create", {
+			payload: { ventureId, home: { type: "bet", id: bet.id }, title: "Build it", function: "engineering" },
 			idempotencyKey: freshKey(),
 		});
 
 		await expect(
-			database.command("bet.archive", {
-				payload: { ventureId: venture.id, betId: bet.result.id },
-				idempotencyKey: freshKey(),
-			}),
-		).rejects.toMatchObject({ code: "rule_violated", details: { rule: "bet_has_goals" } });
+			database.command("bet.archive", { payload: { ventureId, betId: bet.id }, idempotencyKey: freshKey() }),
+		).rejects.toMatchObject({ code: "rule_violated", details: { rule: "bet_has_work" } });
 	});
 
 	it("rejects an invalid payload and a missing reason before touching the database", async () => {
 		const venture = await createVenture(database);
 
 		await expect(
-			database.command("goal.create", { payload: { ventureId: venture.id }, idempotencyKey: freshKey() }),
+			database.command("assumption.create", { payload: { ventureId: venture.id }, idempotencyKey: freshKey() }),
 		).rejects.toMatchObject({ code: "validation_failed", status: 400 });
 
 		await expect(
@@ -172,12 +159,12 @@ describe("command pipeline", () => {
 
 		await expect(
 			database.command("bet.update", {
-				payload: { ventureId: venture.id, betId: crypto.randomUUID(), hypothesis: "Missing" },
+				payload: { ventureId: venture.id, betId: crypto.randomUUID(), action: "Missing" },
 				idempotencyKey: freshKey(),
 			}),
 		).rejects.toMatchObject({ code: "not_found" });
 
-		const committed = await database.command("goal.create", goalBody(venture.id, "Visible"));
+		const committed = await database.command("assumption.create", hunchBody(venture.id, "Visible"));
 
 		await firstNotification;
 

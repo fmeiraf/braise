@@ -1,6 +1,20 @@
+import { type ProposedBet, workHomeKey } from "@braise/core";
 import { and, asc, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { Database } from "./db/client.ts";
-import { bets, commands, events, goals, strategyVersions, ventures, workItems } from "./db/schema.ts";
+import {
+	assumptions,
+	bets,
+	commands,
+	events,
+	learnings,
+	objectives,
+	proposals,
+	readings,
+	strategyVersions,
+	ventures,
+	workItems,
+} from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 
 export async function listVentures(db: Database) {
@@ -12,9 +26,11 @@ export async function listVentures(db: Database) {
 			kind: ventures.kind,
 			lastSeq: ventures.lastSeq,
 			lastActivityAt: ventures.updatedAt,
+			objective: sql<
+				string | null
+			>`(SELECT o.statement FROM objectives o WHERE o.venture_id = ventures.id AND o.status = 'active' AND o.archived_at IS NULL ORDER BY (o.kind = 'build'), o.created_at LIMIT 1)`,
 			openBets: sql<number>`(SELECT count(*)::int FROM bets b WHERE b.venture_id = ventures.id AND b.status = 'open' AND b.archived_at IS NULL)`,
-			goals: sql<number>`(SELECT count(*)::int FROM goals g WHERE g.venture_id = ventures.id AND g.archived_at IS NULL)`,
-			unlinkedGoals: sql<number>`(SELECT count(*)::int FROM goals g WHERE g.venture_id = ventures.id AND g.archived_at IS NULL AND g.bet_id IS NULL)`,
+			openAssumptions: sql<number>`(SELECT count(*)::int FROM assumptions a WHERE a.venture_id = ventures.id AND a.status = 'open' AND a.objective_id IS NOT NULL AND a.archived_at IS NULL)`,
 			strategyVersion: sql<number>`(SELECT coalesce(max(s.version), 0)::int FROM strategy_versions s WHERE s.venture_id = ventures.id AND s.status = 'active')`,
 		})
 		.from(ventures)
@@ -68,31 +84,63 @@ export async function getCockpit(db: Database, slug: string) {
 		and(eq(strategyVersions.ventureId, venture.id), eq(strategyVersions.status, "active")),
 	);
 
-	const ventureBets = await db
-		.select()
-		.from(bets)
-		.where(and(eq(bets.ventureId, venture.id), isNull(bets.archivedAt)))
-		.orderBy(asc(bets.createdAt));
+	const live = (table: { ventureId: AnyPgColumn; archivedAt: AnyPgColumn }) =>
+		and(eq(table.ventureId, venture.id), isNull(table.archivedAt));
 
-	const ventureGoals = await db
-		.select()
-		.from(goals)
-		.where(and(eq(goals.ventureId, venture.id), isNull(goals.archivedAt)))
-		.orderBy(asc(goals.createdAt));
+	const [objectiveRows, assumptionRows, betRows, learningRows, readingRows, progressRows, pending] = await Promise.all(
+		[
+			db.select().from(objectives).where(live(objectives)).orderBy(asc(objectives.createdAt)),
+			db.select().from(assumptions).where(live(assumptions)).orderBy(asc(assumptions.createdAt)),
+			db.select().from(bets).where(live(bets)).orderBy(asc(bets.createdAt)),
+			db.select().from(learnings).where(eq(learnings.ventureId, venture.id)).orderBy(desc(learnings.createdAt)),
+			db
+				.select()
+				.from(readings)
+				.where(eq(readings.ventureId, venture.id))
+				.orderBy(asc(readings.takenOn), asc(readings.createdAt)),
+			db
+				.select({
+					betId: workItems.betId,
+					objectiveId: workItems.objectiveId,
+					done: sql<number>`count(*) FILTER (WHERE ${workItems.status} = 'done')::int`,
+					total: sql<number>`count(*)::int`,
+				})
+				.from(workItems)
+				.where(live(workItems))
+				.groupBy(workItems.betId, workItems.objectiveId),
+			db
+				.select({ id: proposals.id, createdBy: proposals.createdBy, changes: proposals.changes })
+				.from(proposals)
+				.where(and(eq(proposals.ventureId, venture.id), eq(proposals.status, "pending")))
+				.orderBy(asc(proposals.createdAt)),
+		],
+	);
 
-	const progressRows = await db
-		.select({
-			goalId: workItems.goalId,
-			done: sql<number>`count(*) FILTER (WHERE ${workItems.status} = 'done')::int`,
-			total: sql<number>`count(*)::int`,
-		})
-		.from(workItems)
-		.where(and(eq(workItems.ventureId, venture.id), isNull(workItems.archivedAt)))
-		.groupBy(workItems.goalId);
+	const workProgress = Object.fromEntries(
+		progressRows.map(({ done, total, ...home }) => [workHomeKey(home), { done, total }]),
+	);
 
-	const workProgress = Object.fromEntries(progressRows.map(({ goalId, done, total }) => [goalId, { done, total }]));
+	const proposedBets = pending.flatMap((proposal) =>
+		proposal.changes.flatMap((change) => {
+			const { assumptionId, action } = change.payload;
 
-	return { venture, strategy, bets: ventureBets, goals: ventureGoals, workProgress };
+			return change.command === "bet.create" && typeof assumptionId === "string" && typeof action === "string"
+				? [{ proposalId: proposal.id, assumptionId, action, createdBy: proposal.createdBy } satisfies ProposedBet]
+				: [];
+		}),
+	);
+
+	return {
+		venture,
+		strategy,
+		objectives: objectiveRows,
+		assumptions: assumptionRows,
+		bets: betRows,
+		learnings: learningRows,
+		readings: readingRows,
+		proposedBets,
+		workProgress,
+	};
 }
 
 function liveWorkItems(db: Database, ventureIds: string[]) {
@@ -105,14 +153,24 @@ function liveWorkItems(db: Database, ventureIds: string[]) {
 		.orderBy(asc(workItems.depth), asc(workItems.position));
 }
 
-function liveGoals(db: Database, ventureIds: string[]) {
+function liveObjectives(db: Database, ventureIds: string[]) {
 	if (ventureIds.length === 0) return Promise.resolve([]);
 
 	return db
 		.select()
-		.from(goals)
-		.where(and(inArray(goals.ventureId, ventureIds), isNull(goals.archivedAt)))
-		.orderBy(asc(goals.createdAt));
+		.from(objectives)
+		.where(and(inArray(objectives.ventureId, ventureIds), isNull(objectives.archivedAt)))
+		.orderBy(asc(objectives.createdAt));
+}
+
+function liveBets(db: Database, ventureIds: string[]) {
+	if (ventureIds.length === 0) return Promise.resolve([]);
+
+	return db
+		.select()
+		.from(bets)
+		.where(and(inArray(bets.ventureId, ventureIds), isNull(bets.archivedAt)))
+		.orderBy(asc(bets.createdAt));
 }
 
 export async function getVentureWork(db: Database, slug: string) {
@@ -121,7 +179,8 @@ export async function getVentureWork(db: Database, slug: string) {
 	return {
 		ventureId: venture.id,
 		lastSeq: venture.lastSeq,
-		goals: await liveGoals(db, [venture.id]),
+		objectives: await liveObjectives(db, [venture.id]),
+		bets: await liveBets(db, [venture.id]),
 		workItems: await liveWorkItems(db, [venture.id]),
 	};
 }
@@ -135,7 +194,12 @@ export async function getHoldingWork(db: Database) {
 
 	const ids = live.map((venture) => venture.id);
 
-	return { ventures: live, goals: await liveGoals(db, ids), workItems: await liveWorkItems(db, ids) };
+	return {
+		ventures: live,
+		objectives: await liveObjectives(db, ids),
+		bets: await liveBets(db, ids),
+		workItems: await liveWorkItems(db, ids),
+	};
 }
 
 export async function getStrategyVersions(db: Database, slug: string, version: number | null) {

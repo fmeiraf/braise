@@ -13,8 +13,9 @@ import { and, asc, desc, eq, ilike, inArray, isNull, type SQL } from "drizzle-or
 import type { Database } from "./db/client.ts";
 import {
 	agentProfiles,
+	assumptions,
 	bets,
-	goals,
+	objectives,
 	runEvents,
 	runs,
 	threadLinks,
@@ -42,11 +43,12 @@ function idsOf(rows: LinkRow[], type: ThreadLinkType) {
 async function linkLabels(db: Database, rows: LinkRow[]) {
 	const labels = new Map<string, Omit<ThreadLink, "type" | "id">>();
 	const workIds = idsOf(rows, "work_item");
-	const goalIds = idsOf(rows, "goal");
+	const objectiveIds = idsOf(rows, "objective");
+	const assumptionIds = idsOf(rows, "assumption");
 	const betIds = idsOf(rows, "bet");
 	const ventureIds = idsOf(rows, "venture");
 
-	const [work, goalRows, betRows, ventureRows] = await Promise.all([
+	const [work, objectiveRows, assumptionRows, betRows, ventureRows] = await Promise.all([
 		workIds.length === 0
 			? []
 			: db
@@ -59,17 +61,34 @@ async function linkLabels(db: Database, rows: LinkRow[]) {
 					.from(workItems)
 					.innerJoin(ventures, eq(ventures.id, workItems.ventureId))
 					.where(inArray(workItems.id, workIds)),
-		goalIds.length === 0
+		objectiveIds.length === 0
 			? []
 			: db
-					.select({ id: goals.id, label: goals.outcome, archivedAt: goals.archivedAt, ...ventureColumns })
-					.from(goals)
-					.innerJoin(ventures, eq(ventures.id, goals.ventureId))
-					.where(inArray(goals.id, goalIds)),
+					.select({
+						id: objectives.id,
+						label: objectives.statement,
+						archivedAt: objectives.archivedAt,
+						...ventureColumns,
+					})
+					.from(objectives)
+					.innerJoin(ventures, eq(ventures.id, objectives.ventureId))
+					.where(inArray(objectives.id, objectiveIds)),
+		assumptionIds.length === 0
+			? []
+			: db
+					.select({
+						id: assumptions.id,
+						label: assumptions.statement,
+						archivedAt: assumptions.archivedAt,
+						...ventureColumns,
+					})
+					.from(assumptions)
+					.innerJoin(ventures, eq(ventures.id, assumptions.ventureId))
+					.where(inArray(assumptions.id, assumptionIds)),
 		betIds.length === 0
 			? []
 			: db
-					.select({ id: bets.id, label: bets.hypothesis, archivedAt: bets.archivedAt, ...ventureColumns })
+					.select({ id: bets.id, label: bets.action, archivedAt: bets.archivedAt, ...ventureColumns })
 					.from(bets)
 					.innerJoin(ventures, eq(ventures.id, bets.ventureId))
 					.where(inArray(bets.id, betIds)),
@@ -83,7 +102,8 @@ async function linkLabels(db: Database, rows: LinkRow[]) {
 
 	for (const [type, found] of [
 		["work_item", work],
-		["goal", goalRows],
+		["objective", objectiveRows],
+		["assumption", assumptionRows],
 		["bet", betRows],
 		["venture", ventureRows],
 	] as const) {
@@ -315,7 +335,7 @@ export async function getLinkTargets(db: Database, filter: { query: string; vent
 			? isNull(ventures.archivedAt)
 			: and(isNull(ventures.archivedAt), eq(column, filter.ventureId));
 
-	const [work, goalRows, betRows, ventureRows] = await Promise.all([
+	const [work, objectiveRows, assumptionRows, betRows, ventureRows] = await Promise.all([
 		db
 			.select({ id: workItems.id, label: workItems.title, depth: workItems.depth, ...ventureColumns })
 			.from(workItems)
@@ -324,17 +344,24 @@ export async function getLinkTargets(db: Database, filter: { query: string; vent
 			.orderBy(desc(workItems.updatedAt))
 			.limit(8),
 		db
-			.select({ id: goals.id, label: goals.outcome, ...ventureColumns })
-			.from(goals)
-			.innerJoin(ventures, eq(ventures.id, goals.ventureId))
-			.where(and(isNull(goals.archivedAt), ilike(goals.outcome, pattern), inScope(ventures.id)))
-			.orderBy(desc(goals.updatedAt))
-			.limit(4),
+			.select({ id: objectives.id, label: objectives.statement, ...ventureColumns })
+			.from(objectives)
+			.innerJoin(ventures, eq(ventures.id, objectives.ventureId))
+			.where(and(isNull(objectives.archivedAt), ilike(objectives.statement, pattern), inScope(ventures.id)))
+			.orderBy(desc(objectives.updatedAt))
+			.limit(3),
 		db
-			.select({ id: bets.id, label: bets.hypothesis, ...ventureColumns })
+			.select({ id: assumptions.id, label: assumptions.statement, ...ventureColumns })
+			.from(assumptions)
+			.innerJoin(ventures, eq(ventures.id, assumptions.ventureId))
+			.where(and(isNull(assumptions.archivedAt), ilike(assumptions.statement, pattern), inScope(ventures.id)))
+			.orderBy(desc(assumptions.updatedAt))
+			.limit(3),
+		db
+			.select({ id: bets.id, label: bets.action, ...ventureColumns })
 			.from(bets)
 			.innerJoin(ventures, eq(ventures.id, bets.ventureId))
-			.where(and(isNull(bets.archivedAt), ilike(bets.hypothesis, pattern), inScope(ventures.id)))
+			.where(and(isNull(bets.archivedAt), ilike(bets.action, pattern), inScope(ventures.id)))
 			.orderBy(desc(bets.updatedAt))
 			.limit(3),
 		db
@@ -347,7 +374,8 @@ export async function getLinkTargets(db: Database, filter: { query: string; vent
 
 	return [
 		...work.map(({ depth, ...row }) => ({ type: "work_item" as const, ...row, detail: workKinds[depth] ?? "Work" })),
-		...goalRows.map((row) => ({ type: "goal" as const, ...row, detail: "Goal" })),
+		...objectiveRows.map((row) => ({ type: "objective" as const, ...row, detail: "Objective" })),
+		...assumptionRows.map((row) => ({ type: "assumption" as const, ...row, detail: "Assumption" })),
 		...betRows.map((row) => ({ type: "bet" as const, ...row, detail: "Bet" })),
 		...ventureRows.map((row) => ({ type: "venture" as const, ...row, detail: "Venture" })),
 	] satisfies LinkTarget[];

@@ -3,13 +3,13 @@ import type { CommandName, capabilities } from "./commands.ts";
 export type Capability = (typeof capabilities)[number];
 
 export const capabilityCommands = {
-	work: ["work.create", "work.update", "work.set_status", "work.move"],
+	work: ["work.create", "work.update", "work.set_status", "work.move", "reading.record", "objective.check"],
 	links: ["thread.link", "thread.unlink"],
 	propose: ["proposal.create"],
 } as const satisfies Record<Capability, readonly CommandName[]>;
 
 export const capabilityLabels = {
-	work: "Work items",
+	work: "Work and readings",
 	links: "Thread links",
 	propose: "Proposals",
 } as const satisfies Record<Capability, string>;
@@ -39,6 +39,8 @@ const attemptVerbs: Partial<Record<CommandName, string>> = {
 	"work.update": "edit work item",
 	"work.set_status": "set the status of work item",
 	"work.move": "move work item",
+	"reading.record": "record a reading",
+	"objective.check": "tick the done list",
 	"thread.link": "link this thread",
 	"thread.unlink": "unlink this thread",
 	"proposal.create": "propose",
@@ -54,6 +56,7 @@ export function attemptSummary(command: string, payload: Record<string, unknown>
 	const detail =
 		quoted(payload.title) ??
 		(typeof payload.status === "string" ? `to ${payload.status}` : null) ??
+		(typeof payload.value === "number" ? `of ${payload.value}` : null) ??
 		(typeof payload.link === "object" && payload.link !== null && "type" in payload.link
 			? `to a ${String(payload.link.type).replace("_", " ")}`
 			: null);

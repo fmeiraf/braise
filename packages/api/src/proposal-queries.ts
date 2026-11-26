@@ -2,7 +2,7 @@ import type { Inbox, InboxProposal, Proposal, ProposalChange, ProposalDetail } f
 import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import { accessInbox } from "./access-queries.ts";
 import type { Database } from "./db/client.ts";
-import { bets, goals, proposals, strategyVersions, threads, ventures } from "./db/schema.ts";
+import { assumptions, bets, objectives, proposals, strategyVersions, threads, ventures } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 import { staleness } from "./proposal-handlers.ts";
 
@@ -96,35 +96,43 @@ async function currentValues(db: Database, ventureId: string, change: ProposalCh
 
 			return strategy ?? null;
 		}
+		case "objective.update":
+		case "objective.close": {
+			const objectiveId = change.payload.objectiveId;
+
+			if (typeof objectiveId !== "string") return null;
+
+			const [objective] = await db
+				.select()
+				.from(objectives)
+				.where(and(eq(objectives.id, objectiveId), eq(objectives.ventureId, ventureId)));
+
+			return objective ?? null;
+		}
+		case "assumption.update": {
+			const assumptionId = change.payload.assumptionId;
+
+			if (typeof assumptionId !== "string") return null;
+
+			const [assumption] = await db
+				.select()
+				.from(assumptions)
+				.where(and(eq(assumptions.id, assumptionId), eq(assumptions.ventureId, ventureId)));
+
+			return assumption ?? null;
+		}
 		case "bet.update":
-		case "bet.set_status": {
+		case "bet.close": {
 			const betId = change.payload.betId;
 
 			if (typeof betId !== "string") return null;
 
 			const [bet] = await db
-				.select({
-					hypothesis: bets.hypothesis,
-					action: bets.action,
-					killCriteria: bets.killCriteria,
-					status: bets.status,
-				})
+				.select()
 				.from(bets)
 				.where(and(eq(bets.id, betId), eq(bets.ventureId, ventureId)));
 
 			return bet ?? null;
-		}
-		case "goal.update": {
-			const goalId = change.payload.goalId;
-
-			if (typeof goalId !== "string") return null;
-
-			const [goal] = await db
-				.select({ outcome: goals.outcome, signal: goals.signal, horizon: goals.horizon, betId: goals.betId })
-				.from(goals)
-				.where(and(eq(goals.id, goalId), eq(goals.ventureId, ventureId)));
-
-			return goal ?? null;
 		}
 		default:
 			return null;
@@ -147,7 +155,7 @@ export async function getProposal(db: Database, proposalId: string) {
 
 	const pending = row.proposal.status === "pending";
 
-	const [changes, betRows] = await Promise.all([
+	const [changes, objectiveRows, assumptionRows, betRows] = await Promise.all([
 		Promise.all(
 			row.proposal.changes.map(async (change) => ({
 				...change,
@@ -156,7 +164,33 @@ export async function getProposal(db: Database, proposalId: string) {
 			})),
 		),
 		db
-			.select({ id: bets.id, hypothesis: bets.hypothesis, status: bets.status })
+			.select({
+				id: objectives.id,
+				statement: objectives.statement,
+				kind: objectives.kind,
+				status: objectives.status,
+			})
+			.from(objectives)
+			.where(eq(objectives.ventureId, row.venture.id))
+			.orderBy(asc(objectives.createdAt)),
+		db
+			.select({
+				id: assumptions.id,
+				statement: assumptions.statement,
+				confidence: assumptions.confidence,
+				objectiveId: assumptions.objectiveId,
+			})
+			.from(assumptions)
+			.where(eq(assumptions.ventureId, row.venture.id))
+			.orderBy(asc(assumptions.createdAt)),
+		db
+			.select({
+				id: bets.id,
+				action: bets.action,
+				status: bets.status,
+				assumptionId: bets.assumptionId,
+				method: bets.method,
+			})
 			.from(bets)
 			.where(eq(bets.ventureId, row.venture.id))
 			.orderBy(asc(bets.createdAt)),
@@ -171,6 +205,8 @@ export async function getProposal(db: Database, proposalId: string) {
 			ventureSlug: row.thread.ventureId === null ? null : row.venture.slug,
 		},
 		changes,
+		objectives: objectiveRows,
+		assumptions: assumptionRows,
 		bets: betRows,
 	} satisfies ProposalDetail;
 }

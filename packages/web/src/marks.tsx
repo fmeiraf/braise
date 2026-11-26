@@ -1,4 +1,4 @@
-import type { AgentOverview, BetStatus, WorkFunction, WorkPriority, WorkStatus } from "@braise/core";
+import type { AgentOverview, WorkFunction, WorkPriority, WorkStatus } from "@braise/core";
 import { type CSSProperties, useEffect, useState } from "react";
 
 const paths = {
@@ -142,17 +142,17 @@ export function You({ size = 16 }: { size?: number }) {
 	);
 }
 
-/** The status diamond for work (`todo`, `doing`, `done`) and bets (`open`, `won`, `lost`, `killed`). */
-export function Dia({ status }: { status: WorkStatus | BetStatus }) {
+export type DiaStatus = WorkStatus | "open" | "won" | "lost";
+
+/** The status diamond for work (`todo`, `doing`, `done`), an open bet, and outcomes (`won`, `lost`). */
+export function Dia({ status }: { status: DiaStatus }) {
 	return (
 		<svg className={`dia ${status}`} width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
 			<path d="M6 1l5 5-5 5-5-5z" />
 			{status === "doing" ? <path className="h" d="M6 1l-5 5 5 5z" /> : null}
 			{status === "open" ? <path className="h" d="M6 4.3l1.7 1.7-1.7 1.7-1.7-1.7z" /> : null}
 			{status === "done" || status === "won" ? <path className="c" d="M3.7 6.1l1.6 1.6 3-3.1" /> : null}
-			{status === "lost" || status === "killed" ? (
-				<path className="x" d="M4.3 4.3l3.4 3.4 M7.7 4.3l-3.4 3.4" />
-			) : null}
+			{status === "lost" ? <path className="x" d="M4.3 4.3l3.4 3.4 M7.7 4.3l-3.4 3.4" /> : null}
 		</svg>
 	);
 }

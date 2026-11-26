@@ -1,9 +1,30 @@
-import { type FieldChanges, maxWorkDepth, slugify } from "@braise/core";
-import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import {
+	betLockedFields,
+	type CommandPayload,
+	confidenceRange,
+	type DoneItem,
+	defaultConfidence,
+	type FieldChanges,
+	judgeReading,
+	maxClimbingObjectives,
+	maxWorkDepth,
+	slugify,
+	workHomeKey,
+} from "@braise/core";
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { accessHandlers } from "./access-handlers.ts";
 import type { Transaction } from "./db/client.ts";
-import { bets, goals, strategyVersions, ventures, workItems } from "./db/schema.ts";
+import {
+	assumptions,
+	bets,
+	learnings,
+	objectives,
+	readings,
+	strategyVersions,
+	ventures,
+	workItems,
+} from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 import type { HandlerContext, Handlers, VentureRow } from "./pipeline.ts";
 import { proposalHandlers } from "./proposal-handlers.ts";
@@ -44,6 +65,89 @@ async function activeStrategy(tx: Transaction, ventureId: string) {
 	return strategy;
 }
 
+type ObjectiveRow = typeof objectives.$inferSelect;
+
+type WorkItemRow = typeof workItems.$inferSelect;
+
+interface Home {
+	betId: string | null;
+	objectiveId: string | null;
+}
+
+async function liveObjective(tx: Transaction, venture: VentureRow, objectiveId: string) {
+	const [objective] = await tx
+		.select()
+		.from(objectives)
+		.where(and(eq(objectives.id, objectiveId), eq(objectives.ventureId, venture.id)));
+
+	if (objective === undefined) throw new AppError("not_found", "Objective not found", { objectiveId });
+
+	if (objective.archivedAt !== null) {
+		throw new AppError("rule_violated", "The objective is archived", { rule: "objective_archived", objectiveId });
+	}
+
+	return objective;
+}
+
+async function activeObjective(tx: Transaction, venture: VentureRow, objectiveId: string) {
+	const objective = await liveObjective(tx, venture, objectiveId);
+
+	if (objective.status !== "active") {
+		throw new AppError("rule_violated", "The objective is closed", {
+			rule: "objective_closed",
+			objectiveId,
+			status: objective.status,
+		});
+	}
+
+	return objective;
+}
+
+async function climbingObjective(tx: Transaction, venture: VentureRow, objectiveId: string) {
+	const objective = await activeObjective(tx, venture, objectiveId);
+
+	if (objective.kind === "build") {
+		throw new AppError("rule_violated", "A build objective has no assumptions; note a hunch for later instead", {
+			rule: "objective_not_climbing",
+			objectiveId,
+		});
+	}
+
+	return objective;
+}
+
+async function liveAssumption(tx: Transaction, venture: VentureRow, assumptionId: string) {
+	const [assumption] = await tx
+		.select()
+		.from(assumptions)
+		.where(and(eq(assumptions.id, assumptionId), eq(assumptions.ventureId, venture.id)));
+
+	if (assumption === undefined) throw new AppError("not_found", "Assumption not found", { assumptionId });
+
+	if (assumption.archivedAt !== null) {
+		throw new AppError("rule_violated", "The assumption is archived", { rule: "assumption_archived", assumptionId });
+	}
+
+	return assumption;
+}
+
+async function hasOpenBets(tx: Transaction, assumptionId: string) {
+	const [open] = await tx
+		.select({ id: bets.id })
+		.from(bets)
+		.where(and(eq(bets.assumptionId, assumptionId), eq(bets.status, "open"), isNull(bets.archivedAt)))
+		.limit(1);
+
+	return open !== undefined;
+}
+
+function assumptionBusy(assumptionId: string) {
+	return new AppError("rule_violated", "Close this assumption's open bets first", {
+		rule: "assumption_has_open_bets",
+		assumptionId,
+	});
+}
+
 async function liveBet(tx: Transaction, venture: VentureRow, betId: string) {
 	const [bet] = await tx
 		.select()
@@ -58,53 +162,99 @@ async function liveBet(tx: Transaction, venture: VentureRow, betId: string) {
 	return bet;
 }
 
-async function linkableBet(tx: Transaction, venture: VentureRow, betId: string) {
-	const [bet] = await tx.select().from(bets).where(eq(bets.id, betId));
+async function openBet(tx: Transaction, venture: VentureRow, betId: string) {
+	const bet = await liveBet(tx, venture, betId);
 
-	if (bet === undefined || bet.ventureId !== venture.id || bet.archivedAt !== null) {
-		throw new AppError("rule_violated", "A goal can only test a live bet of the same venture", {
-			rule: "bet_not_in_venture",
-			betId,
-		});
+	if (bet.status !== "open") {
+		throw new AppError("rule_violated", "The bet is closed", { rule: "bet_not_open", betId });
 	}
 
 	return bet;
 }
 
-async function liveGoal(tx: Transaction, venture: VentureRow, goalId: string) {
-	const [goal] = await tx
+async function latestReading(tx: Transaction, subject: { type: "objective" | "bet"; id: string }) {
+	const [reading] = await tx
 		.select()
-		.from(goals)
-		.where(and(eq(goals.id, goalId), eq(goals.ventureId, venture.id)));
+		.from(readings)
+		.where(and(eq(readings.subjectType, subject.type), eq(readings.subjectId, subject.id)))
+		.orderBy(desc(readings.takenOn), desc(readings.createdAt))
+		.limit(1);
 
-	if (goal === undefined) throw new AppError("not_found", "Goal not found", { goalId });
-
-	if (goal.archivedAt !== null) {
-		throw new AppError("rule_violated", "The goal is archived", { rule: "goal_archived", goalId });
-	}
-
-	return goal;
+	return reading ?? null;
 }
 
-type WorkItemRow = typeof workItems.$inferSelect;
+const kindFields = {
+	metric: ["measure", "unit", "baseline", "target"],
+	learning: ["decision", "doneRule"],
+	build: ["doneList"],
+} as const;
 
-async function linkableGoal(tx: Transaction, venture: VentureRow, goalId: string) {
-	const [goal] = await tx.select().from(goals).where(eq(goals.id, goalId));
+function assertFieldsFitKind(objective: ObjectiveRow, payload: Record<string, unknown>) {
+	const foreign = Object.entries(kindFields)
+		.filter(([kind]) => kind !== objective.kind)
+		.flatMap(([, fields]) => fields)
+		.filter((field) => payload[field] !== undefined);
 
-	if (goal === undefined || goal.ventureId !== venture.id || goal.archivedAt !== null) {
-		throw new AppError("rule_violated", "Work can only hang off a live goal of the same venture", {
-			rule: "goal_not_in_venture",
-			goalId,
+	if (foreign.length > 0) {
+		throw new AppError("rule_violated", `A ${objective.kind} objective has no ${foreign.join(", ")}`, {
+			rule: "field_not_for_kind",
+			kind: objective.kind,
+			fields: foreign,
+		});
+	}
+}
+
+function nextDoneList(current: DoneItem[], items: { id?: string | undefined; text: string }[]) {
+	return items.map((item) => {
+		if (item.id === undefined) return { id: uuidv7(), text: item.text, done: false } satisfies DoneItem;
+
+		const kept = current.find((existing) => existing.id === item.id);
+
+		if (kept === undefined) {
+			throw new AppError("rule_violated", "A done-list item to keep is not on the list", {
+				rule: "done_item_unknown",
+				itemId: item.id,
+			});
+		}
+
+		return { ...kept, text: item.text } satisfies DoneItem;
+	});
+}
+
+async function homeFor(tx: Transaction, venture: VentureRow, home: CommandPayload<"work.create">["home"]) {
+	if (home === undefined) throw new AppError("internal_error", "Initiative without a home passed validation");
+
+	if (home.type === "upkeep") return { betId: null, objectiveId: null } satisfies Home;
+
+	if (home.type === "bet") {
+		const [bet] = await tx.select().from(bets).where(eq(bets.id, home.id));
+
+		if (bet === undefined || bet.ventureId !== venture.id || bet.archivedAt !== null || bet.status !== "open") {
+			throw new AppError("rule_violated", "Work can only hang off an open bet of the same venture", {
+				rule: "home_not_available",
+				home,
+			});
+		}
+
+		return { betId: bet.id, objectiveId: null } satisfies Home;
+	}
+
+	const [objective] = await tx.select().from(objectives).where(eq(objectives.id, home.id));
+
+	if (
+		objective === undefined ||
+		objective.ventureId !== venture.id ||
+		objective.archivedAt !== null ||
+		objective.status !== "active" ||
+		objective.kind !== "build"
+	) {
+		throw new AppError("rule_violated", "Work can only hang off an active build objective of the same venture", {
+			rule: "home_not_available",
+			home,
 		});
 	}
 
-	return goal;
-}
-
-function rootGoal(tx: Transaction, venture: VentureRow, goalId: string | undefined) {
-	if (goalId === undefined) throw new AppError("internal_error", "Initiative without a goal passed validation");
-
-	return linkableGoal(tx, venture, goalId);
+	return { betId: null, objectiveId: objective.id } satisfies Home;
 }
 
 function workArchived(workItemId: string) {
@@ -146,10 +296,17 @@ async function parentFor(tx: Transaction, venture: VentureRow, parentId: string)
 	return parent;
 }
 
-function siblingIds(tx: Transaction, place: { goalId: string; parentId: string | null }) {
+function siblingIds(tx: Transaction, place: Home & { ventureId: string; parentId: string | null }) {
 	const group =
 		place.parentId === null
-			? and(eq(workItems.goalId, place.goalId), isNull(workItems.parentId))
+			? and(
+					eq(workItems.ventureId, place.ventureId),
+					place.betId === null ? isNull(workItems.betId) : eq(workItems.betId, place.betId),
+					place.objectiveId === null
+						? isNull(workItems.objectiveId)
+						: eq(workItems.objectiveId, place.objectiveId),
+					isNull(workItems.parentId),
+				)
 			: eq(workItems.parentId, place.parentId);
 
 	return tx
@@ -309,21 +466,384 @@ const domainHandlers = {
 		};
 	},
 
-	"bet.create": async (context, payload) => {
+	"objective.create": async (context, payload) => {
 		const venture = requireVenture(context);
 
-		const strategy = await activeStrategy(context.tx, venture.id);
+		if (payload.kind !== "build") {
+			const climbing = await context.tx
+				.select({ id: objectives.id })
+				.from(objectives)
+				.where(
+					and(
+						eq(objectives.ventureId, venture.id),
+						eq(objectives.status, "active"),
+						ne(objectives.kind, "build"),
+						isNull(objectives.archivedAt),
+					),
+				);
 
-		const [bet] = await context.tx
-			.insert(bets)
+			if (climbing.length >= maxClimbingObjectives) {
+				throw new AppError(
+					"rule_violated",
+					`A venture climbs at most ${maxClimbingObjectives} metric or learning objectives at once; close one first`,
+					{ rule: "objective_limit", limit: maxClimbingObjectives },
+				);
+			}
+		}
+
+		const { ventureId: _ventureId, ...fields } = payload;
+
+		const [objective] = await context.tx
+			.insert(objectives)
 			.values({
 				id: uuidv7(),
 				ventureId: venture.id,
-				hypothesis: payload.hypothesis,
-				action: payload.action,
-				killCriteria: payload.killCriteria,
-				introducedIn: strategy.id,
+				...fields,
+				doneList:
+					payload.kind === "build"
+						? payload.doneList.map((item) => ({ id: uuidv7(), text: item, done: false }))
+						: [],
 			})
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: objective,
+			events: [
+				{
+					type: "objective.created",
+					subject: `objective:${objective?.id}`,
+					payload: { statement: payload.statement, kind: payload.kind },
+				},
+			],
+		};
+	},
+
+	"objective.update": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const objective = await activeObjective(context.tx, venture, payload.objectiveId);
+
+		const { ventureId: _ventureId, objectiveId: _objectiveId, doneList: items, ...fields } = payload;
+
+		assertFieldsFitKind(objective, payload);
+
+		if (payload.byDate === null && objective.kind !== "learning") {
+			throw new AppError("rule_violated", `A ${objective.kind} objective needs a date`, {
+				rule: "by_date_required",
+				field: "byDate",
+			});
+		}
+
+		if (
+			(payload.baseline ?? objective.baseline) === (payload.target ?? objective.target) &&
+			objective.kind === "metric"
+		) {
+			throw new AppError("rule_violated", "The target must differ from the baseline", {
+				rule: "target_equals_baseline",
+				field: "target",
+			});
+		}
+
+		const doneList = items === undefined ? undefined : nextDoneList(objective.doneList, items);
+		const changes = changesBetween(objective, fields);
+
+		if (doneList !== undefined && JSON.stringify(doneList) !== JSON.stringify(objective.doneList)) {
+			changes.doneList = { from: objective.doneList, to: doneList };
+		}
+
+		if (!hasChanges(changes)) throw noChanges();
+
+		const [updated] = await context.tx
+			.update(objectives)
+			.set({ ...fields, doneList, updatedAt: sql`now()` })
+			.where(eq(objectives.id, objective.id))
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: updated,
+			events: [
+				{
+					type: "objective.updated",
+					subject: `objective:${objective.id}`,
+					payload: { statement: objective.statement, changes },
+				},
+			],
+		};
+	},
+
+	"objective.check": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const objective = await activeObjective(context.tx, venture, payload.objectiveId);
+
+		const item = objective.doneList.find((candidate) => candidate.id === payload.itemId);
+
+		if (item === undefined) throw new AppError("not_found", "Done-list item not found", { itemId: payload.itemId });
+
+		if (item.done === payload.done) throw noChanges();
+
+		const [updated] = await context.tx
+			.update(objectives)
+			.set({
+				doneList: objective.doneList.map((candidate) =>
+					candidate.id === item.id ? { ...candidate, done: payload.done } : candidate,
+				),
+				updatedAt: sql`now()`,
+			})
+			.where(eq(objectives.id, objective.id))
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: updated,
+			events: [
+				{
+					type: "objective.done_checked",
+					subject: `objective:${objective.id}`,
+					payload: { statement: objective.statement, item: item.text, done: payload.done },
+				},
+			],
+		};
+	},
+
+	"objective.close": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const objective = await activeObjective(context.tx, venture, payload.objectiveId);
+
+		const [openBetUnder] = await context.tx
+			.select({ id: bets.id })
+			.from(bets)
+			.innerJoin(assumptions, eq(assumptions.id, bets.assumptionId))
+			.where(and(eq(assumptions.objectiveId, objective.id), eq(bets.status, "open"), isNull(bets.archivedAt)))
+			.limit(1);
+
+		if (openBetUnder !== undefined) {
+			throw new AppError("rule_violated", "Close this objective's open bets first, so each leaves a learning", {
+				rule: "objective_has_open_bets",
+				objectiveId: objective.id,
+			});
+		}
+
+		const [closed] = await context.tx
+			.update(objectives)
+			.set({ status: payload.status, closedAt: sql`now()`, updatedAt: sql`now()` })
+			.where(eq(objectives.id, objective.id))
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: closed,
+			events: [
+				{
+					type: "objective.closed",
+					subject: `objective:${objective.id}`,
+					payload: {
+						statement: objective.statement,
+						changes: { status: { from: objective.status, to: payload.status } },
+					},
+				},
+			],
+		};
+	},
+
+	"objective.archive": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const objective = await liveObjective(context.tx, venture, payload.objectiveId);
+
+		const [[liveWork], [liveAssumptionUnder]] = await Promise.all([
+			context.tx
+				.select({ id: workItems.id })
+				.from(workItems)
+				.where(and(eq(workItems.objectiveId, objective.id), isNull(workItems.archivedAt)))
+				.limit(1),
+			context.tx
+				.select({ id: assumptions.id })
+				.from(assumptions)
+				.where(and(eq(assumptions.objectiveId, objective.id), isNull(assumptions.archivedAt)))
+				.limit(1),
+		]);
+
+		if (liveWork !== undefined) {
+			throw new AppError("rule_violated", "Archive or move this objective's work first", {
+				rule: "objective_has_work",
+				objectiveId: objective.id,
+			});
+		}
+
+		if (liveAssumptionUnder !== undefined) {
+			throw new AppError("rule_violated", "Archive or move this objective's assumptions first", {
+				rule: "objective_has_assumptions",
+				objectiveId: objective.id,
+			});
+		}
+
+		const [archived] = await context.tx
+			.update(objectives)
+			.set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+			.where(eq(objectives.id, objective.id))
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: archived,
+			events: [
+				{
+					type: "objective.archived",
+					subject: `objective:${objective.id}`,
+					payload: { statement: objective.statement },
+				},
+			],
+		};
+	},
+
+	"assumption.create": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		if (payload.objectiveId !== null) await climbingObjective(context.tx, venture, payload.objectiveId);
+
+		const [assumption] = await context.tx
+			.insert(assumptions)
+			.values({
+				id: uuidv7(),
+				ventureId: venture.id,
+				objectiveId: payload.objectiveId,
+				statement: payload.statement,
+				impact: payload.impact,
+				confidence: payload.confidence,
+				function: payload.function,
+				createdBy: context.actor,
+			})
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: assumption,
+			events: [
+				{
+					type: "assumption.created",
+					subject: `assumption:${assumption?.id}`,
+					payload: { statement: payload.statement, objectiveId: payload.objectiveId },
+				},
+			],
+		};
+	},
+
+	"assumption.update": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const assumption = await liveAssumption(context.tx, venture, payload.assumptionId);
+
+		const next = {
+			objectiveId: payload.objectiveId,
+			statement: payload.statement,
+			impact: payload.impact,
+			function: payload.function,
+			status: payload.status,
+		};
+
+		const changes = changesBetween(assumption, next);
+
+		if (!hasChanges(changes)) throw noChanges();
+
+		if (changes.objectiveId !== undefined || (changes.status !== undefined && payload.status !== "open")) {
+			if (await hasOpenBets(context.tx, assumption.id)) throw assumptionBusy(assumption.id);
+		}
+
+		if (changes.objectiveId !== undefined && payload.objectiveId !== null && payload.objectiveId !== undefined) {
+			await climbingObjective(context.tx, venture, payload.objectiveId);
+		}
+
+		const [updated] = await context.tx
+			.update(assumptions)
+			.set({ ...next, updatedAt: sql`now()` })
+			.where(eq(assumptions.id, assumption.id))
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: updated,
+			events: [
+				{
+					type: "assumption.updated",
+					subject: `assumption:${assumption.id}`,
+					payload: { statement: assumption.statement, changes },
+				},
+			],
+		};
+	},
+
+	"assumption.archive": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const assumption = await liveAssumption(context.tx, venture, payload.assumptionId);
+
+		const [liveBetUnder] = await context.tx
+			.select({ id: bets.id })
+			.from(bets)
+			.where(and(eq(bets.assumptionId, assumption.id), isNull(bets.archivedAt)))
+			.limit(1);
+
+		if (liveBetUnder !== undefined) {
+			throw new AppError("rule_violated", "This assumption has bets; drop it instead, so their learnings stay", {
+				rule: "assumption_has_bets",
+				assumptionId: assumption.id,
+			});
+		}
+
+		const [archived] = await context.tx
+			.update(assumptions)
+			.set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+			.where(eq(assumptions.id, assumption.id))
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: archived,
+			events: [
+				{
+					type: "assumption.archived",
+					subject: `assumption:${assumption.id}`,
+					payload: { statement: assumption.statement },
+				},
+			],
+		};
+	},
+
+	"bet.create": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const assumption = await liveAssumption(context.tx, venture, payload.assumptionId);
+
+		if (assumption.status !== "open") {
+			throw new AppError("rule_violated", "A bet tests an open assumption", {
+				rule: "assumption_not_open",
+				assumptionId: assumption.id,
+				status: assumption.status,
+			});
+		}
+
+		if (assumption.objectiveId === null) {
+			throw new AppError(
+				"rule_violated",
+				"Attach the assumption to a metric or learning objective before betting on it",
+				{
+					rule: "assumption_not_attached",
+					assumptionId: assumption.id,
+				},
+			);
+		}
+
+		await climbingObjective(context.tx, venture, assumption.objectiveId);
+
+		const { ventureId: _ventureId, ...fields } = payload;
+
+		const [bet] = await context.tx
+			.insert(bets)
+			.values({ id: uuidv7(), ventureId: venture.id, ...fields })
 			.returning();
 
 		return {
@@ -333,7 +853,7 @@ const domainHandlers = {
 				{
 					type: "bet.created",
 					subject: `bet:${bet?.id}`,
-					payload: { hypothesis: payload.hypothesis, strategyVersion: strategy.version },
+					payload: { action: payload.action, assumptionId: assumption.id, assumption: assumption.statement },
 				},
 			],
 		};
@@ -342,31 +862,150 @@ const domainHandlers = {
 	"bet.update": async (context, payload) => {
 		const venture = requireVenture(context);
 
-		const bet = await liveBet(context.tx, venture, payload.betId);
+		const bet = await openBet(context.tx, venture, payload.betId);
 
-		const changes = changesBetween(bet, {
-			hypothesis: payload.hypothesis,
-			action: payload.action,
-			killCriteria: payload.killCriteria,
-		});
+		const { ventureId: _ventureId, betId: _betId, ...fields } = payload;
+		const changes = changesBetween(bet, fields);
 
 		if (!hasChanges(changes)) throw noChanges();
 
+		const locked = betLockedFields.filter((field) => changes[field] !== undefined);
+
+		if (locked.length > 0 && context.reason === null) {
+			throw new AppError(
+				"rule_violated",
+				"Say why the test changes; its marks were fixed when the bet was registered",
+				{
+					rule: "reason_required",
+					field: "reason",
+					fields: locked,
+				},
+			);
+		}
+
+		if ((payload.passAt ?? bet.passAt) === (payload.failAt ?? bet.failAt)) {
+			throw new AppError("rule_violated", "The pass and fail marks must differ", {
+				rule: "marks_equal",
+				field: "failAt",
+			});
+		}
+
 		const [updated] = await context.tx
 			.update(bets)
-			.set({
-				hypothesis: payload.hypothesis,
-				action: payload.action,
-				killCriteria: payload.killCriteria,
-				updatedAt: sql`now()`,
-			})
+			.set({ ...fields, updatedAt: sql`now()` })
 			.where(eq(bets.id, bet.id))
 			.returning();
 
 		return {
 			ventureId: venture.id,
 			result: updated,
-			events: [{ type: "bet.updated", subject: `bet:${bet.id}`, payload: { hypothesis: bet.hypothesis, changes } }],
+			events: [{ type: "bet.updated", subject: `bet:${bet.id}`, payload: { action: bet.action, changes } }],
+		};
+	},
+
+	"bet.close": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const bet = await openBet(context.tx, venture, payload.betId);
+
+		const assumption = await liveAssumption(context.tx, venture, bet.assumptionId);
+
+		const reading = await latestReading(context.tx, { type: "bet", id: bet.id });
+
+		const judged = reading === null ? null : judgeReading(bet, reading.value);
+
+		if (payload.result === "pass" && judged !== "pass") {
+			throw new AppError("rule_violated", "The latest reading doesn't reach the pass mark", {
+				rule: "bet_not_passed",
+				reading: reading?.value ?? null,
+				passAt: bet.passAt,
+			});
+		}
+
+		if (payload.result === "fail" && payload.cause === "idea" && judged !== "fail") {
+			throw new AppError(
+				"rule_violated",
+				"The latest reading isn't past the fail mark, so the idea isn't refuted; close as inconclusive or as failed on execution",
+				{ rule: "bet_not_failed", reading: reading?.value ?? null, failAt: bet.failAt },
+			);
+		}
+
+		const verdict = {
+			result: payload.result,
+			cause: payload.cause,
+			method: bet.method,
+			current: assumption.confidence,
+		};
+
+		const range = confidenceRange(verdict);
+		const confidenceTo = payload.confidenceTo ?? defaultConfidence(verdict);
+
+		if (confidenceTo < range.min || confidenceTo > range.max) {
+			throw new AppError(
+				"rule_violated",
+				range.min === range.max
+					? `This result leaves confidence at ${range.min}`
+					: `This result can put confidence between ${range.min} and ${range.max}`,
+				{ rule: "confidence_out_of_range", field: "confidenceTo", ...range },
+			);
+		}
+
+		const [closed] = await context.tx
+			.update(bets)
+			.set({ status: "closed", closedAt: sql`now()`, updatedAt: sql`now()` })
+			.where(eq(bets.id, bet.id))
+			.returning();
+
+		const [learning] = await context.tx
+			.insert(learnings)
+			.values({
+				id: uuidv7(),
+				ventureId: venture.id,
+				betId: bet.id,
+				assumptionId: assumption.id,
+				result: payload.result,
+				cause: payload.cause ?? null,
+				statement: payload.statement,
+				value: reading?.value ?? null,
+				confidenceFrom: assumption.confidence,
+				confidenceTo,
+				function: bet.function,
+				createdBy: context.actor,
+			})
+			.returning();
+
+		const refuted = confidenceTo === 0 && assumption.status === "open";
+
+		const [updatedAssumption] =
+			confidenceTo === assumption.confidence && !refuted
+				? [assumption]
+				: await context.tx
+						.update(assumptions)
+						.set({
+							confidence: confidenceTo,
+							status: refuted ? "false" : assumption.status,
+							updatedAt: sql`now()`,
+						})
+						.where(eq(assumptions.id, assumption.id))
+						.returning();
+
+		return {
+			ventureId: venture.id,
+			result: { bet: closed, learning, assumption: updatedAssumption },
+			events: [
+				{
+					type: "bet.closed",
+					subject: `bet:${bet.id}`,
+					payload: {
+						action: bet.action,
+						result: payload.result,
+						cause: payload.cause ?? null,
+						learning: payload.statement,
+						assumptionId: assumption.id,
+						confidence: { from: assumption.confidence, to: confidenceTo },
+					},
+				},
+			],
 		};
 	},
 
@@ -375,15 +1014,15 @@ const domainHandlers = {
 
 		const bet = await liveBet(context.tx, venture, payload.betId);
 
-		const [liveGoalOfBet] = await context.tx
-			.select({ id: goals.id })
-			.from(goals)
-			.where(and(eq(goals.betId, bet.id), isNull(goals.archivedAt)))
+		const [liveWork] = await context.tx
+			.select({ id: workItems.id })
+			.from(workItems)
+			.where(and(eq(workItems.betId, bet.id), isNull(workItems.archivedAt)))
 			.limit(1);
 
-		if (liveGoalOfBet !== undefined) {
-			throw new AppError("rule_violated", "Archive or move this bet's goals first", {
-				rule: "bet_has_goals",
+		if (liveWork !== undefined) {
+			throw new AppError("rule_violated", "Archive or move this bet's work first", {
+				rule: "bet_has_work",
 				betId: bet.id,
 			});
 		}
@@ -397,143 +1036,62 @@ const domainHandlers = {
 		return {
 			ventureId: venture.id,
 			result: archived,
-			events: [{ type: "bet.archived", subject: `bet:${bet.id}`, payload: { hypothesis: bet.hypothesis } }],
+			events: [{ type: "bet.archived", subject: `bet:${bet.id}`, payload: { action: bet.action } }],
 		};
 	},
 
-	"bet.set_status": async (context, payload) => {
+	"reading.record": async (context, payload) => {
 		const venture = requireVenture(context);
 
-		const bet = await liveBet(context.tx, venture, payload.betId);
+		const { subject } = payload;
+		let label: string;
+		let unit: string;
 
-		if (bet.status !== "open") {
-			throw new AppError("rule_violated", "Only an open bet can be settled", {
-				rule: "bet_not_open",
-				status: bet.status,
-			});
+		if (subject.type === "objective") {
+			const objective = await activeObjective(context.tx, venture, subject.id);
+
+			if (objective.kind !== "metric") {
+				throw new AppError("rule_violated", "Only a metric objective takes readings", {
+					rule: "reading_needs_metric",
+					objectiveId: objective.id,
+				});
+			}
+
+			label = objective.measure ?? objective.statement;
+
+			unit = objective.unit;
+		} else {
+			const bet = await openBet(context.tx, venture, subject.id);
+
+			label = bet.signal;
+
+			unit = bet.unit;
 		}
 
-		const [updated] = await context.tx
-			.update(bets)
-			.set({ status: payload.status, updatedAt: sql`now()` })
-			.where(eq(bets.id, bet.id))
-			.returning();
-
-		const archivedGoals = payload.archiveGoals
-			? await context.tx
-					.update(goals)
-					.set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
-					.where(and(eq(goals.betId, bet.id), isNull(goals.archivedAt)))
-					.returning()
-			: [];
-
-		return {
-			ventureId: venture.id,
-			result: { bet: updated, archivedGoals },
-			events: [
-				{
-					type: "bet.status_set",
-					subject: `bet:${bet.id}`,
-					payload: { hypothesis: bet.hypothesis, changes: { status: { from: bet.status, to: payload.status } } },
-				},
-				...archivedGoals.map((goal) => ({
-					type: "goal.archived",
-					subject: `goal:${goal.id}`,
-					payload: { outcome: goal.outcome },
-				})),
-			],
-		};
-	},
-
-	"goal.create": async (context, payload) => {
-		const venture = requireVenture(context);
-
-		if (payload.betId !== null) await linkableBet(context.tx, venture, payload.betId);
-
-		const [goal] = await context.tx
-			.insert(goals)
+		const [reading] = await context.tx
+			.insert(readings)
 			.values({
 				id: uuidv7(),
 				ventureId: venture.id,
-				betId: payload.betId,
-				outcome: payload.outcome,
-				signal: payload.signal,
-				horizon: payload.horizon,
+				subjectType: subject.type,
+				subjectId: subject.id,
+				value: payload.value,
+				takenOn: payload.takenOn,
+				source: payload.source,
+				enteredBy: context.actor,
 			})
 			.returning();
 
 		return {
 			ventureId: venture.id,
-			result: goal,
+			result: reading,
 			events: [
 				{
-					type: "goal.created",
-					subject: `goal:${goal?.id}`,
-					payload: { outcome: payload.outcome, betId: payload.betId },
+					type: "reading.recorded",
+					subject: `${subject.type}:${subject.id}`,
+					payload: { label, value: payload.value, unit, takenOn: payload.takenOn, subjectType: subject.type },
 				},
 			],
-		};
-	},
-
-	"goal.update": async (context, payload) => {
-		const venture = requireVenture(context);
-
-		const goal = await liveGoal(context.tx, venture, payload.goalId);
-
-		if (payload.betId !== undefined && payload.betId !== null) await linkableBet(context.tx, venture, payload.betId);
-
-		const next = {
-			betId: payload.betId,
-			outcome: payload.outcome,
-			signal: payload.signal,
-			horizon: payload.horizon,
-		};
-
-		const changes = changesBetween(goal, next);
-
-		if (!hasChanges(changes)) throw noChanges();
-
-		const [updated] = await context.tx
-			.update(goals)
-			.set({ ...next, updatedAt: sql`now()` })
-			.where(eq(goals.id, goal.id))
-			.returning();
-
-		return {
-			ventureId: venture.id,
-			result: updated,
-			events: [{ type: "goal.updated", subject: `goal:${goal.id}`, payload: { outcome: goal.outcome, changes } }],
-		};
-	},
-
-	"goal.archive": async (context, payload) => {
-		const venture = requireVenture(context);
-
-		const goal = await liveGoal(context.tx, venture, payload.goalId);
-
-		const [liveWorkOfGoal] = await context.tx
-			.select({ id: workItems.id })
-			.from(workItems)
-			.where(and(eq(workItems.goalId, goal.id), isNull(workItems.archivedAt)))
-			.limit(1);
-
-		if (liveWorkOfGoal !== undefined) {
-			throw new AppError("rule_violated", "Archive or move this goal's work first", {
-				rule: "goal_has_work",
-				goalId: goal.id,
-			});
-		}
-
-		const [archived] = await context.tx
-			.update(goals)
-			.set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
-			.where(eq(goals.id, goal.id))
-			.returning();
-
-		return {
-			ventureId: venture.id,
-			result: archived,
-			events: [{ type: "goal.archived", subject: `goal:${goal.id}`, payload: { outcome: goal.outcome } }],
 		};
 	},
 
@@ -542,9 +1100,12 @@ const domainHandlers = {
 
 		const parent = payload.parentId === undefined ? null : await parentFor(context.tx, venture, payload.parentId);
 
-		const goalId = parent === null ? (await rootGoal(context.tx, venture, payload.goalId)).id : parent.goalId;
+		const home =
+			parent === null
+				? await homeFor(context.tx, venture, payload.home)
+				: ({ betId: parent.betId, objectiveId: parent.objectiveId } satisfies Home);
 
-		const place = { goalId, parentId: parent?.id ?? null };
+		const place = { ventureId: venture.id, ...home, parentId: parent?.id ?? null };
 
 		const siblings = await siblingIds(context.tx, place);
 
@@ -556,7 +1117,6 @@ const domainHandlers = {
 			.insert(workItems)
 			.values({
 				id: uuidv7(),
-				ventureId: venture.id,
 				...place,
 				depth: parent === null ? 0 : parent.depth + 1,
 				position: siblings.length,
@@ -574,7 +1134,7 @@ const domainHandlers = {
 				{
 					type: "work.created",
 					subject: `work:${item?.id}`,
-					payload: { title: payload.title, goalId, parentId: place.parentId, depth: item?.depth },
+					payload: { title: payload.title, ...home, parentId: place.parentId, depth: item?.depth },
 				},
 			],
 		};
@@ -640,20 +1200,23 @@ const domainHandlers = {
 
 		const item = await liveWorkItem(context.tx, venture, payload.workItemId);
 
-		if (payload.goalId !== undefined && item.parentId !== null) {
-			throw new AppError("rule_violated", "Only an initiative can move to another goal", {
-				rule: "goal_on_child",
+		if (payload.home !== undefined && item.parentId !== null) {
+			throw new AppError("rule_violated", "Only an initiative can move to another bet, objective or Upkeep", {
+				rule: "home_on_child",
 				workItemId: item.id,
 			});
 		}
 
-		const targetGoalId =
-			payload.goalId === undefined ? item.goalId : (await linkableGoal(context.tx, venture, payload.goalId)).id;
+		const current = { betId: item.betId, objectiveId: item.objectiveId } satisfies Home;
+
+		const target = payload.home === undefined ? current : await homeFor(context.tx, venture, payload.home);
+
+		const here = { ventureId: venture.id, ...current, parentId: item.parentId };
 
 		const changes: FieldChanges = {};
 
-		if (targetGoalId === item.goalId) {
-			const siblings = await siblingIds(context.tx, item);
+		if (workHomeKey(target) === workHomeKey(current)) {
+			const siblings = await siblingIds(context.tx, here);
 
 			if (payload.index >= siblings.length) throw indexOutOfRange(payload.index, siblings.length);
 
@@ -665,24 +1228,22 @@ const domainHandlers = {
 
 			await renumber(context.tx, reordered);
 		} else {
-			const targetSiblings = await siblingIds(context.tx, { goalId: targetGoalId, parentId: null });
+			const targetSiblings = await siblingIds(context.tx, { ventureId: venture.id, ...target, parentId: null });
 
 			if (payload.index > targetSiblings.length) throw indexOutOfRange(payload.index, targetSiblings.length + 1);
 
 			await context.tx
 				.update(workItems)
-				.set({ goalId: targetGoalId, updatedAt: sql`now()` })
+				.set({ ...target, updatedAt: sql`now()` })
 				.where(subtreeCondition(item));
 
-			const remaining = (await siblingIds(context.tx, item)).filter((id) => id !== item.id);
-
-			await renumber(context.tx, remaining);
+			await renumber(context.tx, await siblingIds(context.tx, here));
 
 			targetSiblings.splice(payload.index, 0, item.id);
 
 			await renumber(context.tx, targetSiblings);
 
-			changes.goalId = { from: item.goalId, to: targetGoalId };
+			changes.home = { from: workHomeKey(current), to: workHomeKey(target) };
 		}
 
 		changes.index = { from: item.position, to: payload.index };

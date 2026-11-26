@@ -19,6 +19,24 @@ const fieldNames: Record<string, string> = {
 	priority: "priority",
 	index: "position",
 	goalId: "goal",
+	home: "home",
+	statement: "statement",
+	impact: "impact",
+	objectiveId: "objective",
+	byDate: "date",
+	guardrails: "guardrails",
+	budget: "budget",
+	measure: "measure",
+	unit: "unit",
+	baseline: "baseline",
+	target: "target",
+	decision: "decision",
+	doneRule: "done rule",
+	doneList: "done list",
+	passAt: "pass mark",
+	failAt: "fail mark",
+	method: "method",
+	deadline: "deadline",
 };
 
 export interface EventLabel {
@@ -49,6 +67,14 @@ function statusTo(payload: Record<string, unknown>, fallback = "settled") {
 	return typeof changes?.status?.to === "string" ? changes.status.to : fallback;
 }
 
+function closedAs(payload: Record<string, unknown>) {
+	if (payload.result === "pass") return "passed";
+
+	if (payload.result === "inconclusive") return "inconclusive";
+
+	return payload.cause === "idea" ? "failed, the idea was wrong" : "failed on execution";
+}
+
 const workKindByDepth = ["an initiative", "a task", "a subtask"];
 
 function workKind(payload: Record<string, unknown>) {
@@ -64,7 +90,11 @@ function archivedCount(payload: Record<string, unknown>) {
 }
 
 function movedAction(payload: Record<string, unknown>) {
-	const changes = payload.changes as { goalId?: unknown } | undefined;
+	const changes = payload.changes as { goalId?: unknown; home?: { to?: unknown } } | undefined;
+
+	if (changes?.home !== undefined) {
+		return changes.home.to === "upkeep" ? "moved work to Upkeep" : "moved work to another home";
+	}
 
 	return changes?.goalId === undefined ? "reordered work" : "moved work to another goal";
 }
@@ -97,13 +127,77 @@ export function labelEvent(event: Pick<DomainEvent, "type" | "payload">) {
 				subject: null,
 				detail: changedFields(payload),
 			} satisfies EventLabel;
+		case "objective.created":
+			return {
+				action: `set a ${text(payload, "kind") ?? ""} objective`.replace("  ", " "),
+				subject: text(payload, "statement"),
+				detail: null,
+			} satisfies EventLabel;
+		case "objective.updated":
+			return {
+				action: "edited an objective",
+				subject: text(payload, "statement"),
+				detail: changedFields(payload),
+			} satisfies EventLabel;
+		case "objective.done_checked":
+			return {
+				action: payload.done === true ? "ticked off" : "unticked",
+				subject: text(payload, "item"),
+				detail: text(payload, "statement"),
+			} satisfies EventLabel;
+		case "objective.closed":
+			return {
+				action: `closed an objective as ${statusTo(payload, "closed")}`,
+				subject: text(payload, "statement"),
+				detail: null,
+			} satisfies EventLabel;
+		case "objective.archived":
+			return {
+				action: "archived an objective",
+				subject: text(payload, "statement"),
+				detail: null,
+			} satisfies EventLabel;
+		case "assumption.created":
+			return {
+				action: payload.objectiveId === null ? "noted a hunch" : "added an assumption",
+				subject: text(payload, "statement"),
+				detail: null,
+			} satisfies EventLabel;
+		case "assumption.updated":
+			return {
+				action: "edited an assumption",
+				subject: text(payload, "statement"),
+				detail: changedFields(payload),
+			} satisfies EventLabel;
+		case "assumption.archived":
+			return {
+				action: "archived an assumption",
+				subject: text(payload, "statement"),
+				detail: null,
+			} satisfies EventLabel;
 		case "bet.created":
-			return { action: "added a bet", subject: text(payload, "hypothesis"), detail: null } satisfies EventLabel;
+			return {
+				action: "registered a bet",
+				subject: text(payload, "action") ?? text(payload, "hypothesis"),
+				detail: text(payload, "assumption"),
+			} satisfies EventLabel;
 		case "bet.updated":
 			return {
 				action: "edited a bet",
-				subject: text(payload, "hypothesis"),
+				subject: text(payload, "action") ?? text(payload, "hypothesis"),
 				detail: changedFields(payload),
+			} satisfies EventLabel;
+		case "bet.closed":
+			return {
+				action: `closed a bet as ${closedAs(payload)}`,
+				subject: text(payload, "action"),
+				detail: text(payload, "learning"),
+			} satisfies EventLabel;
+		case "reading.recorded":
+			return {
+				action: `recorded ${String(payload.value)}${text(payload, "unit") ?? ""} for`,
+				subject: text(payload, "label"),
+				detail: null,
 			} satisfies EventLabel;
 		case "bet.status_set":
 			return {
@@ -112,7 +206,11 @@ export function labelEvent(event: Pick<DomainEvent, "type" | "payload">) {
 				detail: null,
 			} satisfies EventLabel;
 		case "bet.archived":
-			return { action: "archived a bet", subject: text(payload, "hypothesis"), detail: null } satisfies EventLabel;
+			return {
+				action: "archived a bet",
+				subject: text(payload, "action") ?? text(payload, "hypothesis"),
+				detail: null,
+			} satisfies EventLabel;
 		case "goal.created":
 			return { action: "added a goal", subject: text(payload, "outcome"), detail: null } satisfies EventLabel;
 		case "goal.updated":
@@ -171,9 +269,9 @@ export function labelEvent(event: Pick<DomainEvent, "type" | "payload">) {
 export const kindLabel = { for_profit: "For profit", non_profit: "Non-profit" } as const;
 
 export const capabilityPhrases = {
-	work: "create, edit, reorder and set the status of work items",
+	work: "create, edit, reorder and set the status of work items, record readings and tick done lists",
 	links: "link and unlink its threads",
-	propose: "propose changes to strategy, bets and goals",
+	propose: "propose changes to strategy, objectives, assumptions and bets",
 } as const satisfies Record<Capability, string>;
 
 /** Numbers a venture's bets in the order they were made: B1, B2, … */

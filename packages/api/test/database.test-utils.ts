@@ -135,3 +135,79 @@ export async function createVenture(database: TestDatabase, name = `Venture ${cr
 
 	return response.result.venture;
 }
+
+async function resultOf(database: TestDatabase, name: string, payload: Record<string, unknown>, reason?: string) {
+	const response = (await database.command(name, { payload, idempotencyKey: freshKey(name), reason })) as {
+		result: { id: string };
+	};
+
+	return response.result;
+}
+
+export function createBuildObjective(database: TestDatabase, ventureId: string, statement = "A thing exists") {
+	return resultOf(database, "objective.create", {
+		ventureId,
+		kind: "build",
+		statement,
+		doneList: ["It works"],
+		byDate: "2027-01-31",
+	});
+}
+
+export function createMetricObjective(database: TestDatabase, ventureId: string, statement = "A number moves") {
+	return resultOf(database, "objective.create", {
+		ventureId,
+		kind: "metric",
+		statement,
+		measure: "Weekly orders",
+		baseline: 10,
+		target: 50,
+		byDate: "2027-01-31",
+	});
+}
+
+export function createAssumption(
+	database: TestDatabase,
+	ventureId: string,
+	objectiveId: string | null,
+	statement = "People want it",
+) {
+	return resultOf(database, "assumption.create", { ventureId, objectiveId, statement, function: "product" });
+}
+
+export function betPayload(ventureId: string, assumptionId: unknown, action = "Run the test") {
+	return {
+		ventureId,
+		assumptionId,
+		function: "product",
+		action,
+		signal: "Orders a week",
+		passAt: 30,
+		failAt: 12,
+		method: "before_after",
+		deadline: "2026-12-31",
+	};
+}
+
+/** A venture with a metric objective, one assumption under it and one open bet on that assumption. */
+export async function createLoop(database: TestDatabase) {
+	const venture = await createVenture(database);
+
+	const objective = await createMetricObjective(database, venture.id);
+
+	const assumption = await createAssumption(database, venture.id, objective.id);
+
+	const bet = await resultOf(database, "bet.create", betPayload(venture.id, assumption.id));
+
+	return { venture, ventureId: venture.id, slug: venture.slug, objective, assumption, bet };
+}
+
+export function recordReading(database: TestDatabase, ventureId: string, betId: string, value: number) {
+	return resultOf(database, "reading.record", {
+		ventureId,
+		subject: { type: "bet", id: betId },
+		value,
+		takenOn: "2026-12-01",
+		source: "Order sheet",
+	});
+}

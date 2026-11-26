@@ -183,6 +183,11 @@ All parts are the app's own; there is no component library and no icon library
 - **Tooltips**: `data-tip="Label|hint"` on any element, `data-side="r"` to place it at
   the right.
 - **Toasts** (`toast()` in `src/toast.ts`): short confirmations above the dock.
+- **Objective card** (`src/objectives.tsx`): one card per active objective. A metric
+  objective draws its readings from baseline toward the target (`Trend`); a build
+  objective shows its time box and done list. Assumptions nest inside, each with `Conf`
+  (four diamonds lit by confidence) and its bets (`BetBlock` in `src/bets.tsx`), which
+  open to the registered test as one sentence.
 - **Trace**: an agent run in a thread is a vertical line of steps (text, tool calls,
   proposals and access requests, the end line).
 

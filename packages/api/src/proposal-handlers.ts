@@ -4,16 +4,19 @@ import {
 	type CommandPayload,
 	commandSchemas,
 	decisionLine,
-	isBetRef,
+	isRef,
 	type ProposableCommand,
 	type ProposalChange,
+	proposableCommands,
+	refFields,
+	refTargets,
 	samePayload,
 	systemAuthor,
 } from "@braise/core";
 import { and, eq, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import type { Database, Transaction } from "./db/client.ts";
-import { bets, goals, proposals, runs, strategyVersions, threads } from "./db/schema.ts";
+import { assumptions, bets, objectives, proposals, runs, strategyVersions, threads } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 import {
 	type Handler,
@@ -53,43 +56,50 @@ function withoutVenture(venture: VentureRow, index: number, payload: Record<stri
 	return rest;
 }
 
+function isProposable(command: string): command is ProposableCommand {
+	return (proposableCommands as readonly string[]).includes(command);
+}
+
 function assertRefs(changes: AppliedChange[]) {
 	changes.forEach((change, index) => {
-		const betId = change.payload.betId;
+		for (const field of refFields) {
+			const value = change.payload[field];
 
-		if (!isBetRef(betId)) return;
+			if (!isRef(value)) continue;
 
-		const target = changes[betId.ref];
-
-		if (
-			(change.command !== "goal.create" && change.command !== "goal.update") ||
-			betId.ref >= index ||
-			target?.command !== "bet.create"
-		) {
-			throw new AppError("rule_violated", "A bet reference must point at an earlier new bet in this proposal", {
-				rule: "proposal_ref_invalid",
-				change: index,
-			});
+			if (value.ref >= index || changes[value.ref]?.command !== refTargets[field]) {
+				throw new AppError(
+					"rule_violated",
+					`A reference in ${field} must point at an earlier ${refTargets[field]} in this proposal`,
+					{ rule: "proposal_ref_invalid", change: index, field },
+				);
+			}
 		}
 	});
 }
 
 function resolveRefs(payload: Record<string, unknown>, created: Map<number, string>, index: number) {
-	const betId = payload.betId;
+	const resolved = { ...payload };
 
-	if (!isBetRef(betId)) return payload;
+	for (const field of refFields) {
+		const value = payload[field];
 
-	const resolved = created.get(betId.ref);
+		if (!isRef(value)) continue;
 
-	if (resolved === undefined) {
-		throw new AppError("rule_violated", "The referenced new bet is not part of what gets applied", {
-			rule: "proposal_ref_dropped",
-			change: index,
-			ref: betId.ref,
-		});
+		const id = created.get(value.ref);
+
+		if (id === undefined) {
+			throw new AppError("rule_violated", "A change builds on a new item that is not part of what gets applied", {
+				rule: "proposal_ref_dropped",
+				change: index,
+				ref: value.ref,
+			});
+		}
+
+		resolved[field] = id;
 	}
 
-	return { ...payload, betId: resolved };
+	return resolved;
 }
 
 function parseChange<Name extends ProposableCommand>(name: Name, payload: unknown, index: number) {
@@ -121,6 +131,13 @@ async function applyChanges(
 	const applied: PendingEvent[] = [];
 
 	for (const change of changes) {
+		if (!isProposable(change.command)) {
+			throw new AppError("rule_violated", "This change was written for an earlier model and can't be applied", {
+				rule: "proposal_legacy",
+				change: change.index,
+			});
+		}
+
 		const payload = parseChange(
 			change.command,
 			{ ...resolveRefs(change.payload, created, change.index), ventureId: venture.id },
@@ -133,7 +150,7 @@ async function applyChanges(
 			throw new AppError("internal_error", "A proposable command returned a non-venture outcome");
 		}
 
-		if (change.command === "bet.create") {
+		if (change.command === "objective.create" || change.command === "assumption.create") {
 			const result = outcome.result as { id: string };
 
 			created.set(change.index, result.id);
@@ -173,10 +190,14 @@ async function activeVersion(tx: Transaction | Database, ventureId: string) {
 	return strategy?.version ?? null;
 }
 
-async function row(tx: Transaction | Database, table: "bet" | "goal", id: unknown) {
+const subjectTables = { objective: objectives, assumption: assumptions, bet: bets } as const;
+
+type SubjectTable = keyof typeof subjectTables;
+
+async function row(tx: Transaction | Database, table: SubjectTable, id: unknown) {
 	if (typeof id !== "string") return undefined;
 
-	const source = table === "bet" ? bets : goals;
+	const source = subjectTables[table];
 
 	const [found] = await tx
 		.select({ ventureId: source.ventureId, updatedAt: source.updatedAt, archivedAt: source.archivedAt })
@@ -188,11 +209,14 @@ async function row(tx: Transaction | Database, table: "bet" | "goal", id: unknow
 
 function subjectOf(change: AppliedChange) {
 	switch (change.command) {
+		case "objective.update":
+		case "objective.close":
+			return { table: "objective" as const, id: change.payload.objectiveId };
+		case "assumption.update":
+			return { table: "assumption" as const, id: change.payload.assumptionId };
 		case "bet.update":
-		case "bet.set_status":
+		case "bet.close":
 			return { table: "bet" as const, id: change.payload.betId };
-		case "goal.update":
-			return { table: "goal" as const, id: change.payload.goalId };
 		default:
 			return null;
 	}

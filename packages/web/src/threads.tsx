@@ -56,8 +56,9 @@ interface DraftLink {
 
 const linkKinds: Record<ThreadLinkType, string> = {
 	work_item: "Work",
-	goal: "Goal",
 	bet: "Bet",
+	assumption: "Assumption",
+	objective: "Objective",
 	venture: "Venture",
 };
 
@@ -773,8 +774,8 @@ function LinkSearch({
 				aria-expanded
 				aria-controls={listId}
 				aria-activedescendant={options.length === 0 ? undefined : `${listId}-${active.index}`}
-				aria-label="Search work items, goals, bets and ventures"
-				placeholder="Search work, goals, bets…"
+				aria-label="Search work items, objectives, assumptions, bets and ventures"
+				placeholder="Search work, objectives, bets…"
 				value={query}
 				ref={(element) => element?.focus()}
 				onChange={(event) => {
@@ -978,7 +979,7 @@ function Composer({
 						working ? (
 							`${agentName} is replying. Stop it, or wait to send the next message.`
 						) : (
-							"↵ send · ⇧↵ new line · @ to link work, goals or bets"
+							"↵ send · ⇧↵ new line · @ to link work, objectives or bets"
 						)
 					) : (
 						<span className="err" role="alert">

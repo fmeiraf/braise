@@ -19,13 +19,20 @@ blocks, not as products in their own right.
   Identity only: name, slug, kind.
 - **Strategy**: versioned per venture (Rumelt kernel): why, what, diagnosis, guiding
   policy. Exactly one active version; agent proposals are drafts.
-- **Bet**: a hypothesis + action + kill criteria, with its own lifecycle
-  (open/won/lost/killed). Belongs to the venture, records the strategy version that
-  introduced it.
-- **Goal**: an outcome with a measurable signal and a horizon (date). Optionally tests
-  a bet; goals without a bet are flagged in the UI.
-- **Work item**: recursive tree (initiative → task → subtask), linked to a goal and
-  tagged by function (engineering, marketing, ops, ...).
+- **Objective**: where a venture is going. A metric objective is a number with a
+  baseline, a target and a date; a learning objective is a question whose answer changes
+  a decision; a build objective is vision-led work with a done list and a time box.
+- **Reading**: a dated value of an objective's measure or a bet's signal, with its source.
+- **Assumption**: one sentence that must be true for an objective, with an impact and a
+  confidence from 0 to 4 that only evidence moves. Without an objective it is a hunch,
+  kept under "Worth testing later".
+- **Bet**: one step that tests one assumption: an action, a signal, pass and fail marks,
+  a method and a deadline, all fixed when it is registered. Open or closed.
+- **Learning**: what a closed bet leaves: the result, whether the idea or the execution
+  was wrong, one sentence, and the confidence change.
+- **Work item**: recursive tree (initiative → task → subtask) under a bet, a build
+  objective or Upkeep (work that tests nothing), tagged by function (engineering,
+  marketing, ops, ...).
 - **Thread**: a conversation tied to a venture, work item or proposal; humans and
   agents post in it.
 - **Agent profile**: role/playbook, runtime, model, tools and grants.
@@ -116,6 +123,10 @@ Planned (order may change):
    capabilities granted per profile, access requests in the inbox, the Agents view, GPT
    on Pi. Spec: `docs/slices/05-grants-pi.md`.
 
+6. **The strategy loop:** objectives, assumptions, bets with marks, learnings and
+   readings replace bets and goals; work hangs off a bet, a build objective or Upkeep.
+   Spec: `docs/slices/06-strategy-loop.md`.
+
 Milestone: braise manages itself as a venture (dogfooding).
 
 ### Slice log
@@ -180,6 +191,19 @@ Milestone: braise manages itself as a venture (dogfooding).
   not braise state). Invariant 8 holds: grant and access commands write no domain events,
   and their record is the `commands` table plus the grant and request rows. The process
   rules held unchanged.
+- **Slice 6, The strategy loop** (2026-11-26): `objectives` (metric, learning, build),
+  `assumptions`, `bets` reshaped around an assumption with marks, method and deadline,
+  `learnings`, `readings`; `goals` dropped and existing data carried over by the
+  migration; work items re-homed to a bet, a build objective or Upkeep; the proposable
+  set, the agent's tools and prompt, the cockpit, the Work view and the inbox follow the
+  new model. The spec's tests pass against real Postgres; the flows of the demo scenario
+  were exercised in the running app against a migrated copy of the owner's database
+  (scenario step 7, a live agent run, was not run).
+  Rule review (process rule 3): the invariants held unchanged. Invariant 5 holds for the
+  new entities: objectives, assumptions and bets reach agents only through proposals,
+  while readings and done-list ticks are direct under the `work` capability, like work
+  items. Process rule 2 holds: guardrails and budgets are text, since nothing reads them
+  as numbers yet. The decisions dated 2026-11-26 below record what the slice settled.
 
 ## Decisions log
 
@@ -384,3 +408,43 @@ Milestone: braise manages itself as a venture (dogfooding).
 - 2026-11-25: The worker is tested end to end (real pg-boss, Postgres and the Pi runtime
   against MSW) in its own database, `braise_worker_test`, so its live worker never
   claims jobs that other test files queue.
+- 2026-11-26: The strategy loop (owner: "great lets implement this", on the proposal in
+  `strategy-loop-report.html`): strategy → objective → assumption → bet → work, with a
+  learning from every closed bet. Replaces "bets link strategy to goals" (2026-11-23);
+  goals are gone. The proposal's open decisions were taken at the leans it listed,
+  recorded in the entries below; the owner can reverse any of them.
+- 2026-11-26: The top level is an objective, of kind metric, learning or build. A venture
+  climbs at most two active metric or learning objectives; build objectives are not
+  limited, because they are chunks of vision-led work and not hills.
+- 2026-11-26: A build objective has no assumptions and no bets; work hangs directly under
+  it. An assumption may have no objective: it is a hunch, shown as "Worth testing
+  later", and can be attached to a metric or learning objective at any time. This
+  replaces the proposal's hunch list per build objective.
+- 2026-11-26: A bet's signal, unit, baseline, marks, method and deadline are fixed when
+  it is registered; changing one needs a reason (422 `reason_required`). A bet passes
+  only on a latest reading at its pass mark, and fails on the idea only on one past its
+  fail mark. The latest reading is the last one entered for the latest day, so a wrong
+  entry is corrected by recording that day again.
+- 2026-11-26: Confidence is 0 to 4 and moves only when a bet closes: up to the ceiling of
+  the bet's method on a pass, down on a wrong idea, unchanged otherwise; at 0 the
+  assumption is marked false. The scale, the ceilings and the stop rules are braise's own
+  and not taken from a source.
+- 2026-11-26: Work items carry `bet_id` or `objective_id` (a build objective), or neither
+  for Upkeep; `work.create` and `work.move` take a `home`. Closing a bet or an objective
+  leaves its work in place, and the Work view keeps a closed home visible while it holds
+  unfinished work. `bet.archive` is refused while the bet has live work (`bet_has_work`,
+  replacing `bet_has_goals`), `objective.archive` while it has live work or assumptions.
+- 2026-11-26: Agents propose `objective.create/update/close`, `assumption.create/update`
+  and `bet.create/update/close`; `reading.record` and `objective.check` join the `work`
+  capability, now labelled "Work and readings". Replaces the proposable set of
+  2026-11-24. Stop rules are instructions in the agent's prompt, not enforced.
+- 2026-11-26: Guardrails and budgets are free text on objectives and bets; nothing is
+  measured against them yet. Holding-level rules promoted from learnings are deferred.
+- 2026-11-26: Function is a field on assumptions, bets and learnings and a filter in the
+  Work view, not a separate goal tree per function.
+- 2026-11-26: Migration `0007` turns each goal into a build objective and each old bet
+  into an unattached assumption, keeping ids so thread links and work follow; pending
+  proposals are closed. Proposals decided under the earlier model stay readable
+  (`legacyProposableCommands`).
+- 2026-11-26: Biome also skips `strategy-loop-report.html` at the repo root, a proposal
+  document like the prototypes.

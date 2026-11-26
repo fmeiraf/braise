@@ -7,7 +7,16 @@ import {
 } from "@braise/core";
 import { asc, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Database } from "./db/client.ts";
-import { accessRequests, agentGrants, agentProfiles, goals, threads, ventures, workItems } from "./db/schema.ts";
+import {
+	accessRequests,
+	agentGrants,
+	agentProfiles,
+	bets,
+	objectives,
+	threads,
+	ventures,
+	workItems,
+} from "./db/schema.ts";
 
 const decidedLimit = 20;
 
@@ -36,36 +45,51 @@ async function threadVentureSlugs(db: Database, ids: string[]) {
 	return new Map(rows.map((row) => [row.id, row.slug]));
 }
 
-const referenceKeys = ["goalId", "parentId", "workItemId"] as const;
+const referenceKeys = ["parentId", "workItemId", "objectiveId"] as const;
+
+function homeOf(payload: Record<string, unknown>) {
+	const home = payload.home;
+
+	if (typeof home !== "object" || home === null) return null;
+
+	return { type: "type" in home ? home.type : undefined, id: "id" in home ? home.id : undefined };
+}
 
 async function referenceLabels(db: Database, payloads: Record<string, unknown>[]) {
 	const ids = [
 		...new Set(
-			payloads.flatMap((payload) =>
-				referenceKeys.map((key) => payload[key]).filter((value) => typeof value === "string"),
-			),
+			payloads
+				.flatMap((payload) => [...referenceKeys.map((key) => payload[key]), homeOf(payload)?.id])
+				.filter((value) => typeof value === "string"),
 		),
 	];
 
 	if (ids.length === 0) return new Map<string, string>();
 
-	const [goalRows, workRows] = await Promise.all([
-		db.select({ id: goals.id, label: goals.outcome }).from(goals).where(inArray(goals.id, ids)),
+	const [objectiveRows, betRows, workRows] = await Promise.all([
+		db.select({ id: objectives.id, label: objectives.statement }).from(objectives).where(inArray(objectives.id, ids)),
+		db.select({ id: bets.id, label: bets.action }).from(bets).where(inArray(bets.id, ids)),
 		db.select({ id: workItems.id, label: workItems.title }).from(workItems).where(inArray(workItems.id, ids)),
 	]);
 
-	return new Map([...goalRows, ...workRows].map((row) => [row.id, row.label]));
+	return new Map([...objectiveRows, ...betRows, ...workRows].map((row) => [row.id, row.label]));
 }
 
 function referencesOf(payload: Record<string, unknown>, labels: Map<string, string>) {
-	return Object.fromEntries(
-		referenceKeys.flatMap((key) => {
+	const home = homeOf(payload);
+
+	const homeLabel =
+		home?.type === "upkeep" ? "Upkeep" : typeof home?.id === "string" ? labels.get(home.id) : undefined;
+
+	return Object.fromEntries([
+		...referenceKeys.flatMap((key) => {
 			const id = payload[key];
 			const label = typeof id === "string" ? labels.get(id) : undefined;
 
 			return label === undefined ? [] : [[key, label]];
 		}),
-	);
+		...(homeLabel === undefined ? [] : [["home", homeLabel]]),
+	]);
 }
 
 export async function accessInbox(db: Database) {

@@ -5,7 +5,7 @@ import { braiseTools } from "../src/agent/tools.ts";
 import { accessRequests, agentGrants, commands, workItems } from "../src/db/schema.ts";
 import { handlers } from "../src/handlers.ts";
 import { executeCommand } from "../src/pipeline.ts";
-import { createVenture, freshKey, openTestDatabase } from "./database.test-utils.ts";
+import { createBuildObjective, createVenture, freshKey, openTestDatabase } from "./database.test-utils.ts";
 
 const database = await openTestDatabase();
 
@@ -61,23 +61,17 @@ interface Started {
 async function startThread(agentProfileId: string) {
 	const venture = await createVenture(database);
 
-	const goal = await ok<{ id: string }>("goal.create", {
-		ventureId: venture.id,
-		betId: null,
-		outcome: "Regulars come back",
-		signal: "Visits per week",
-		horizon: null,
-	});
+	const objective = await createBuildObjective(database, venture.id, "Regulars come back");
 
 	const started = await ok<Started>("thread.start", { ventureId: venture.id, agentProfileId, body: "Plan the work" });
 
 	await ok("run.cancel", { runId: started.run.id });
 
-	return { venture, goal, thread: started.thread, run: started.run };
+	return { venture, objective, thread: started.thread, run: started.run };
 }
 
-function newInitiative(ventureId: string, goalId: string, title: string) {
-	return { ventureId, goalId, title, function: "ops" };
+function newInitiative(ventureId: string, objectiveId: string, title: string) {
+	return { ventureId, home: { type: "objective", id: objectiveId }, title, function: "ops" };
 }
 
 async function agents() {
@@ -144,13 +138,13 @@ describe("agent profiles", () => {
 	});
 
 	it("lets Claude's seeded grants run today's commands", async () => {
-		const { venture, goal, run } = await startThread("claude");
+		const { venture, objective, run } = await startThread("claude");
 
 		const created = await asAgent(
 			"agent:claude",
 			run.id,
 			"work.create",
-			newInitiative(venture.id, goal.id, "Bake rye"),
+			newInitiative(venture.id, objective.id, "Bake rye"),
 		);
 
 		expect(created.ok).toBe(true);
@@ -159,7 +153,7 @@ describe("agent profiles", () => {
 
 describe("access requests", () => {
 	it("refuses GPT's work.create, files a request and writes nothing else", async () => {
-		const { venture, goal, thread, run } = await startThread("gpt");
+		const { venture, objective, thread, run } = await startThread("gpt");
 
 		const hint = nextAccessHint();
 
@@ -167,7 +161,7 @@ describe("access requests", () => {
 			"agent:gpt",
 			run.id,
 			"work.create",
-			newInitiative(venture.id, goal.id, "Print loyalty cards"),
+			newInitiative(venture.id, objective.id, "Print loyalty cards"),
 		);
 
 		await hint;
@@ -205,7 +199,12 @@ describe("access requests", () => {
 
 		expect(filed).toEqual({ actor: "agent:gpt", runId: run.id });
 
-		const second = await asAgent("agent:gpt", run.id, "work.create", newInitiative(venture.id, goal.id, "Order ink"));
+		const second = await asAgent(
+			"agent:gpt",
+			run.id,
+			"work.create",
+			newInitiative(venture.id, objective.id, "Order ink"),
+		);
 
 		expect(second.ok ? null : second.error.details.accessRequestId).toBe(requestId);
 
@@ -222,7 +221,7 @@ describe("access requests", () => {
 			agent: { id: "gpt", name: "GPT" },
 			capability: "work",
 			summary: "create work item “Print loyalty cards”",
-			references: { goalId: "Regulars come back" },
+			references: { home: "Regulars come back" },
 			attempts: 2,
 			thread: { id: thread.id },
 		});
@@ -231,9 +230,12 @@ describe("access requests", () => {
 	});
 
 	it("refuses owner-only commands without filing a request", async () => {
-		const { venture, goal, run } = await startThread("gpt");
+		const { venture, objective, run } = await startThread("gpt");
 
-		const refused = await asAgent("agent:gpt", run.id, "goal.archive", { ventureId: venture.id, goalId: goal.id });
+		const refused = await asAgent("agent:gpt", run.id, "objective.archive", {
+			ventureId: venture.id,
+			objectiveId: objective.id,
+		});
 
 		expect(refused.ok ? null : refused.error).toMatchObject({ code: "not_granted" });
 
@@ -253,9 +255,14 @@ describe("access requests", () => {
 	});
 
 	it("refuses without filing when there is no run", async () => {
-		const { venture, goal } = await startThread("gpt");
+		const { venture, objective } = await startThread("gpt");
 
-		const refused = await asAgent("agent:gpt", null, "work.create", newInitiative(venture.id, goal.id, "No run"));
+		const refused = await asAgent(
+			"agent:gpt",
+			null,
+			"work.create",
+			newInitiative(venture.id, objective.id, "No run"),
+		);
 
 		expect(refused.ok ? null : refused.error).toMatchObject({ code: "not_granted", details: { capability: "work" } });
 
@@ -263,9 +270,14 @@ describe("access requests", () => {
 	});
 
 	it("approves into a standing grant, posts the line, and the retry succeeds", async () => {
-		const { venture, goal, thread: second, run } = await startThread("gpt");
+		const { venture, objective, thread: second, run } = await startThread("gpt");
 
-		const refused = await asAgent("agent:gpt", run.id, "work.create", newInitiative(venture.id, goal.id, "Cards"));
+		const refused = await asAgent(
+			"agent:gpt",
+			run.id,
+			"work.create",
+			newInitiative(venture.id, objective.id, "Cards"),
+		);
 
 		const requestId = refused.ok ? "" : String(refused.error.details.accessRequestId);
 
@@ -281,9 +293,9 @@ describe("access requests", () => {
 
 		await hint;
 
-		expect(await threadLines(thread.id)).toContain("Granted Work items to GPT · Fine for work");
+		expect(await threadLines(thread.id)).toContain("Granted Work and readings to GPT · Fine for work");
 
-		expect(await threadLines(second.id)).toContain("Granted Work items to GPT · Fine for work");
+		expect(await threadLines(second.id)).toContain("Granted Work and readings to GPT · Fine for work");
 
 		expect(await gptCapability("work")).toMatchObject({
 			granted: true,
@@ -292,7 +304,12 @@ describe("access requests", () => {
 			pendingRequestId: null,
 		});
 
-		const retried = await asAgent("agent:gpt", run.id, "work.create", newInitiative(venture.id, goal.id, "Cards"));
+		const retried = await asAgent(
+			"agent:gpt",
+			run.id,
+			"work.create",
+			newInitiative(venture.id, objective.id, "Cards"),
+		);
 
 		expect(retried.ok).toBe(true);
 
@@ -308,13 +325,18 @@ describe("access requests", () => {
 	});
 
 	it("refuses again after a revoke, and denies with a line", async () => {
-		const { venture, goal, thread, run } = await startThread("gpt");
+		const { venture, objective, thread, run } = await startThread("gpt");
 
 		await ok("grant.revoke", { profileId: "gpt", capability: "work" });
 
 		expect(await gptCapability("work")).toMatchObject({ granted: false, changedBy: "owner" });
 
-		const refused = await asAgent("agent:gpt", run.id, "work.create", newInitiative(venture.id, goal.id, "Again"));
+		const refused = await asAgent(
+			"agent:gpt",
+			run.id,
+			"work.create",
+			newInitiative(venture.id, objective.id, "Again"),
+		);
 
 		expect(refused.ok).toBe(false);
 
@@ -322,13 +344,13 @@ describe("access requests", () => {
 
 		await ok("access.deny", { accessRequestId: requestId, note: "Not now" });
 
-		expect(await threadLines(thread.id)).toContain("Denied Work items to GPT · Not now");
+		expect(await threadLines(thread.id)).toContain("Denied Work and readings to GPT · Not now");
 
 		const [denied] = await database.db.select().from(accessRequests).where(eq(accessRequests.id, requestId));
 
 		expect(denied).toMatchObject({ status: "denied", note: "Not now" });
 
-		const again = await asAgent("agent:gpt", run.id, "work.create", newInitiative(venture.id, goal.id, "Again"));
+		const again = await asAgent("agent:gpt", run.id, "work.create", newInitiative(venture.id, objective.id, "Again"));
 
 		const againId = again.ok ? "" : String(again.error.details.accessRequestId);
 
@@ -397,7 +419,7 @@ describe("access requests", () => {
 
 describe("braise tools", () => {
 	it("turn a refused command into an access-requested result, not an error", async () => {
-		const { goal, thread, run } = await startThread("gpt");
+		const { objective, thread, run } = await startThread("gpt");
 
 		const tools = braiseTools({
 			db: database.db,
@@ -410,12 +432,12 @@ describe("braise tools", () => {
 
 		const create = tools.find((tool) => tool.name === "create_work_item");
 
-		const output = await create?.execute({ goalId: goal.id, title: "Flyers", function: "ops" });
+		const output = await create?.execute({ objectiveId: objective.id, title: "Flyers", function: "ops" });
 
 		expect(output?.isError).toBe(false);
 
 		expect(JSON.parse(output?.text ?? "{}")).toMatchObject({
-			accessRequested: { capability: "work", label: "Work items" },
+			accessRequested: { capability: "work", label: "Work and readings" },
 		});
 	});
 });

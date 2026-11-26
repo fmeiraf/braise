@@ -33,9 +33,9 @@ work without gaps, and agents make real progress with little of the owner's atte
 
 ## Positioning
 
-Not a generic project manager or chat tool. braise links **strategy → bets → goals →
-work → agent runs** in one model. Every piece of work traces back to a bet and a
-diagnosis, and agents operate inside that context under revocable, owner-granted
+Not a generic project manager or chat tool. braise links **strategy → objectives →
+assumptions → bets → work → agent runs** in one model. Work traces back to the bet it
+serves and the assumption that bet tests, or to a build objective, and agents operate inside that context under revocable, owner-granted
 permissions. It deliberately rebuilds parts of Linear (work) and Slack (threads,
 bots) as building blocks for that loop.
 
@@ -43,9 +43,9 @@ bots) as building blocks for that loop.
 
 - Desktop-first. Long working sessions (planning strategy, steering agents) mixed
   with quick check-ins (triaging the inbox, approving proposals, answering agents).
-- Strategy follows Rumelt's kernel: why, what, diagnosis, guiding policy. Bets carry
-  a hypothesis, an action and kill criteria. Goals have an outcome, a signal and a
-  horizon.
+- Strategy follows Rumelt's kernel: why, what, diagnosis, guiding policy. An objective is
+  a number to move, a question to answer or a thing to build. Assumptions say what must
+  be true; a bet tests one against marks fixed in advance and leaves a learning.
 - The **inbox** collects everything that needs the owner: proposals, access
   requests, agents waiting for input, and decisions.
 - Each venture has its own GitHub repo(s); agents work in git worktrees.
@@ -57,8 +57,8 @@ bots) as building blocks for that loop.
 - Strategy is versioned. A revision needs a reason, and history and diffs are
   first-class.
 - Live updates: changes appear without a refresh, and agent runs stream in real time.
-- Terminology: venture, strategy, bet, goal, work item, thread, run, proposal, inbox,
-  agent profile.
+- Terminology: venture, strategy, objective, assumption, bet, learning, reading, work
+  item, thread, run, proposal, inbox, agent profile.
 - Undecided: mobile support beyond check-ins; any multi-user future.
 
 ## Brand Commitments
@@ -80,7 +80,7 @@ or testimonials beyond clearly labeled examples.
 
 1. Minimize the owner's attention: surface only what needs a decision. Everything
    else stays quiet and inspectable.
-2. Strategy is the spine: every view reads along strategy → bets → goals → work.
+2. Strategy is the spine: every view reads along strategy → objectives → assumptions → bets → work.
 3. Owner sovereignty: agents propose, and the owner approves. Permissions are
    visible and revocable.
 4. Show the truth live: real state, real history, real agent activity, never stale

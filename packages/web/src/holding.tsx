@@ -11,14 +11,13 @@ import { Hero, Sec, Skeleton } from "./parts.tsx";
 import { ago } from "./time.ts";
 import { useWorking, workingLabel } from "./working.tsx";
 
-type SortKey = "name" | "strategyVersion" | "openBets" | "goals" | "unlinkedGoals" | "workDone" | "lastActivityAt";
+type SortKey = "name" | "strategyVersion" | "openBets" | "openAssumptions" | "workDone" | "lastActivityAt";
 
 const columns: { key: SortKey; label: string; numeric: boolean }[] = [
 	{ key: "name", label: "Venture", numeric: false },
 	{ key: "strategyVersion", label: "Strategy", numeric: true },
 	{ key: "openBets", label: "Open bets", numeric: true },
-	{ key: "goals", label: "Goals", numeric: true },
-	{ key: "unlinkedGoals", label: "Not tied to a bet", numeric: true },
+	{ key: "openAssumptions", label: "Open assumptions", numeric: true },
 	{ key: "workDone", label: "Work done", numeric: true },
 	{ key: "lastActivityAt", label: "Last activity", numeric: true },
 ];
@@ -183,13 +182,8 @@ export function HoldingPage() {
 							</td>
 							<td className="r">v{row.strategyVersion}</td>
 							<td className="r">{row.openBets}</td>
-							<td className="r">{row.goals}</td>
 							<td className="r">
-								{row.unlinkedGoals > 0 ? (
-									<span data-tip="Goals that test no bet">{row.unlinkedGoals}</span>
-								) : (
-									<span className="dim">0</span>
-								)}
+								{row.openAssumptions > 0 ? row.openAssumptions : <span className="dim">0</span>}
 							</td>
 							<td className="r">
 								{row.work === null || row.work.total === 0 ? (

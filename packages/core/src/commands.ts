@@ -6,24 +6,50 @@ const id = z.uuid();
 const isoDate = z.iso.date();
 
 export const ventureKinds = ["for_profit", "non_profit"] as const;
-export const betStatuses = ["open", "won", "lost", "killed"] as const;
+export const objectiveKinds = ["metric", "learning", "build"] as const;
+export const objectiveStatuses = ["active", "met", "dropped"] as const;
+export const impacts = ["low", "medium", "high"] as const;
+export const assumptionStatuses = ["open", "holds", "false", "dropped"] as const;
+export const betStatuses = ["open", "closed"] as const;
+
+export const betMethods = [
+	"existing_data",
+	"interviews",
+	"fake_door",
+	"concierge",
+	"before_after",
+	"staggered_rollout",
+	"ab_test",
+] as const;
+
+export const betResults = ["pass", "fail", "inconclusive"] as const;
+export const failCauses = ["idea", "execution"] as const;
+export const readingSubjects = ["objective", "bet"] as const;
+export const maxConfidence = 4;
+export const maxClimbingObjectives = 2;
+export const maxDoneItems = 20;
 export const workStatuses = ["todo", "doing", "done"] as const;
 export const workFunctions = ["product", "design", "engineering", "marketing", "sales", "ops"] as const;
 export const workPriorities = ["none", "low", "medium", "high", "urgent"] as const;
 export const maxWorkDepth = 2;
-export const threadLinkTypes = ["work_item", "goal", "bet", "venture"] as const;
+export const threadLinkTypes = ["work_item", "bet", "assumption", "objective", "venture"] as const;
 export const runStatuses = ["queued", "running", "succeeded", "failed", "cancelled", "interrupted"] as const;
 export const activeRunStatuses = ["queued", "running"] as const;
 export const maxThreadLinks = 20;
 
 export const proposableCommands = [
 	"strategy.revise",
+	"objective.create",
+	"objective.update",
+	"objective.close",
+	"assumption.create",
+	"assumption.update",
 	"bet.create",
 	"bet.update",
-	"bet.set_status",
-	"goal.create",
-	"goal.update",
+	"bet.close",
 ] as const;
+
+export const legacyProposableCommands = ["bet.set_status", "goal.create", "goal.update"] as const;
 
 export const proposalStatuses = ["pending", "approved", "rejected"] as const;
 export const capabilities = ["work", "links", "propose"] as const;
@@ -51,6 +77,52 @@ const profileId = z.string().regex(slugPattern).max(40);
 
 const capability = z.enum(capabilities);
 
+const amount = z.number();
+
+const confidence = z.number().int().min(0).max(maxConfidence);
+
+const shortText = z.string().trim().max(200);
+
+const statement = text.max(1_000);
+
+const objectiveCommon = {
+	...ventureScoped,
+	statement,
+	guardrails: longText.default(""),
+	budget: shortText.default(""),
+};
+
+const doneItem = z.strictObject({ id: id.optional(), text: text.max(500) });
+
+const workHome = z.discriminatedUnion("type", [
+	z.strictObject({ type: z.literal("bet"), id }),
+	z.strictObject({ type: z.literal("objective"), id }),
+	z.strictObject({ type: z.literal("upkeep") }),
+]);
+
+const someField = (value: Record<string, unknown>, fields: readonly string[]) =>
+	fields.some((field) => value[field] !== undefined);
+
+const objectiveFields = [
+	"statement",
+	"byDate",
+	"guardrails",
+	"budget",
+	"measure",
+	"unit",
+	"baseline",
+	"target",
+	"decision",
+	"doneRule",
+	"doneList",
+] as const;
+
+const assumptionFields = ["objectiveId", "statement", "impact", "function", "status"] as const;
+
+export const betLockedFields = ["signal", "unit", "baseline", "passAt", "failAt", "method", "deadline"] as const;
+
+const betFields = ["function", "action", "budget", ...betLockedFields] as const;
+
 export const commandSchemas = {
 	"venture.create": z.strictObject({
 		name: text.max(120),
@@ -69,64 +141,144 @@ export const commandSchemas = {
 		diagnosis: longText,
 		guidingPolicy: longText,
 	}),
-	"bet.create": z.strictObject({
+	"objective.create": z.discriminatedUnion("kind", [
+		z
+			.strictObject({
+				...objectiveCommon,
+				kind: z.literal("metric"),
+				measure: text.max(200),
+				unit: shortText.max(20).default(""),
+				baseline: amount,
+				target: amount,
+				byDate: isoDate,
+			})
+			.refine((value) => value.baseline !== value.target, {
+				message: "The target must differ from the baseline",
+				path: ["target"],
+			}),
+		z.strictObject({
+			...objectiveCommon,
+			kind: z.literal("learning"),
+			decision: text,
+			doneRule: text,
+			byDate: isoDate.nullable().default(null),
+		}),
+		z.strictObject({
+			...objectiveCommon,
+			kind: z.literal("build"),
+			doneList: z.array(text.max(500)).min(1).max(maxDoneItems),
+			byDate: isoDate,
+		}),
+	]),
+	"objective.update": z
+		.strictObject({
+			...ventureScoped,
+			objectiveId: id,
+			statement: statement.optional(),
+			byDate: isoDate.nullable().optional(),
+			guardrails: longText.optional(),
+			budget: shortText.optional(),
+			measure: text.max(200).optional(),
+			unit: shortText.max(20).optional(),
+			baseline: amount.optional(),
+			target: amount.optional(),
+			decision: text.optional(),
+			doneRule: text.optional(),
+			doneList: z.array(doneItem).min(1).max(maxDoneItems).optional(),
+		})
+		.refine((value) => someField(value, objectiveFields), { message: "Change at least one field" }),
+	"objective.check": z.strictObject({ ...ventureScoped, objectiveId: id, itemId: id, done: z.boolean() }),
+	"objective.close": z.strictObject({ ...ventureScoped, objectiveId: id, status: z.enum(["met", "dropped"]) }),
+	"objective.archive": z.strictObject({ ...ventureScoped, objectiveId: id }),
+	"assumption.create": z.strictObject({
 		...ventureScoped,
-		hypothesis: text,
-		action: text,
-		killCriteria: text,
+		objectiveId: id.nullable(),
+		statement,
+		impact: z.enum(impacts).default("medium"),
+		confidence: confidence.min(1).default(1),
+		function: z.enum(workFunctions),
 	}),
+	"assumption.update": z
+		.strictObject({
+			...ventureScoped,
+			assumptionId: id,
+			objectiveId: id.nullable().optional(),
+			statement: statement.optional(),
+			impact: z.enum(impacts).optional(),
+			function: z.enum(workFunctions).optional(),
+			status: z.enum(assumptionStatuses).optional(),
+		})
+		.refine((value) => someField(value, assumptionFields), { message: "Change at least one field" }),
+	"assumption.archive": z.strictObject({ ...ventureScoped, assumptionId: id }),
+	"bet.create": z
+		.strictObject({
+			...ventureScoped,
+			assumptionId: id,
+			function: z.enum(workFunctions),
+			action: text.max(2_000),
+			signal: text.max(500),
+			unit: shortText.max(20).default(""),
+			baseline: amount.nullable().default(null),
+			passAt: amount,
+			failAt: amount,
+			method: z.enum(betMethods),
+			budget: shortText.default(""),
+			deadline: isoDate,
+		})
+		.refine((value) => value.passAt !== value.failAt, {
+			message: "The pass and fail marks must differ",
+			path: ["failAt"],
+		}),
 	"bet.update": z
 		.strictObject({
 			...ventureScoped,
 			betId: id,
-			hypothesis: text.optional(),
-			action: text.optional(),
-			killCriteria: text.optional(),
+			function: z.enum(workFunctions).optional(),
+			action: text.max(2_000).optional(),
+			signal: text.max(500).optional(),
+			unit: shortText.max(20).optional(),
+			baseline: amount.nullable().optional(),
+			passAt: amount.optional(),
+			failAt: amount.optional(),
+			method: z.enum(betMethods).optional(),
+			budget: shortText.optional(),
+			deadline: isoDate.optional(),
 		})
-		.refine((value) => [value.hypothesis, value.action, value.killCriteria].some((field) => field !== undefined), {
-			message: "Change at least one field",
-		}),
-	"bet.archive": z.strictObject({ ...ventureScoped, betId: id }),
-	"bet.set_status": z.strictObject({
-		...ventureScoped,
-		betId: id,
-		status: z.enum(["won", "lost", "killed"]),
-		archiveGoals: z.boolean(),
-	}),
-	"goal.create": z.strictObject({
-		...ventureScoped,
-		betId: id.nullable(),
-		outcome: text,
-		signal: text,
-		horizon: isoDate.nullable(),
-	}),
-	"goal.update": z
+		.refine((value) => someField(value, betFields), { message: "Change at least one field" }),
+	"bet.close": z
 		.strictObject({
 			...ventureScoped,
-			goalId: id,
-			betId: id.nullable().optional(),
-			outcome: text.optional(),
-			signal: text.optional(),
-			horizon: isoDate.nullable().optional(),
+			betId: id,
+			result: z.enum(betResults),
+			cause: z.enum(failCauses).optional(),
+			statement: text.max(2_000),
+			confidenceTo: confidence.optional(),
 		})
-		.refine(
-			(value) => [value.betId, value.outcome, value.signal, value.horizon].some((field) => field !== undefined),
-			{ message: "Change at least one field" },
-		),
-	"goal.archive": z.strictObject({ ...ventureScoped, goalId: id }),
+		.refine((value) => (value.result === "fail") === (value.cause !== undefined), {
+			message: "A failed bet says whether the idea or the execution was wrong; other results don't",
+			path: ["cause"],
+		}),
+	"bet.archive": z.strictObject({ ...ventureScoped, betId: id }),
+	"reading.record": z.strictObject({
+		...ventureScoped,
+		subject: z.strictObject({ type: z.enum(readingSubjects), id }),
+		value: amount,
+		takenOn: isoDate,
+		source: text.max(500),
+	}),
 	"work.create": z
 		.strictObject({
 			...ventureScoped,
-			goalId: id.optional(),
+			home: workHome.optional(),
 			parentId: id.optional(),
 			title: text.max(500),
 			description: longText.default(""),
 			function: z.enum(workFunctions).optional(),
 			priority: z.enum(workPriorities).default("none"),
 		})
-		.refine((value) => (value.goalId === undefined) !== (value.parentId === undefined), {
-			message: "Give either a goal (new initiative) or a parent, not both",
-			path: ["goalId"],
+		.refine((value) => (value.home === undefined) !== (value.parentId === undefined), {
+			message: "Give either a home (new initiative) or a parent, not both",
+			path: ["home"],
 		})
 		.refine((value) => value.parentId !== undefined || value.function !== undefined, {
 			message: "An initiative needs a function",
@@ -151,7 +303,7 @@ export const commandSchemas = {
 		...ventureScoped,
 		workItemId: id,
 		index: z.number().int().min(0),
-		goalId: id.optional(),
+		home: workHome.optional(),
 	}),
 	"work.archive": z.strictObject({ ...ventureScoped, workItemId: id }),
 	"thread.start": z.strictObject({
@@ -207,6 +359,8 @@ export type CommandInput<Name extends CommandName> = z.input<(typeof commandSche
 export type CommandPayload<Name extends CommandName> = z.output<(typeof commandSchemas)[Name]>;
 
 export type ProposableCommand = (typeof proposableCommands)[number];
+
+export type LegacyProposableCommand = (typeof legacyProposableCommands)[number];
 
 export const commandsRequiringReason = new Set<CommandName>(["strategy.revise", "proposal.approve"]);
 

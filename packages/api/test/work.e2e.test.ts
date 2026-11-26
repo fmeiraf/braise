@@ -1,6 +1,6 @@
 import type { Cockpit, HoldingWork, VentureWork, WorkItem } from "@braise/core";
 import { afterAll, describe, expect, it } from "vitest";
-import { createVenture, freshKey, openTestDatabase } from "./database.test-utils.ts";
+import { createBuildObjective, createLoop, freshKey, openTestDatabase } from "./database.test-utils.ts";
 
 const database = await openTestDatabase();
 
@@ -28,29 +28,25 @@ async function read<Body>(path: string) {
 	return (await response.json()) as Body;
 }
 
-function rootTitles(work: VentureWork, goalId: string) {
+function rootTitles(work: VentureWork, betId: string) {
 	return work.workItems
-		.filter((item) => item.goalId === goalId && item.parentId === null)
+		.filter((item) => item.betId === betId && item.parentId === null)
 		.toSorted((a, b) => a.position - b.position)
 		.map((item) => item.title);
 }
 
 describe("slice 2 demo scenario over HTTP", () => {
-	it("builds a work tree under goals, tracks progress, reorders, moves and archives", async () => {
-		const venture = await createVenture(database);
+	it("builds a work tree under a bet, tracks progress, reorders, moves and archives", async () => {
+		const { venture, ventureId, bet } = await createLoop(database);
 
-		const ventureId = venture.id;
+		const build = await createBuildObjective(database, ventureId, "The page exists");
 
-		const goal = (outcome: string) =>
-			ok<{ id: string }>("goal.create", { ventureId, betId: null, outcome, signal: "A signal", horizon: null });
-
-		const goalA = await goal("Goal A");
-
-		const goalB = await goal("Goal B");
+		const betHome = { type: "bet", id: bet.id };
+		const buildHome = { type: "objective", id: build.id };
 
 		const initiative = await ok<WorkItem>("work.create", {
 			ventureId,
-			goalId: goalA.id,
+			home: betHome,
 			title: "Initiative",
 			function: "engineering",
 		});
@@ -60,7 +56,7 @@ describe("slice 2 demo scenario over HTTP", () => {
 		const subtask = await ok<WorkItem>("work.create", { ventureId, parentId: task.id, title: "Subtask" });
 
 		expect([initiative.depth, task.depth, subtask.depth]).toEqual([0, 1, 2]);
-		expect([task.function, subtask.function, subtask.goalId]).toEqual(["engineering", "engineering", goalA.id]);
+		expect([task.function, subtask.function, subtask.betId]).toEqual(["engineering", "engineering", bet.id]);
 
 		const tooDeep = await send("work.create", { ventureId, parentId: subtask.id, title: "Fourth level" });
 
@@ -72,7 +68,7 @@ describe("slice 2 demo scenario over HTTP", () => {
 
 		const cockpit = await read<Cockpit>(`/ventures/${venture.slug}`);
 
-		expect(cockpit.workProgress[goalA.id]).toEqual({ done: 1, total: 3 });
+		expect(cockpit.workProgress[`bet:${bet.id}`]).toEqual({ done: 1, total: 3 });
 
 		const edited = await ok<WorkItem>("work.update", {
 			ventureId,
@@ -87,7 +83,7 @@ describe("slice 2 demo scenario over HTTP", () => {
 
 		const second = await ok<WorkItem>("work.create", {
 			ventureId,
-			goalId: goalA.id,
+			home: betHome,
 			title: "Second initiative",
 			function: "marketing",
 		});
@@ -96,16 +92,16 @@ describe("slice 2 demo scenario over HTTP", () => {
 
 		await ok("work.move", { ventureId, workItemId: second.id, index: 0 });
 
-		expect(rootTitles(await read<VentureWork>(`/ventures/${venture.slug}/work`), goalA.id)).toEqual([
+		expect(rootTitles(await read<VentureWork>(`/ventures/${venture.slug}/work`), bet.id)).toEqual([
 			"Second initiative",
 			"Initiative",
 		]);
 
-		await ok("work.move", { ventureId, workItemId: initiative.id, goalId: goalB.id, index: 0 });
+		await ok("work.move", { ventureId, workItemId: initiative.id, home: buildHome, index: 0 });
 
 		const moved = await read<VentureWork>(`/ventures/${venture.slug}/work`);
 
-		expect(moved.workItems.filter((item) => item.goalId === goalB.id).map((item) => item.title)).toEqual([
+		expect(moved.workItems.filter((item) => item.objectiveId === build.id).map((item) => item.title)).toEqual([
 			"Initiative",
 			"Task, renamed",
 			"Subtask",
@@ -113,15 +109,15 @@ describe("slice 2 demo scenario over HTTP", () => {
 
 		expect(moved.workItems.find((item) => item.id === second.id)?.position).toBe(0);
 
-		const refused = await send("goal.archive", { ventureId, goalId: goalB.id });
+		const refused = await send("objective.archive", { ventureId, objectiveId: build.id });
 
-		expect(refused).toMatchObject({ status: 422, body: { error: { details: { rule: "goal_has_work" } } } });
+		expect(refused).toMatchObject({ status: 422, body: { error: { details: { rule: "objective_has_work" } } } });
 
 		const archived = await ok<{ archivedIds: string[] }>("work.archive", { ventureId, workItemId: initiative.id });
 
 		expect(archived.archivedIds.toSorted()).toEqual([initiative.id, task.id, subtask.id].toSorted());
 
-		await ok("goal.archive", { ventureId, goalId: goalB.id });
+		await ok("objective.archive", { ventureId, objectiveId: build.id });
 
 		const holding = await read<HoldingWork>("/work");
 

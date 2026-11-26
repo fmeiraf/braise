@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decisionLine, isBetRef, samePayload } from "./proposals.ts";
+import { decisionLine, samePayload } from "./proposals.ts";
 
 describe("decisionLine", () => {
 	it("names a plain approval", () => {
@@ -18,17 +18,6 @@ describe("decisionLine", () => {
 		expect(decisionLine({ status: "rejected", title: "Loyalty", edited: 0, dropped: 0, note: "Redo" })).toBe(
 			"Rejected “Loyalty” · Redo",
 		);
-	});
-});
-
-describe("isBetRef", () => {
-	it("accepts only a lone integer ref", () => {
-		expect([isBetRef({ ref: 0 }), isBetRef({ ref: 1.5 }), isBetRef({ ref: 0, x: 1 }), isBetRef("x")]).toEqual([
-			true,
-			false,
-			false,
-			false,
-		]);
 	});
 });
 

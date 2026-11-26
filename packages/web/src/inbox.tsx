@@ -1,14 +1,19 @@
 import {
-	type Bet,
+	assumptionStatuses,
+	betMethods,
 	capabilityCommands,
 	capabilityLabels,
 	changeLabels,
 	type InboxAccessRequest,
 	type InboxItem,
-	isBetRef,
+	impacts,
+	isRef,
+	methodLabels,
 	type ProposalChangeDetail,
 	type ProposalDetail,
+	refFields,
 	samePayload,
+	workFunctions,
 } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
@@ -28,15 +33,70 @@ import { toast } from "./toast.ts";
 import { useCommand } from "./use-command.ts";
 import { ThreadLink } from "./working.tsx";
 
-type FieldKind = "text" | "date" | "bet" | "status" | "flag";
+type FieldKind = "text" | "date" | "number" | "choice" | "objective" | "assumption" | "lines" | "flag";
 
 interface FieldSpec {
 	key: string;
 	label: string;
 	kind: FieldKind;
+	choices?: Record<string, string>;
 }
 
 const text = (key: string, label: string) => ({ key, label, kind: "text" }) satisfies FieldSpec;
+
+const number = (key: string, label: string) => ({ key, label, kind: "number" }) satisfies FieldSpec;
+
+const choice = (key: string, label: string, choices: Record<string, string>) =>
+	({ key, label, kind: "choice", choices }) satisfies FieldSpec;
+
+const capitalised = (values: readonly string[]) =>
+	Object.fromEntries(values.map((value) => [value, value.charAt(0).toUpperCase() + value.slice(1)]));
+
+const functionChoices = capitalised(workFunctions);
+
+const objectiveFields = [
+	choice("kind", "Kind", { metric: "Metric", learning: "Learning", build: "Build" }),
+	text("statement", "Objective"),
+	text("measure", "Measure"),
+	text("unit", "Unit"),
+	number("baseline", "Baseline"),
+	number("target", "Target"),
+	text("decision", "Decision it changes"),
+	text("doneRule", "Answered when"),
+	{ key: "doneList", label: "Done means", kind: "lines" },
+	{ key: "byDate", label: "By", kind: "date" },
+	text("guardrails", "Guardrails"),
+	text("budget", "Budget"),
+] satisfies FieldSpec[];
+
+const assumptionFields = [
+	text("statement", "Assumption"),
+	{ key: "objectiveId", label: "Under", kind: "objective" },
+	choice("impact", "Impact if false", capitalised(impacts)),
+	number("confidence", "Confidence"),
+	choice("function", "Function", functionChoices),
+	choice("status", "Where it stands", capitalised(assumptionStatuses)),
+] satisfies FieldSpec[];
+
+const betFields = [
+	{ key: "assumptionId", label: "Tests", kind: "assumption" },
+	text("action", "Action"),
+	text("signal", "Signal"),
+	text("unit", "Unit"),
+	number("baseline", "Today"),
+	number("passAt", "Pass at"),
+	number("failAt", "Fail past"),
+	choice("method", "Method", Object.fromEntries(betMethods.map((method) => [method, methodLabels[method]]))),
+	choice("function", "Led by", functionChoices),
+	text("budget", "Budget"),
+	{ key: "deadline", label: "Deadline", kind: "date" },
+] satisfies FieldSpec[];
+
+const goalFields = [
+	text("outcome", "Outcome"),
+	text("signal", "Signal"),
+	{ key: "horizon", label: "Horizon", kind: "date" },
+] satisfies FieldSpec[];
 
 const fieldsByCommand: Record<ProposalChangeDetail["command"], FieldSpec[]> = {
 	"strategy.revise": [
@@ -45,29 +105,30 @@ const fieldsByCommand: Record<ProposalChangeDetail["command"], FieldSpec[]> = {
 		text("diagnosis", "Diagnosis"),
 		text("guidingPolicy", "Guiding policy"),
 	],
-	"bet.create": [text("hypothesis", "Hypothesis"), text("action", "Action"), text("killCriteria", "Kill criteria")],
-	"bet.update": [text("hypothesis", "Hypothesis"), text("action", "Action"), text("killCriteria", "Kill criteria")],
+	"objective.create": objectiveFields,
+	"objective.update": objectiveFields,
+	"objective.close": [choice("status", "Close as", { active: "Active", met: "Met", dropped: "Dropped" })],
+	"assumption.create": assumptionFields,
+	"assumption.update": assumptionFields,
+	"bet.create": betFields,
+	"bet.update": betFields,
+	"bet.close": [
+		choice("result", "Result", { pass: "Passed", fail: "Failed", inconclusive: "Inconclusive" }),
+		choice("cause", "What was wrong", { idea: "The idea", execution: "The execution" }),
+		text("statement", "Learning"),
+		number("confidenceTo", "Confidence after"),
+	],
 	"bet.set_status": [
-		{ key: "status", label: "Settle as", kind: "status" },
+		choice("status", "Settle as", { open: "Open", won: "Won", lost: "Lost", killed: "Killed" }),
 		{ key: "archiveGoals", label: "Its goals", kind: "flag" },
 	],
-	"goal.create": [
-		text("outcome", "Outcome"),
-		text("signal", "Signal"),
-		{ key: "horizon", label: "Horizon", kind: "date" },
-		{ key: "betId", label: "Tests", kind: "bet" },
-	],
-	"goal.update": [
-		text("outcome", "Outcome"),
-		text("signal", "Signal"),
-		{ key: "horizon", label: "Horizon", kind: "date" },
-		{ key: "betId", label: "Tests", kind: "bet" },
-	],
+	"goal.create": goalFields,
+	"goal.update": goalFields,
 };
 
-const partialCommands = new Set(["bet.update", "goal.update"]);
+const subjectKeys = new Set(["objectiveId", "assumptionId", "betId", "goalId", "ventureId"]);
 
-const settleNames: Record<string, string> = { won: "Won", lost: "Lost", killed: "Killed" };
+const legacyLabels: Record<string, string> = { hypothesis: "Hypothesis", killCriteria: "Kill criteria" };
 
 type Payload = Record<string, unknown>;
 
@@ -78,33 +139,69 @@ interface ChangeState {
 }
 
 function visibleFields(change: { command: ProposalChangeDetail["command"]; payload: Payload }) {
-	const fields = fieldsByCommand[change.command];
+	const known = fieldsByCommand[change.command];
 
-	return partialCommands.has(change.command)
-		? fields.filter((field) => change.payload[field.key] !== undefined)
-		: fields;
+	if (change.command === "strategy.revise") return known;
+
+	const present = known.filter((field) => change.payload[field.key] !== undefined && change.payload[field.key] !== "");
+	const named = new Set(known.map((field) => field.key));
+
+	const extra = Object.keys(change.payload)
+		.filter((key) => !named.has(key) && !subjectKeys.has(key) && typeof change.payload[key] === "string")
+		.map((key) => text(key, legacyLabels[key] ?? key));
+
+	return [...present, ...extra];
 }
 
-function betLabel(value: unknown, detail: ProposalDetail) {
-	if (value === null || value === undefined) return "No bet";
+function refLabel(value: { ref: number }, detail: ProposalDetail, noun: string) {
+	const label = detail.proposal.changes[value.ref]?.payload.statement;
 
-	if (isBetRef(value)) {
-		const hypothesis = detail.proposal.changes[value.ref]?.payload.hypothesis;
+	return `The new ${noun} above${typeof label === "string" ? `: ${label}` : ""}`;
+}
 
-		return `The new bet above${typeof hypothesis === "string" ? `: ${hypothesis}` : ""}`;
-	}
+function objectiveLabel(value: unknown, detail: ProposalDetail) {
+	if (value === null || value === undefined) return "Worth testing later (no objective yet)";
 
-	return detail.bets.find((bet) => bet.id === value)?.hypothesis ?? "A bet that no longer exists";
+	if (isRef(value)) return refLabel(value, detail, "objective");
+
+	return (
+		detail.objectives.find((objective) => objective.id === value)?.statement ?? "An objective that no longer exists"
+	);
+}
+
+function assumptionLabel(value: unknown, detail: ProposalDetail) {
+	if (isRef(value)) return refLabel(value, detail, "assumption");
+
+	return (
+		detail.assumptions.find((assumption) => assumption.id === value)?.statement ??
+		"An assumption that no longer exists"
+	);
+}
+
+function lineOf(item: unknown) {
+	if (typeof item === "string") return item;
+
+	return typeof item === "object" && item !== null && "text" in item ? String(item.text) : "";
+}
+
+function linesOf(value: unknown) {
+	return Array.isArray(value) ? value.map(lineOf) : [];
 }
 
 function display(field: FieldSpec, value: unknown, detail: ProposalDetail) {
 	switch (field.kind) {
-		case "bet":
-			return betLabel(value, detail);
+		case "objective":
+			return objectiveLabel(value, detail);
+		case "assumption":
+			return assumptionLabel(value, detail);
 		case "date":
-			return typeof value === "string" && value !== "" ? formatDate(value) : "No horizon";
-		case "status":
-			return typeof value === "string" ? (settleNames[value] ?? value) : "";
+			return typeof value === "string" && value !== "" ? formatDate(value) : "No date";
+		case "choice":
+			return typeof value === "string" ? (field.choices?.[value] ?? value) : "";
+		case "number":
+			return typeof value === "number" ? String(value) : "None";
+		case "lines":
+			return linesOf(value).join("\n");
 		case "flag":
 			return value === true ? "Archive them too" : "Keep them";
 		default:
@@ -113,15 +210,27 @@ function display(field: FieldSpec, value: unknown, detail: ProposalDetail) {
 }
 
 function currentDisplay(field: FieldSpec, current: Payload | null, detail: ProposalDetail) {
-	if (current === null) return null;
-
-	if (field.kind === "flag") return null;
-
-	if (field.kind === "status") {
-		return current.status === "open" ? "Open" : (settleNames[String(current.status)] ?? null);
-	}
+	if (current === null || current[field.key] === undefined || field.kind === "flag") return null;
 
 	return display(field, current[field.key], detail);
+}
+
+function subjectOf(change: ProposalChangeDetail, detail: ProposalDetail) {
+	const { payload } = change;
+
+	if (change.command === "objective.update" || change.command === "objective.close") {
+		return detail.objectives.find((objective) => objective.id === payload.objectiveId)?.statement ?? null;
+	}
+
+	if (change.command === "assumption.update") {
+		return detail.assumptions.find((assumption) => assumption.id === payload.assumptionId)?.statement ?? null;
+	}
+
+	if (change.command === "bet.update" || change.command === "bet.close") {
+		return detail.bets.find((bet) => bet.id === payload.betId)?.action ?? null;
+	}
+
+	return null;
 }
 
 export function InboxPage() {
@@ -176,8 +285,8 @@ export function InboxPage() {
 				{selectedId === null ? (
 					<div className="rev">
 						<p className="lede">
-							When an agent proposes a change to a strategy, a bet or a goal, or asks for access it doesn't have,
-							you decide here. Nothing changes until you approve.
+							When an agent proposes a change to a strategy, an objective, an assumption or a bet, or asks for
+							access it doesn't have, you decide here. Nothing changes until you approve.
 						</p>
 					</div>
 				) : selected?.kind === "access_request" ? (
@@ -258,11 +367,13 @@ function initialState(detail: ProposalDetail) {
 
 function droppedRefs(states: ChangeState[]) {
 	return states.some(
-		(state, index) =>
+		(state) =>
 			state.included &&
-			isBetRef(state.draft.betId) &&
-			states[state.draft.betId.ref]?.included === false &&
-			index > state.draft.betId.ref,
+			refFields.some((field) => {
+				const value = state.draft[field];
+
+				return isRef(value) && states[value.ref]?.included === false;
+			}),
 	);
 }
 
@@ -371,7 +482,7 @@ function ReviewBody({ detail }: { detail: ProposalDetail }) {
 			: kept === 0
 				? "Include at least one change, or reject the proposal."
 				: refDropped
-					? "A new goal tests a new bet you left out. Include the bet or leave out the goal."
+					? "A change builds on a new item you left out. Include that item or leave out the change."
 					: reason.trim() === ""
 						? "Give a reason; it is recorded with the change."
 						: null;
@@ -527,6 +638,14 @@ const attemptLabels: Record<string, string> = {
 	status: "Status",
 	index: "Position",
 	goalId: "Goal",
+	home: "Lives under",
+	value: "Value",
+	takenOn: "Taken on",
+	source: "Source",
+	subject: "For",
+	objectiveId: "Objective",
+	itemId: "Done-list line",
+	done: "Done",
 	parentId: "Parent",
 	workItemId: "Work item",
 	threadId: "Thread",
@@ -544,7 +663,7 @@ function attemptValue(value: unknown) {
 }
 
 function isIdField(key: string) {
-	return key.endsWith("Id") || key === "link" || key === "changes";
+	return key.endsWith("Id") || ["link", "changes", "subject", "home"].includes(key);
 }
 
 function AccessReview({ item }: { item: InboxAccessRequest }) {
@@ -753,7 +872,8 @@ function Change({
 	const left = pending ? !state.included : applied === null;
 	const payload = pending ? state.draft : (applied?.payload ?? change.payload);
 	const fields = visibleFields({ command: change.command, payload: change.payload });
-	const creates = change.command === "bet.create" || change.command === "goal.create";
+	const creates = change.command.endsWith(".create");
+	const subject = subjectOf(change, detail);
 	const edited = !left && !samePayload(payload, change.payload);
 
 	const before = (field: FieldSpec) => {
@@ -772,6 +892,7 @@ function Change({
 			<header className="chg-h">
 				<span className="n">{index + 1}</span>
 				<b id={labelId}>{changeLabels[change.command]}</b>
+				{subject === null ? null : <span className="chg-on">{subject}</span>}
 				{change.stale === null ? null : <span className="ref bad">Stale · {change.stale}</span>}
 				{edited ? (
 					<span className="ref">
@@ -833,35 +954,55 @@ function Change({
 	);
 }
 
-function betOptions(detail: ProposalDetail, index: number) {
+function refOptions(detail: ProposalDetail, index: number, kind: "objective" | "assumption") {
 	const created = detail.proposal.changes
 		.map((change, at) => ({ change, at }))
-		.filter(({ change, at }) => change.command === "bet.create" && at < index)
+		.filter(({ change, at }) => change.command === `${kind}.create` && at < index)
 		.map(({ change, at }) => ({
 			value: `ref:${at}`,
-			label: `New: ${typeof change.payload.hypothesis === "string" ? change.payload.hypothesis : "bet above"}`,
+			label: `New: ${typeof change.payload.statement === "string" ? change.payload.statement : `${kind} above`}`,
 		}));
 
-	const live = detail.bets
-		.filter((bet: Pick<Bet, "status">) => bet.status === "open")
-		.map((bet) => ({ value: `bet:${bet.id}`, label: bet.hypothesis }));
+	const existing =
+		kind === "objective"
+			? detail.objectives
+					.filter((objective) => objective.status === "active" && objective.kind !== "build")
+					.map((objective) => ({ value: `id:${objective.id}`, label: objective.statement }))
+			: detail.assumptions.map((assumption) => ({ value: `id:${assumption.id}`, label: assumption.statement }));
 
-	return [{ value: "none", label: "No bet" }, ...created, ...live];
+	const none = kind === "objective" ? [{ value: "none", label: "Worth testing later (no objective yet)" }] : [];
+
+	return [...none, ...created, ...existing];
 }
 
-function encodeBet(value: unknown) {
-	if (isBetRef(value)) return `ref:${value.ref}`;
+function encodeRef(value: unknown) {
+	if (isRef(value)) return `ref:${value.ref}`;
 
-	return typeof value === "string" ? `bet:${value}` : "none";
+	return typeof value === "string" ? `id:${value}` : "none";
 }
 
-function decodeBet(value: string) {
+function decodeRef(value: string) {
 	if (value === "none") return null;
 
 	if (value.startsWith("ref:")) return { ref: Number(value.slice(4)) };
 
-	return value.slice(4);
+	return value.slice(3);
 }
+
+function relined(previous: unknown, next: string) {
+	const lines = next.split("\n");
+
+	if (!Array.isArray(previous) || previous.every((item) => typeof item === "string")) return lines;
+
+	return lines.map((line, index) => {
+		const before: unknown = previous[index];
+		const id = typeof before === "object" && before !== null && "id" in before ? before.id : undefined;
+
+		return id === undefined ? { text: line } : { id, text: line };
+	});
+}
+
+const optionalText = ["diagnosis", "guidingPolicy", "guardrails", "budget", "unit"];
 
 function FieldInput({
 	field,
@@ -890,38 +1031,54 @@ function FieldInput({
 						onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
 					/>
 				);
-			case "bet":
+			case "number":
 				return (
-					<Select
-						title={field.label}
-						value={encodeBet(value)}
-						options={betOptions(detail, index)}
-						onChange={(next) => onChange(decodeBet(next))}
+					<input
+						id={id}
+						className="inp num"
+						inputMode="decimal"
+						value={typeof value === "number" || typeof value === "string" ? String(value) : ""}
+						aria-invalid={typeof value === "string" ? true : undefined}
+						onChange={(event) => {
+							const raw = event.target.value.trim();
+							const parsed = Number(raw.replace(",", "."));
+
+							onChange(raw !== "" && Number.isFinite(parsed) ? parsed : raw);
+						}}
 					/>
 				);
-			case "status":
+			case "objective":
+			case "assumption":
 				return (
 					<Select
 						title={field.label}
-						value={typeof value === "string" ? value : "won"}
-						options={Object.entries(settleNames).map(([status, label]) => ({ value: status, label }))}
+						value={encodeRef(value)}
+						options={refOptions(detail, index, field.kind)}
+						onChange={(next) => onChange(decodeRef(next))}
+					/>
+				);
+			case "choice":
+				return field.key === "kind" ? (
+					<span>{display(field, value, detail)}</span>
+				) : (
+					<Select
+						title={field.label}
+						value={typeof value === "string" ? value : ""}
+						options={Object.entries(field.choices ?? {}).map(([option, label]) => ({ value: option, label }))}
 						onChange={onChange}
 					/>
 				);
 			case "flag":
+				return <span>{display(field, value, detail)}</span>;
+			case "lines":
 				return (
-					<label className="chg-flag">
-						<input
-							id={id}
-							type="checkbox"
-							role="switch"
-							className="sw"
-							checked={value === true}
-							aria-checked={value === true}
-							onChange={(event) => onChange(event.target.checked)}
-						/>
-						Archive its goals too
-					</label>
+					<textarea
+						id={id}
+						className="ta"
+						rows={3}
+						value={linesOf(value).join("\n")}
+						onChange={(event) => onChange(relined(value, event.target.value))}
+					/>
 				);
 			default:
 				return (
@@ -931,10 +1088,7 @@ function FieldInput({
 						rows={2}
 						value={typeof value === "string" ? value : ""}
 						aria-invalid={
-							typeof value === "string" &&
-							value.trim() === "" &&
-							field.key !== "diagnosis" &&
-							field.key !== "guidingPolicy"
+							typeof value === "string" && value.trim() === "" && !optionalText.includes(field.key)
 								? true
 								: undefined
 						}
@@ -946,7 +1100,7 @@ function FieldInput({
 
 	return (
 		<div className="chg-f">
-			{field.kind === "text" || field.kind === "date" ? (
+			{["text", "date", "number", "lines"].includes(field.kind) ? (
 				<label className="cap" htmlFor={id}>
 					{field.label}
 				</label>

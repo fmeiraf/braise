@@ -1,9 +1,10 @@
-import type { AppliedChange, ProposalChange } from "@braise/core";
+import type { AppliedChange, DoneItem, ProposalChange } from "@braise/core";
 import { sql } from "drizzle-orm";
 import {
 	bigint,
 	check,
 	date,
+	doublePrecision,
 	foreignKey,
 	index,
 	integer,
@@ -61,6 +62,87 @@ export const strategyVersions = pgTable(
 	],
 );
 
+const functions = ["product", "design", "engineering", "marketing", "sales", "ops"] as const;
+
+const functionCheck = (column: unknown) =>
+	sql`${column} IN ('product','design','engineering','marketing','sales','ops')`;
+
+export const objectives = pgTable(
+	"objectives",
+	{
+		id: uuid("id").primaryKey(),
+		ventureId: uuid("venture_id")
+			.notNull()
+			.references(() => ventures.id),
+		kind: text("kind", { enum: ["metric", "learning", "build"] }).notNull(),
+		statement: text("statement").notNull(),
+		measure: text("measure"),
+		unit: text("unit").notNull().default(""),
+		baseline: doublePrecision("baseline"),
+		target: doublePrecision("target"),
+		decision: text("decision"),
+		doneRule: text("done_rule"),
+		doneList: jsonb("done_list").$type<DoneItem[]>().notNull().default([]),
+		byDate: date("by_date", { mode: "string" }),
+		guardrails: text("guardrails").notNull().default(""),
+		budget: text("budget").notNull().default(""),
+		status: text("status", { enum: ["active", "met", "dropped"] })
+			.notNull()
+			.default("active"),
+		createdAt: createdAt(),
+		updatedAt: updatedAt(),
+		closedAt: timestamp("closed_at", { withTimezone: true }),
+		archivedAt: archivedAt(),
+	},
+	(table) => [
+		index("objectives_venture_idx").on(table.ventureId),
+		check("objectives_kind_check", sql`${table.kind} IN ('metric','learning','build')`),
+		check("objectives_status_check", sql`${table.status} IN ('active','met','dropped')`),
+	],
+);
+
+export const assumptions = pgTable(
+	"assumptions",
+	{
+		id: uuid("id").primaryKey(),
+		ventureId: uuid("venture_id")
+			.notNull()
+			.references(() => ventures.id),
+		objectiveId: uuid("objective_id").references(() => objectives.id),
+		statement: text("statement").notNull(),
+		impact: text("impact", { enum: ["low", "medium", "high"] })
+			.notNull()
+			.default("medium"),
+		confidence: smallint("confidence").notNull().default(1),
+		function: text("function", { enum: functions }).notNull(),
+		status: text("status", { enum: ["open", "holds", "false", "dropped"] })
+			.notNull()
+			.default("open"),
+		createdBy: text("created_by").notNull(),
+		createdAt: createdAt(),
+		updatedAt: updatedAt(),
+		archivedAt: archivedAt(),
+	},
+	(table) => [
+		index("assumptions_venture_idx").on(table.ventureId),
+		index("assumptions_objective_idx").on(table.objectiveId),
+		check("assumptions_impact_check", sql`${table.impact} IN ('low','medium','high')`),
+		check("assumptions_confidence_check", sql`${table.confidence} BETWEEN 0 AND 4`),
+		check("assumptions_function_check", functionCheck(table.function)),
+		check("assumptions_status_check", sql`${table.status} IN ('open','holds','false','dropped')`),
+	],
+);
+
+const methods = [
+	"existing_data",
+	"interviews",
+	"fake_door",
+	"concierge",
+	"before_after",
+	"staggered_rollout",
+	"ab_test",
+] as const;
+
 export const bets = pgTable(
 	"bets",
 	{
@@ -68,41 +150,92 @@ export const bets = pgTable(
 		ventureId: uuid("venture_id")
 			.notNull()
 			.references(() => ventures.id),
-		hypothesis: text("hypothesis").notNull(),
+		assumptionId: uuid("assumption_id")
+			.notNull()
+			.references(() => assumptions.id),
+		function: text("function", { enum: functions }).notNull(),
 		action: text("action").notNull(),
-		killCriteria: text("kill_criteria").notNull(),
-		status: text("status", { enum: ["open", "won", "lost", "killed"] })
+		signal: text("signal").notNull(),
+		unit: text("unit").notNull().default(""),
+		baseline: doublePrecision("baseline"),
+		passAt: doublePrecision("pass_at").notNull(),
+		failAt: doublePrecision("fail_at").notNull(),
+		method: text("method", { enum: methods }).notNull(),
+		budget: text("budget").notNull().default(""),
+		deadline: date("deadline", { mode: "string" }).notNull(),
+		status: text("status", { enum: ["open", "closed"] })
 			.notNull()
 			.default("open"),
-		introducedIn: uuid("introduced_in")
-			.notNull()
-			.references(() => strategyVersions.id),
 		createdAt: createdAt(),
 		updatedAt: updatedAt(),
+		closedAt: timestamp("closed_at", { withTimezone: true }),
 		archivedAt: archivedAt(),
 	},
 	(table) => [
 		index("bets_venture_idx").on(table.ventureId),
-		check("bets_status_check", sql`${table.status} IN ('open','won','lost','killed')`),
+		index("bets_assumption_idx").on(table.assumptionId),
+		check("bets_status_check", sql`${table.status} IN ('open','closed')`),
+		check("bets_function_check", functionCheck(table.function)),
+		check(
+			"bets_method_check",
+			sql`${table.method} IN ('existing_data','interviews','fake_door','concierge','before_after','staggered_rollout','ab_test')`,
+		),
+		check("bets_marks_check", sql`${table.passAt} <> ${table.failAt}`),
 	],
 );
 
-export const goals = pgTable(
-	"goals",
+export const learnings = pgTable(
+	"learnings",
 	{
 		id: uuid("id").primaryKey(),
 		ventureId: uuid("venture_id")
 			.notNull()
 			.references(() => ventures.id),
-		betId: uuid("bet_id").references(() => bets.id),
-		outcome: text("outcome").notNull(),
-		signal: text("signal").notNull(),
-		horizon: date("horizon", { mode: "string" }),
+		betId: uuid("bet_id")
+			.notNull()
+			.unique()
+			.references(() => bets.id),
+		assumptionId: uuid("assumption_id")
+			.notNull()
+			.references(() => assumptions.id),
+		result: text("result", { enum: ["pass", "fail", "inconclusive"] }).notNull(),
+		cause: text("cause", { enum: ["idea", "execution"] }),
+		statement: text("statement").notNull(),
+		value: doublePrecision("value"),
+		confidenceFrom: smallint("confidence_from").notNull(),
+		confidenceTo: smallint("confidence_to").notNull(),
+		function: text("function", { enum: functions }).notNull(),
+		createdBy: text("created_by").notNull(),
 		createdAt: createdAt(),
-		updatedAt: updatedAt(),
-		archivedAt: archivedAt(),
 	},
-	(table) => [index("goals_venture_idx").on(table.ventureId)],
+	(table) => [
+		index("learnings_venture_idx").on(table.ventureId),
+		index("learnings_assumption_idx").on(table.assumptionId),
+		check("learnings_result_check", sql`${table.result} IN ('pass','fail','inconclusive')`),
+		check("learnings_cause_check", sql`(${table.result} = 'fail') = (${table.cause} IS NOT NULL)`),
+		check("learnings_function_check", functionCheck(table.function)),
+	],
+);
+
+export const readings = pgTable(
+	"readings",
+	{
+		id: uuid("id").primaryKey(),
+		ventureId: uuid("venture_id")
+			.notNull()
+			.references(() => ventures.id),
+		subjectType: text("subject_type", { enum: ["objective", "bet"] }).notNull(),
+		subjectId: uuid("subject_id").notNull(),
+		value: doublePrecision("value").notNull(),
+		takenOn: date("taken_on", { mode: "string" }).notNull(),
+		source: text("source").notNull(),
+		enteredBy: text("entered_by").notNull(),
+		createdAt: createdAt(),
+	},
+	(table) => [
+		index("readings_subject_idx").on(table.subjectType, table.subjectId, table.takenOn),
+		check("readings_subject_type_check", sql`${table.subjectType} IN ('objective','bet')`),
+	],
 );
 
 export const workItems = pgTable(
@@ -112,9 +245,8 @@ export const workItems = pgTable(
 		ventureId: uuid("venture_id")
 			.notNull()
 			.references(() => ventures.id),
-		goalId: uuid("goal_id")
-			.notNull()
-			.references(() => goals.id),
+		betId: uuid("bet_id").references(() => bets.id),
+		objectiveId: uuid("objective_id").references(() => objectives.id),
 		parentId: uuid("parent_id"),
 		depth: smallint("depth").notNull(),
 		position: integer("position").notNull(),
@@ -123,9 +255,7 @@ export const workItems = pgTable(
 		status: text("status", { enum: ["todo", "doing", "done"] })
 			.notNull()
 			.default("todo"),
-		function: text("function", {
-			enum: ["product", "design", "engineering", "marketing", "sales", "ops"],
-		}).notNull(),
+		function: text("function", { enum: functions }).notNull(),
 		priority: text("priority", { enum: ["none", "low", "medium", "high", "urgent"] })
 			.notNull()
 			.default("none"),
@@ -136,15 +266,14 @@ export const workItems = pgTable(
 	(table) => [
 		foreignKey({ columns: [table.parentId], foreignColumns: [table.id] }),
 		index("work_items_venture_idx").on(table.ventureId),
-		index("work_items_goal_idx").on(table.goalId),
+		index("work_items_bet_idx").on(table.betId),
+		index("work_items_objective_idx").on(table.objectiveId),
 		index("work_items_parent_idx").on(table.parentId),
 		check("work_items_depth_check", sql`${table.depth} BETWEEN 0 AND 2`),
 		check("work_items_status_check", sql`${table.status} IN ('todo','doing','done')`),
-		check(
-			"work_items_function_check",
-			sql`${table.function} IN ('product','design','engineering','marketing','sales','ops')`,
-		),
+		check("work_items_function_check", functionCheck(table.function)),
 		check("work_items_priority_check", sql`${table.priority} IN ('none','low','medium','high','urgent')`),
+		check("work_items_home_check", sql`${table.betId} IS NULL OR ${table.objectiveId} IS NULL`),
 	],
 );
 
@@ -216,7 +345,9 @@ export const threadLinks = pgTable(
 		threadId: uuid("thread_id")
 			.notNull()
 			.references(() => threads.id),
-		subjectType: text("subject_type", { enum: ["work_item", "goal", "bet", "venture"] }).notNull(),
+		subjectType: text("subject_type", {
+			enum: ["work_item", "bet", "assumption", "objective", "venture"],
+		}).notNull(),
 		subjectId: uuid("subject_id").notNull(),
 		createdBy: text("created_by").notNull(),
 		createdAt: createdAt(),
@@ -224,7 +355,10 @@ export const threadLinks = pgTable(
 	(table) => [
 		primaryKey({ columns: [table.threadId, table.subjectType, table.subjectId] }),
 		index("thread_links_subject_idx").on(table.subjectType, table.subjectId),
-		check("thread_links_subject_type_check", sql`${table.subjectType} IN ('work_item','goal','bet','venture')`),
+		check(
+			"thread_links_subject_type_check",
+			sql`${table.subjectType} IN ('work_item','bet','assumption','objective','venture')`,
+		),
 	],
 );
 

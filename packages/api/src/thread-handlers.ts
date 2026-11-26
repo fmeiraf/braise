@@ -5,8 +5,9 @@ import { runControlChannel } from "./channels.ts";
 import type { Database, Transaction } from "./db/client.ts";
 import {
 	agentProfiles,
+	assumptions,
 	bets,
-	goals,
+	objectives,
 	runs,
 	threadLinks,
 	threadMessages,
@@ -52,11 +53,19 @@ async function linkTarget(tx: Transaction, link: LinkInput) {
 
 			return row;
 		}
-		case "goal": {
+		case "objective": {
 			const [row] = await tx
-				.select({ ventureId: goals.ventureId, archivedAt: goals.archivedAt })
-				.from(goals)
-				.where(eq(goals.id, link.id));
+				.select({ ventureId: objectives.ventureId, archivedAt: objectives.archivedAt })
+				.from(objectives)
+				.where(eq(objectives.id, link.id));
+
+			return row;
+		}
+		case "assumption": {
+			const [row] = await tx
+				.select({ ventureId: assumptions.ventureId, archivedAt: assumptions.archivedAt })
+				.from(assumptions)
+				.where(eq(assumptions.id, link.id));
 
 			return row;
 		}

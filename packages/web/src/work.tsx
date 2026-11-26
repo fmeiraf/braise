@@ -1,10 +1,12 @@
 import {
-	type Goal,
+	type Bet,
+	type Objective,
 	type WorkFunction,
 	type WorkItem,
 	type WorkPriority,
 	type WorkStatus,
 	workFunctions,
+	workHomeKey,
 	workPriorities,
 	workStatuses,
 } from "@braise/core";
@@ -19,13 +21,14 @@ import { useFreshIds } from "./fresh.ts";
 import { PageError } from "./holding.tsx";
 import { betNumbers } from "./labels.ts";
 import { patchWork, queries, refreshVenture, rememberVenture } from "./live.ts";
+import { timeLeft } from "./loop-view.ts";
 import { accent, Crest, Dia, FunctionGlyph, FunctionTag, Icon, Pips, progressStatus, Rank } from "./marks.tsx";
 import { Select } from "./menu.tsx";
 import { Skeleton } from "./parts.tsx";
 import { WorkItemThreads } from "./threads.tsx";
 import { ago, shortDate } from "./time.ts";
 import { useCommand } from "./use-command.ts";
-import { buildForest, cycleStatus, goalProgress, kindOf, orderGoals, type WorkNode } from "./work-tree.ts";
+import { buildForest, cycleStatus, filterForest, homeProgress, kindOf, type WorkNode } from "./work-tree.ts";
 
 interface VentureRef {
 	id: string;
@@ -35,8 +38,62 @@ interface VentureRef {
 
 interface WorkSection {
 	venture: VentureRef;
-	goals: Goal[];
+	objectives: Objective[];
+	bets: Bet[];
 	items: WorkItem[];
+}
+
+type Home = { type: "bet"; id: string } | { type: "objective"; id: string } | { type: "upkeep" };
+
+interface Group {
+	key: string;
+	home: Home;
+	number: string | null;
+	title: string;
+	note: string;
+	open: boolean;
+}
+
+function groupsOf(section: WorkSection, now: number) {
+	const numbers = betNumbers(section.bets);
+	const unfinished = new Set(section.items.filter((item) => item.status !== "done").map(workHomeKey));
+
+	const bets = section.bets.map((bet) => ({
+		key: workHomeKey({ betId: bet.id, objectiveId: null }),
+		home: { type: "bet", id: bet.id },
+		number: numbers.get(bet.id) ?? null,
+		title: bet.action,
+		note:
+			bet.status === "open" ? `Due ${shortDate(bet.deadline, now)} · ${timeLeft(bet.deadline, now)}` : "Bet closed",
+		open: bet.status === "open",
+	})) satisfies Group[];
+
+	const builds = section.objectives
+		.filter((objective) => objective.kind === "build")
+		.map((objective) => ({
+			key: workHomeKey({ betId: null, objectiveId: objective.id }),
+			home: { type: "objective", id: objective.id },
+			number: null,
+			title: objective.statement,
+			note:
+				objective.status !== "active"
+					? "Objective closed"
+					: objective.byDate === null
+						? "Build · no time box"
+						: `Build · ends ${shortDate(objective.byDate, now)} · ${timeLeft(objective.byDate, now)}`,
+			open: objective.status === "active",
+		})) satisfies Group[];
+
+	const upkeep = {
+		key: workHomeKey({ betId: null, objectiveId: null }),
+		home: { type: "upkeep" },
+		number: null,
+		title: "Upkeep",
+		note: "Work that tests nothing",
+		open: true,
+	} satisfies Group;
+
+	return [...bets, ...builds, upkeep].filter((group) => group.open || unfinished.has(group.key));
 }
 
 interface Located {
@@ -118,7 +175,7 @@ export function VentureWorkPage() {
 
 	return (
 		<WorkScreen
-			sections={[{ venture, goals: work.data.goals, items: work.data.workItems }]}
+			sections={[{ venture, objectives: work.data.objectives, bets: work.data.bets, items: work.data.workItems }]}
 			selectedId={item ?? null}
 			select={(next) =>
 				void navigate({
@@ -145,7 +202,8 @@ export function HoldingWorkPage() {
 
 	const sections = work.data.ventures.map((venture) => ({
 		venture,
-		goals: work.data.goals.filter((goal) => goal.ventureId === venture.id),
+		objectives: work.data.objectives.filter((objective) => objective.ventureId === venture.id),
+		bets: work.data.bets.filter((bet) => bet.ventureId === venture.id),
 		items: work.data.workItems.filter((workItem) => workItem.ventureId === venture.id),
 	}));
 
@@ -213,7 +271,8 @@ function WorkScreen(props: {
 	const selected = selectedId === null ? null : (located.get(selectedId) ?? null);
 	const allItems = sections.flatMap((section) => section.items);
 	const done = allItems.filter((item) => item.status === "done").length;
-	const hasGoals = sections.some((section) => section.goals.length > 0);
+	const [fn, setFn] = useState<WorkFunction | null>(null);
+	const used = workFunctions.filter((value) => allItems.some((item) => item.function === value));
 
 	useEffect(() => {
 		const hash = window.location.hash.slice(1);
@@ -334,29 +393,31 @@ function WorkScreen(props: {
 						{plural(allItems.length, "item")} · {done} done
 					</span>
 					<span className="grow" />
+					{used.length < 2 ? null : (
+						<fieldset className="seg fn-filter">
+							<legend className="vh">Show work of one function</legend>
+							<button type="button" aria-pressed={fn === null} onClick={() => setFn(null)}>
+								All
+							</button>
+							{used.map((value) => (
+								<button key={value} type="button" aria-pressed={fn === value} onClick={() => setFn(value)}>
+									<FunctionGlyph fn={value} />
+									{functionLabel[value]}
+								</button>
+							))}
+						</fieldset>
+					)}
 					<span className="hint">↑↓ select · ←→ fold · ↵ rename · ⌥↑↓ reorder</span>
 				</div>
 
 				<div className="wk-tree">
-					{hasGoals ? null : (
-						<p className="empty wk-empty">
-							{props.holding === true
-								? "Work hangs off goals, and no venture has a goal yet."
-								: "Work hangs off goals, and this venture has none yet."}{" "}
-							{props.holding === true || sections[0] === undefined ? null : (
-								<Link to="/v/$slug" params={{ slug: sections[0].venture.slug }}>
-									Add a goal in the overview
-								</Link>
-							)}
-						</p>
-					)}
-
 					{sections.map((section) => (
 						<VentureWork
 							key={section.venture.id}
 							section={section}
 							forest={forests.get(section.venture.id) ?? new Map()}
 							holding={props.holding === true}
+							fn={fn}
 							tree={{
 								collapsed,
 								toggle,
@@ -400,35 +461,30 @@ interface TreeState {
 	focusRow: (id: string) => void;
 }
 
-function useBetNumbers(slug: string) {
-	const bets = useQuery(queries.cockpit(slug)).data?.bets ?? [];
-
-	return { bets, numbers: betNumbers(bets) };
-}
-
 function VentureWork({
 	section,
 	forest,
 	holding,
+	fn,
 	tree,
 }: {
 	section: WorkSection;
 	forest: Map<string, WorkNode[]>;
 	holding: boolean;
+	fn: WorkFunction | null;
 	tree: TreeState;
 }) {
 	const fresh = useFreshIds(section.venture.id, section.items);
-	const goals = orderGoals(section.goals);
-	const { numbers } = useBetNumbers(section.venture.slug);
+	const groups = groupsOf(section, Date.now());
 
-	const body = goals.map((goal) => (
-		<GoalWork
-			key={goal.id}
+	const body = groups.map((group) => (
+		<GroupWork
+			key={group.key}
 			venture={section.venture}
-			goal={goal}
-			bet={goal.betId === null ? null : (numbers.get(goal.betId) ?? null)}
-			roots={forest.get(goal.id) ?? []}
-			progress={goalProgress(section.items, goal.id)}
+			group={group}
+			roots={filterForest(forest.get(group.key) ?? [], fn)}
+			filtered={fn !== null}
+			progress={homeProgress(section.items, group.key)}
 			level={holding ? 3 : 2}
 			fresh={fresh}
 			tree={tree}
@@ -446,49 +502,54 @@ function VentureWork({
 				</Link>
 				<span className="cnt">{plural(section.items.length, "item")}</span>
 			</h2>
-			{goals.length === 0 ? <p className="empty wk-empty">No goals yet.</p> : body}
+			{body}
 		</section>
 	);
 }
 
-function GoalWork(props: {
+function GroupWork(props: {
 	venture: VentureRef;
-	goal: Goal;
-	bet: string | null;
+	group: Group;
 	roots: WorkNode[];
+	filtered: boolean;
 	progress: { done: number; total: number };
 	level: 2 | 3;
 	fresh: ReadonlySet<string>;
 	tree: TreeState;
 }) {
-	const { goal, venture, progress } = props;
+	const { group, venture, progress } = props;
 	const [adding, setAdding] = useState(false);
 	const Heading = props.level === 2 ? "h2" : "h3";
-	const headingId = `goal-heading-${goal.id}`;
+	const headingId = `home-heading-${venture.id}-${group.key}`;
+
+	if (props.filtered && props.roots.length === 0) return null;
 
 	return (
-		<section id={`goal-${goal.id}`} aria-labelledby={headingId}>
+		<section id={`home-${group.key}`} aria-labelledby={headingId} className={group.open ? undefined : "wk-closed"}>
 			<div className="wk-g">
-				<Dia status={progressStatus(progress)} />
-				<Heading id={headingId}>{goal.outcome}</Heading>
-				<span className="tag plain">
-					{props.bet ?? "No bet"}
-					{goal.horizon === null ? null : ` · ${shortDate(goal.horizon, Date.now())}`}
-				</span>
+				{group.number === null ? (
+					<Dia status={progressStatus(progress)} />
+				) : (
+					<span className="bet-n">{group.number}</span>
+				)}
+				<Heading id={headingId}>{group.title}</Heading>
+				<span className="tag plain">{group.note}</span>
 				<i className="dots" />
 				<Pips done={progress.done} total={progress.total} />
 				<span className="mono mute">
 					{progress.done}/{progress.total}
 				</span>
-				<button
-					type="button"
-					className="ib"
-					aria-label="Add initiative"
-					data-tip="Add initiative"
-					onClick={() => setAdding(true)}
-				>
-					<Icon name="plus" />
-				</button>
+				{group.open ? (
+					<button
+						type="button"
+						className="ib"
+						aria-label="Add initiative"
+						data-tip="Add initiative"
+						onClick={() => setAdding(true)}
+					>
+						<Icon name="plus" />
+					</button>
+				) : null}
 			</div>
 
 			{props.roots.length === 0 ? null : (
@@ -508,13 +569,17 @@ function GoalWork(props: {
 			)}
 
 			{adding ? (
-				<AddWorkForm venture={venture} placement={{ goalId: goal.id }} depth={0} close={() => setAdding(false)} />
-			) : (
+				<AddWorkForm venture={venture} placement={{ home: group.home }} depth={0} close={() => setAdding(false)} />
+			) : group.open && !props.filtered ? (
 				<button type="button" className="addline" onClick={() => setAdding(true)}>
 					<Icon name="plus" />
-					{props.roots.length === 0 ? "No work yet. Add the first initiative" : "Add initiative"}
+					{props.roots.length > 0
+						? "Add initiative"
+						: group.home.type === "upkeep"
+							? "Nothing here. Add work that tests nothing: a fix, a bill, a routine"
+							: "No work yet. Add the first initiative"}
 				</button>
-			)}
+			) : null}
 		</section>
 	);
 }
@@ -778,14 +843,14 @@ const functionOptions = workFunctions.map((value) => ({
 
 function AddWorkForm(props: {
 	venture: VentureRef;
-	placement: { goalId: string } | { parentId: string };
+	placement: { home: Home } | { parentId: string };
 	depth: number;
 	close: () => void;
 }) {
 	const cache = useWorkCache(props.venture);
 	const [title, setTitle] = useState("");
 	const [fn, setFn] = useState<WorkFunction>(lastFunction);
-	const isRoot = "goalId" in props.placement;
+	const isRoot = "home" in props.placement;
 	const kind = kindLabel[kindOf({ depth: props.depth })];
 
 	const create = useCommand<"work.create", WorkItem>("work.create", (response) => {
@@ -904,14 +969,20 @@ function WorkPane({
 	const venture = section.venture;
 	const cache = useWorkCache(venture);
 	const navigate = useNavigate();
-	const { bets, numbers } = useBetNumbers(venture.slug);
+	const cockpit = useQuery(queries.cockpit(venture.slug)).data;
+	const now = Date.now();
+	const groups = groupsOf(section, now);
+	const homeKey = workHomeKey(item);
+	const group = groups.find((candidate) => candidate.key === homeKey);
 	const [confirming, setConfirming] = useState(false);
 	const base = { ventureId: venture.id, workItemId: item.id };
 	const kind = kindOf(item);
 	const descendants = node.children.reduce((count, child) => count + 1 + child.children.length, 0);
-	const goal = section.goals.find((candidate) => candidate.id === item.goalId);
-	const bet = bets.find((candidate) => candidate.id === goal?.betId);
-	const goalWork = goalProgress(section.items, item.goalId);
+	const bet = section.bets.find((candidate) => candidate.id === item.betId);
+	const assumption = cockpit?.assumptions.find((candidate) => candidate.id === bet?.assumptionId);
+	const objectiveId = item.objectiveId ?? assumption?.objectiveId ?? null;
+	const objective = (cockpit?.objectives ?? section.objectives).find((candidate) => candidate.id === objectiveId);
+	const homeWork = homeProgress(section.items, homeKey);
 	const statusIndex = workStatuses.indexOf(item.status);
 
 	const update = useCommand<"work.update", WorkItem>(
@@ -1031,21 +1102,27 @@ function WorkPane({
 					)}
 					{parent === null ? (
 						<div className="prop wide">
-							<span className="cap">Goal</span>
+							<span className="cap">Lives under</span>
 							<Select
-								title="Goal"
-								value={item.goalId}
+								title="Lives under"
+								value={homeKey}
 								disabled={move.isPending}
-								options={orderGoals(section.goals).map((option) => ({
-									value: option.id,
-									label: option.outcome,
-								}))}
-								onChange={(goalId) => {
+								options={groups
+									.filter((option) => option.open || option.key === homeKey)
+									.map((option) => ({
+										value: option.key,
+										label: option.number === null ? option.title : `${option.number} · ${option.title}`,
+									}))}
+								onChange={(key) => {
+									const target = groups.find((option) => option.key === key);
+
+									if (target === undefined || key === homeKey) return;
+
 									const index = section.items.filter(
-										(other) => other.goalId === goalId && other.parentId === null,
+										(other) => workHomeKey(other) === key && other.parentId === null,
 									).length;
 
-									move.mutate({ payload: { ...base, goalId, index } });
+									move.mutate({ payload: { ...base, home: target.home, index } });
 								}}
 							/>
 						</div>
@@ -1055,22 +1132,50 @@ function WorkPane({
 				<section>
 					<h3>Traces back to</h3>
 					<ol className="chain">
-						<li>
-							<span className="bet-n">{bet === undefined ? "–" : numbers.get(bet.id)}</span>
-							<div>
-								<span className="cap">Bet</span>
-								<p>{bet === undefined ? "Not tied to a bet" : bet.hypothesis}</p>
-							</div>
-						</li>
-						<li>
-							<Dia status={progressStatus(goalWork)} />
-							<div>
-								<span className="cap">
-									Goal · {goalWork.done}/{goalWork.total} done
-								</span>
-								<p>{goal?.outcome}</p>
-							</div>
-						</li>
+						{objective === undefined ? null : (
+							<li>
+								<Dia status={objective.status === "active" ? "open" : "done"} />
+								<div>
+									<span className="cap">
+										{objective.kind === "build" ? "Build objective" : "Objective"}
+										{objective.kind === "build" ? ` · ${homeWork.done}/${homeWork.total} done` : ""}
+									</span>
+									<p>{objective.statement}</p>
+								</div>
+							</li>
+						)}
+						{assumption === undefined ? null : (
+							<li>
+								<Dia status="todo" />
+								<div>
+									<span className="cap">Assumption · confidence {assumption.confidence} of 4</span>
+									<p>{assumption.statement}</p>
+								</div>
+							</li>
+						)}
+						{bet === undefined ? null : (
+							<li>
+								<span className="bet-n">{group?.number ?? "B"}</span>
+								<div>
+									<span className="cap">
+										Bet · {homeWork.done}/{homeWork.total} done ·{" "}
+										{bet.status === "open" ? timeLeft(bet.deadline, now) : "closed"}
+									</span>
+									<p>{bet.action}</p>
+								</div>
+							</li>
+						)}
+						{bet === undefined && item.objectiveId === null ? (
+							<li>
+								<Dia status={progressStatus(homeWork)} />
+								<div>
+									<span className="cap">
+										Upkeep · {homeWork.done}/{homeWork.total} done
+									</span>
+									<p>Tests nothing. It keeps the venture running.</p>
+								</div>
+							</li>
+						) : null}
 						{ancestors.map((ancestor) => (
 							<li key={ancestor.item.id}>
 								<button type="button" onClick={() => select(ancestor.item.id)}>

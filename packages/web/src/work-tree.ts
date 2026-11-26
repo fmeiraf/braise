@@ -1,4 +1,4 @@
-import type { Goal, WorkItem, WorkStatus } from "@braise/core";
+import { type WorkFunction, type WorkItem, type WorkStatus, workHomeKey } from "@braise/core";
 
 export interface WorkNode {
 	item: WorkItem;
@@ -21,7 +21,7 @@ export function buildForest(items: readonly WorkItem[]) {
 
 	for (const item of items) {
 		const bucket = item.parentId === null ? roots : childrenOf;
-		const key = item.parentId ?? item.goalId;
+		const key = item.parentId ?? workHomeKey(item);
 
 		bucket.set(key, [...(bucket.get(key) ?? []), item]);
 	}
@@ -37,17 +37,28 @@ export function buildForest(items: readonly WorkItem[]) {
 		};
 	};
 
-	return new Map([...roots].map(([goalId, list]) => [goalId, list.toSorted(byPosition).map(build)]));
+	return new Map([...roots].map(([home, list]) => [home, list.toSorted(byPosition).map(build)]));
 }
 
-export function goalProgress(items: readonly WorkItem[], goalId: string) {
-	const ofGoal = items.filter((item) => item.goalId === goalId);
+export function homeProgress(items: readonly WorkItem[], home: string) {
+	const inHome = items.filter((item) => workHomeKey(item) === home);
 
-	return { done: ofGoal.filter((item) => item.status === "done").length, total: ofGoal.length };
+	return { done: inHome.filter((item) => item.status === "done").length, total: inHome.length };
 }
 
-export function orderGoals(goals: readonly Goal[]) {
-	return [...goals.filter((goal) => goal.betId !== null), ...goals.filter((goal) => goal.betId === null)];
+/** Keeps the branches that hold work of one function: a match, with the path that leads to it. */
+export function filterForest(nodes: readonly WorkNode[], fn: WorkFunction | null) {
+	if (fn === null) return [...nodes];
+
+	const kept: WorkNode[] = [];
+
+	for (const node of nodes) {
+		const children = filterForest(node.children, fn);
+
+		if (node.item.function === fn || children.length > 0) kept.push({ ...node, children });
+	}
+
+	return kept;
 }
 
 export function visibleRows(forest: readonly WorkNode[], collapsed: ReadonlySet<string>) {

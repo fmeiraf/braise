@@ -4,6 +4,7 @@ import { accessDecisionLine, attemptSummary, capabilityOf } from "./grants.ts";
 describe("capabilityOf", () => {
 	it("maps agent commands to their capability", () => {
 		expect(capabilityOf("work.create")).toBe("work");
+		expect(capabilityOf("reading.record")).toBe("work");
 		expect(capabilityOf("thread.unlink")).toBe("links");
 		expect(capabilityOf("proposal.create")).toBe("propose");
 	});
@@ -11,13 +12,14 @@ describe("capabilityOf", () => {
 	it("has no capability for owner-only commands", () => {
 		expect(capabilityOf("proposal.approve")).toBeNull();
 		expect(capabilityOf("work.archive")).toBeNull();
+		expect(capabilityOf("bet.close")).toBeNull();
 	});
 });
 
 describe("accessDecisionLine", () => {
 	it("names the grant", () => {
 		expect(accessDecisionLine({ status: "approved", capability: "work", agentName: "GPT", note: null })).toBe(
-			"Granted Work items to GPT",
+			"Granted Work and readings to GPT",
 		);
 	});
 

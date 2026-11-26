@@ -28,7 +28,7 @@ async function readUntil(reader: ReadableStreamDefaultReader<Uint8Array>, marker
 }
 
 describe("slice 1 demo scenario over HTTP", () => {
-	it("creates, revises, bets, sets goals, edits, dedupes and keeps history", async () => {
+	it("creates, revises, sets an objective, notes assumptions, edits, dedupes and keeps history", async () => {
 		const name = `Demo ${crypto.randomUUID().slice(0, 8)}`;
 
 		const created = await json<{ result: Cockpit; seq: number }>(
@@ -67,71 +67,80 @@ describe("slice 1 demo scenario over HTTP", () => {
 
 		expect(revised.body.result).toMatchObject({ version: 2, status: "active", reason: "Learned it is urgent" });
 
-		const bet = await json<{ result: { id: string } }>(
-			database.post("bet.create", {
-				payload: { ventureId, hypothesis: "They will pay", action: "Offer a pilot", killCriteria: "No pilots" },
+		const objective = await json<{ result: { id: string } }>(
+			database.post("objective.create", {
+				payload: {
+					ventureId,
+					kind: "learning",
+					statement: "Will anyone pay for a pilot?",
+					decision: "Whether to build the paid tier",
+					doneRule: "Three pilots signed or ten refusals",
+				},
 				idempotencyKey: freshKey(),
 			}),
 		);
 
-		const goalKey = freshKey("goal");
+		const assumptionKey = freshKey("assumption");
 
-		const tiedGoal = {
+		const assumed = {
 			ventureId,
-			betId: bet.body.result.id,
-			outcome: "Three pilots",
-			signal: "Signed",
-			horizon: null,
+			objectiveId: objective.body.result.id,
+			statement: "They will pay",
+			impact: "high",
+			function: "sales",
 		};
 
 		const tied = await json<{ result: { id: string }; seq: number }>(
-			database.post("goal.create", { payload: tiedGoal, idempotencyKey: goalKey }),
+			database.post("assumption.create", { payload: assumed, idempotencyKey: assumptionKey }),
 		);
 
 		const replayed = await json<{ result: { id: string }; seq: number }>(
-			database.post("goal.create", { payload: tiedGoal, idempotencyKey: goalKey }),
+			database.post("assumption.create", { payload: assumed, idempotencyKey: assumptionKey }),
 		);
 
 		expect(replayed).toEqual(tied);
 
 		const conflict = await json<{ error: { code: string } }>(
-			database.post("goal.create", { payload: { ...tiedGoal, outcome: "Four" }, idempotencyKey: goalKey }),
+			database.post("assumption.create", {
+				payload: { ...assumed, statement: "They will pay a lot" },
+				idempotencyKey: assumptionKey,
+			}),
 		);
 
 		expect(conflict).toMatchObject({ status: 409, body: { error: { code: "idempotency_conflict" } } });
 
-		await database.post("goal.create", {
-			payload: { ventureId, betId: null, outcome: "Get known", signal: "Mentions", horizon: "2027-03-31" },
+		await database.post("assumption.create", {
+			payload: { ventureId, objectiveId: null, statement: "Word of mouth carries it", function: "marketing" },
 			idempotencyKey: freshKey(),
 		});
 
-		const edited = await json<{ result: { outcome: string } }>(
-			database.post("goal.update", {
-				payload: { ventureId, goalId: tied.body.result.id, outcome: "Five pilots" },
+		const edited = await json<{ result: { statement: string } }>(
+			database.post("assumption.update", {
+				payload: { ventureId, assumptionId: tied.body.result.id, statement: "Five of ten will pay" },
 				idempotencyKey: freshKey(),
 			}),
 		);
 
-		expect(edited.body.result.outcome).toBe("Five pilots");
+		expect(edited.body.result.statement).toBe("Five of ten will pay");
 
 		const cockpit = await json<Cockpit>(database.app.request(`/api/ventures/${slug}`));
 
 		expect(cockpit.body.strategy.version).toBe(2);
-		expect(cockpit.body.bets).toHaveLength(1);
+		expect(cockpit.body.objectives).toHaveLength(1);
 
-		expect(cockpit.body.goals.map((goal) => [goal.outcome, goal.betId])).toEqual([
-			["Five pilots", bet.body.result.id],
-			["Get known", null],
+		expect(cockpit.body.assumptions.map((item) => [item.statement, item.objectiveId, item.confidence])).toEqual([
+			["Five of ten will pay", objective.body.result.id, 1],
+			["Word of mouth carries it", null, 1],
 		]);
 
 		const holding = await json<{
-			ventures: { id: string; openBets: number; goals: number; unlinkedGoals: number; strategyVersion: number }[];
+			ventures: { id: string; objective: string | null; openAssumptions: number; strategyVersion: number }[];
 		}>(database.app.request("/api/ventures"));
 
 		expect(holding.body.ventures.find((row) => row.id === ventureId)).toMatchObject({
-			openBets: 1,
-			goals: 2,
-			unlinkedGoals: 1,
+			objective: "Will anyone pay for a pilot?",
+			openBets: 0,
+			openAssumptions: 1,
 			strategyVersion: 2,
 		});
 
@@ -147,16 +156,16 @@ describe("slice 1 demo scenario over HTTP", () => {
 		const activity = await json<{ events: DomainEvent[] }>(database.app.request(`/api/ventures/${slug}/events`));
 
 		expect(activity.body.events.map((event) => [event.seq, event.type, event.actor])).toEqual([
-			[6, "goal.updated", "owner"],
-			[5, "goal.created", "owner"],
-			[4, "goal.created", "owner"],
-			[3, "bet.created", "owner"],
+			[6, "assumption.updated", "owner"],
+			[5, "assumption.created", "owner"],
+			[4, "assumption.created", "owner"],
+			[3, "objective.created", "owner"],
 			[2, "strategy.revised", "owner"],
 			[1, "venture.created", "owner"],
 		]);
 
 		expect(activity.body.events[0]?.payload).toMatchObject({
-			changes: { outcome: { from: "Three pilots", to: "Five pilots" } },
+			changes: { statement: { from: "They will pay", to: "Five of ten will pay" } },
 		});
 
 		const recent = await json<{ events: (DomainEvent & { ventureSlug: string })[] }>(

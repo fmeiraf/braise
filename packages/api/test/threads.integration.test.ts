@@ -5,7 +5,7 @@ import { braiseTools, maxQueryRows, readOnly } from "../src/agent/tools.ts";
 import { claimRun, recoverRuns } from "../src/agent/worker.ts";
 import { deltaChannel } from "../src/channels.ts";
 import { commands, events, workItems } from "../src/db/schema.ts";
-import { createVenture, freshKey, openTestDatabase, testUrl } from "./database.test-utils.ts";
+import { createBuildObjective, createVenture, freshKey, openTestDatabase, testUrl } from "./database.test-utils.ts";
 
 const database = await openTestDatabase();
 
@@ -53,22 +53,16 @@ interface Started {
 async function ventureWithWork() {
 	const venture = await createVenture(database);
 
-	const goal = await ok<{ id: string }>("goal.create", {
-		ventureId: venture.id,
-		betId: null,
-		outcome: "Bread sells out",
-		signal: "Loaves left at close",
-		horizon: null,
-	});
+	const objective = await createBuildObjective(database, venture.id, "Bread sells out");
 
 	const item = await ok<WorkItem>("work.create", {
 		ventureId: venture.id,
-		goalId: goal.id,
+		home: { type: "objective", id: objective.id },
 		title: "Bake sourdough",
 		function: "ops",
 	});
 
-	return { venture, goal, item };
+	return { venture, objective, item };
 }
 
 async function jobFor(runId: string) {
@@ -156,7 +150,10 @@ describe("threads", () => {
 
 		await ok("thread.link", { threadId: holdingThread.thread.id, link: foreign });
 
-		await ok("thread.link", { threadId: holdingThread.thread.id, link: { type: "goal", id: first.goal.id } });
+		await ok("thread.link", {
+			threadId: holdingThread.thread.id,
+			link: { type: "objective", id: first.objective.id },
+		});
 
 		expect(await refused("thread.link", { threadId: holdingThread.thread.id, link: foreign })).toMatchObject({
 			rule: "no_changes",
@@ -173,7 +170,7 @@ describe("threads", () => {
 
 		const detail = await read<ThreadDetail>(`/threads/${holdingThread.thread.id}`);
 
-		expect(detail.links.map((link) => link.type)).toEqual(["goal"]);
+		expect(detail.links.map((link) => link.type)).toEqual(["objective"]);
 	});
 
 	it("renames and archives a thread, refusing archive while a run is active", async () => {
@@ -398,9 +395,9 @@ describe("agent tools", () => {
 	});
 
 	it("links its own thread and reports API errors as tool errors", async () => {
-		const { call, goal, started } = await toolsFor();
+		const { call, objective, started } = await toolsFor();
 
-		expect(await call("link_thread", { type: "goal", id: goal.id })).toMatchObject({ isError: false });
+		expect(await call("link_thread", { type: "objective", id: objective.id })).toMatchObject({ isError: false });
 
 		const missing = await call("update_work_item", { workItemId: crypto.randomUUID(), title: "Nope" });
 
@@ -410,7 +407,7 @@ describe("agent tools", () => {
 
 		const detail = await read<ThreadDetail>(`/threads/${started.thread.id}`);
 
-		expect(detail.links.map((link) => link.id)).toEqual([goal.id]);
+		expect(detail.links.map((link) => link.id)).toEqual([objective.id]);
 	});
 
 	it("refuses commands outside the agent allowlist with not_granted", async () => {
@@ -418,10 +415,10 @@ describe("agent tools", () => {
 
 		await expect(
 			database.command(
-				"goal.create",
+				"assumption.create",
 				{
-					payload: { ventureId: venture.id, betId: null, outcome: "Agent goal", signal: "x", horizon: null },
-					idempotencyKey: freshKey("agent-goal"),
+					payload: { ventureId: venture.id, objectiveId: null, statement: "Agent hunch", function: "ops" },
+					idempotencyKey: freshKey("agent-hunch"),
 				},
 				"agent:claude",
 			),
@@ -464,13 +461,13 @@ describe("thread reads", () => {
 	});
 
 	it("suggests link targets with work items first, scoped to a venture", async () => {
-		const { venture, item, goal } = await ventureWithWork();
+		const { venture, item, objective } = await ventureWithWork();
 
 		const { targets } = await read<{ targets: LinkTarget[] }>(`/link-targets?q=&ventureId=${venture.id}`);
 
 		expect(targets.map((target) => [target.type, target.id])).toEqual([
 			["work_item", item.id],
-			["goal", goal.id],
+			["objective", objective.id],
 			["venture", venture.id],
 		]);
 

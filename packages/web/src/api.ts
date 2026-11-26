@@ -2,14 +2,12 @@ import type {
 	ActiveRun,
 	AgentOverview,
 	ApiError,
-	Bet,
 	Cockpit,
 	CommandInput,
 	CommandName,
 	CommandResponse,
 	DomainEvent,
 	ErrorCode,
-	Goal,
 	HoldingRow,
 	HoldingWork,
 	Inbox,
@@ -110,5 +108,3 @@ export const api = {
 export type CreatedVenture = Pick<Cockpit, "venture" | "strategy">;
 
 export type ArchiveWorkResult = { workItem: WorkItem; archivedIds: string[] };
-
-export type SetStatusResult = { bet: Bet; archivedGoals: Goal[] };
