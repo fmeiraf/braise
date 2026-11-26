@@ -7,6 +7,7 @@ const statusByCode = {
 	idempotency_conflict: 409,
 	rule_violated: 422,
 	not_granted: 403,
+	not_in_space_chat: 403,
 	internal_error: 500,
 } as const satisfies Record<ErrorCode, ContentfulStatusCode>;
 

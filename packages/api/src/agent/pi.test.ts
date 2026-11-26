@@ -7,8 +7,8 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { replyStream, toolCallStream } from "./pi.fixture.ts";
-import { createPiRuntime, piLoginHint, piProvider } from "./pi.ts";
+import { replyStream, toolCallStream, usageHeaders, usageLimitBody } from "./pi.fixture.ts";
+import { codexLimitReadings, createPiRuntime, piLoginHint, piProvider } from "./pi.ts";
 import { fileCredentialStore } from "./pi-credentials.ts";
 import type { AgentTool, RunSignal } from "./runtime.ts";
 
@@ -17,6 +17,8 @@ const codexUrl = "https://chatgpt.com/backend-api/codex/responses";
 const requests: Record<string, unknown>[] = [];
 
 let stallSecond = false;
+
+let answer: "stream" | "limited" = "stream";
 
 let stalled = Promise.withResolvers<void>();
 
@@ -36,6 +38,13 @@ const server = setupServer(
 
 		requests.push(JSON.parse(body.toString("utf8")) as Record<string, unknown>);
 
+		if (answer === "limited") {
+			return new HttpResponse(usageLimitBody, {
+				status: 429,
+				headers: { ...usageHeaders, "x-codex-primary-used-percent": "100", "content-type": "application/json" },
+			});
+		}
+
 		if (stallSecond && requests.length === 2) {
 			stalled.resolve();
 
@@ -43,7 +52,7 @@ const server = setupServer(
 		}
 
 		return new HttpResponse(requests.length === 1 ? toolCallStream : replyStream, {
-			headers: { "content-type": "text/event-stream" },
+			headers: { ...usageHeaders, "x-codex-primary-used-percent": "42", "content-type": "text/event-stream" },
 		});
 	}),
 );
@@ -70,6 +79,8 @@ beforeEach(async () => {
 	requests.length = 0;
 
 	stallSecond = false;
+
+	answer = "stream";
 
 	dir = await mkdtemp(join(tmpdir(), "braise-pi-"));
 
@@ -129,7 +140,7 @@ describe("the Pi runtime", () => {
 
 		expect(echoes).toContain("hello");
 
-		const settled = signals.filter((signal) => signal.type !== "delta");
+		const settled = signals.filter((signal) => signal.type !== "delta" && signal.type !== "limit");
 
 		expect(settled).toEqual([
 			{ type: "tool.call", toolUseId: expect.any(String), name: "echo", input: { text: "hello" } },
@@ -165,6 +176,63 @@ describe("the Pi runtime", () => {
 		expect(JSON.stringify(requests[1])).toContain("echo: hello");
 	});
 
+	it("reads the Codex usage headers of every response as limit signals", async () => {
+		await logIn();
+
+		const signals: RunSignal[] = [];
+
+		await Effect.runPromise(
+			createPiRuntime(fileCredentialStore(authFile)).run(input(), (signal) =>
+				Effect.sync(() => {
+					signals.push(signal);
+				}),
+			),
+		);
+
+		const limits = signals.filter((signal) => signal.type === "limit");
+
+		expect(limits).toHaveLength(4);
+
+		expect(limits[0]).toEqual({
+			type: "limit",
+			reading: { window: "primary", status: "allowed", utilization: 0.42, resetsAt: new Date(1795744031 * 1000) },
+		});
+
+		expect(limits[1]).toEqual({
+			type: "limit",
+			reading: { window: "secondary", status: "allowed", utilization: 0, resetsAt: new Date(1796169875 * 1000) },
+		});
+	});
+
+	it("turns a 429 usage_limit_reached into a rejected reading and a failed run", async () => {
+		await logIn();
+
+		answer = "limited";
+
+		const signals: RunSignal[] = [];
+
+		await Effect.runPromise(
+			createPiRuntime(fileCredentialStore(authFile)).run(input(), (signal) =>
+				Effect.sync(() => {
+					signals.push(signal);
+				}),
+			),
+		);
+
+		expect(signals.filter((signal) => signal.type === "limit")).toEqual([
+			{
+				type: "limit",
+				reading: { window: "secondary", status: "allowed", utilization: 0, resetsAt: new Date(1796169875 * 1000) },
+			},
+			{
+				type: "limit",
+				reading: { window: "primary", status: "rejected", utilization: 1, resetsAt: new Date(1795744031 * 1000) },
+			},
+		]);
+
+		expect(signals.at(-1)).toMatchObject({ type: "finished", status: "failed" });
+	});
+
 	it("stops when interrupted while it waits for the model", async () => {
 		await logIn();
 
@@ -187,6 +255,16 @@ describe("the Pi runtime", () => {
 		await expect(Effect.runPromise(runtime.run(input(), () => Effect.void))).rejects.toThrow(piLoginHint);
 
 		expect(requests).toEqual([]);
+	});
+});
+
+describe("codexLimitReadings", () => {
+	it("skips windows the headers don't carry", () => {
+		expect(codexLimitReadings({ "x-codex-primary-used-percent": "91.5" })).toEqual([
+			{ window: "primary", status: "allowed", utilization: 0.915, resetsAt: null },
+		]);
+
+		expect(codexLimitReadings({})).toEqual([]);
 	});
 });
 

@@ -2,7 +2,14 @@ import type { RunDelta, StreamHint, ThreadHint } from "@braise/core";
 import { Cause, Context, Deferred, Effect, Layer, PubSub, Schedule, type Scope } from "effect";
 import pg from "pg";
 import { z } from "zod";
-import { accessChannel, deltaChannel, notifyChannel, runControlChannel, threadChannel } from "./channels.ts";
+import {
+	accessChannel,
+	capacityChannel,
+	deltaChannel,
+	notifyChannel,
+	runControlChannel,
+	threadChannel,
+} from "./channels.ts";
 
 export type HubMessage =
 	| ({ type: "hint" } & StreamHint)
@@ -10,6 +17,7 @@ export type HubMessage =
 	| ({ type: "delta" } & RunDelta)
 	| { type: "control"; runId: string }
 	| { type: "access" }
+	| { type: "capacity"; heldRunId: string | null }
 	| { type: "reset" };
 
 const reconnectDelay = "1 second";
@@ -53,6 +61,11 @@ export function parseHubMessage(channel: string, payload: string) {
 		}
 		case accessChannel:
 			return { type: "access" } satisfies HubMessage;
+		case capacityChannel:
+			return {
+				type: "capacity",
+				heldRunId: z.uuid().safeParse(payload).success ? payload : null,
+			} satisfies HubMessage;
 		case runControlChannel:
 			return z.uuid().safeParse(payload).success ? ({ type: "control", runId: payload } satisfies HubMessage) : null;
 		default:
@@ -69,7 +82,7 @@ export function parseNotification(payload: string) {
 	return { ventureId, seq: parsedSeq } satisfies StreamHint;
 }
 
-const channels = [notifyChannel, threadChannel, deltaChannel, runControlChannel, accessChannel];
+const channels = [notifyChannel, threadChannel, deltaChannel, runControlChannel, accessChannel, capacityChannel];
 
 function listen(connectionString: string, pubsub: PubSub.PubSub<HubMessage>, ended: Deferred.Deferred<void>) {
 	return Effect.promise(async () => {

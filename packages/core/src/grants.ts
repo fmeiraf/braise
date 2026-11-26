@@ -6,12 +6,14 @@ export const capabilityCommands = {
 	work: ["work.create", "work.update", "work.set_status", "work.move", "reading.record", "objective.check"],
 	links: ["thread.link", "thread.unlink"],
 	propose: ["proposal.create"],
+	delegate: ["thread.start", "thread.message", "run.retry", "space.add_thread", "space.remove_thread"],
 } as const satisfies Record<Capability, readonly CommandName[]>;
 
 export const capabilityLabels = {
 	work: "Work and readings",
 	links: "Thread links",
 	propose: "Proposals",
+	delegate: "Start and direct threads",
 } as const satisfies Record<Capability, string>;
 
 export function capabilityOf(name: CommandName) {
@@ -44,6 +46,11 @@ const attemptVerbs: Partial<Record<CommandName, string>> = {
 	"thread.link": "link this thread",
 	"thread.unlink": "unlink this thread",
 	"proposal.create": "propose",
+	"thread.start": "start a thread",
+	"thread.message": "message a thread",
+	"run.retry": "retry a thread",
+	"space.add_thread": "add a thread to the space",
+	"space.remove_thread": "remove a thread from the space",
 };
 
 function quoted(value: unknown) {

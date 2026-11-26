@@ -1,7 +1,7 @@
 import type { ActiveRun, AgentOverview } from "@braise/core";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, DragEventHandler, ReactNode } from "react";
 import { queries } from "./live.ts";
 
 export interface Working {
@@ -9,9 +9,9 @@ export interface Working {
 	agent: AgentOverview | null;
 }
 
-/** The runs in flight, each with the agent that is doing it. */
+/** The runs an agent is working on now (not the queued ones), each with that agent. */
 export function useWorking() {
-	const runs = useQuery(queries.activeRuns()).data?.runs ?? [];
+	const runs = (useQuery(queries.activeRuns()).data?.runs ?? []).filter((run) => run.status === "running");
 	const threads = useQuery({ ...queries.threads({}), enabled: runs.length > 0 }).data?.threads ?? [];
 	const agents = useQuery(queries.agents()).data?.agents ?? [];
 
@@ -41,6 +41,8 @@ export function ThreadLink(props: {
 	style?: CSSProperties;
 	tip?: string;
 	current?: boolean;
+	onDragStart?: DragEventHandler<HTMLAnchorElement>;
+	tone?: string;
 	children: ReactNode;
 }) {
 	const search = { thread: props.threadId };
@@ -54,6 +56,8 @@ export function ThreadLink(props: {
 			style={props.style}
 			data-tip={props.tip}
 			aria-current={current}
+			onDragStart={props.onDragStart}
+			data-tone={props.tone}
 		>
 			{props.children}
 		</Link>
@@ -66,6 +70,8 @@ export function ThreadLink(props: {
 			style={props.style}
 			data-tip={props.tip}
 			aria-current={current}
+			onDragStart={props.onDragStart}
+			data-tone={props.tone}
 		>
 			{props.children}
 		</Link>

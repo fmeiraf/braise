@@ -52,12 +52,20 @@ export const proposableCommands = [
 export const legacyProposableCommands = ["bet.set_status", "goal.create", "goal.update"] as const;
 
 export const proposalStatuses = ["pending", "approved", "rejected"] as const;
-export const capabilities = ["work", "links", "propose"] as const;
+export const capabilities = ["work", "links", "propose", "delegate"] as const;
 export const accessRequestStatuses = ["pending", "approved", "denied"] as const;
 export const defaultAgentProfileId = "claude";
 export const maxProposalChanges = 10;
 export const proposalTitleLength = 120;
 export const threadTitleLength = 80;
+export const spaceTitleLength = 80;
+export const maxThreadsStartedPerRun = 8;
+export const maxWakesSinceOwner = 5;
+export const reportOutcomes = ["succeeded", "failed", "interrupted", "cancelled", "needs_input"] as const;
+export const inputRequestStatuses = ["pending", "answered"] as const;
+export const runtimeNames = ["claude-agent-sdk", "pi"] as const;
+export const limitStatuses = ["allowed", "warning", "rejected"] as const;
+export const pauseReasons = ["limit", "owner"] as const;
 
 export const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
@@ -308,10 +316,13 @@ export const commandSchemas = {
 	"work.archive": z.strictObject({ ...ventureScoped, workItemId: id }),
 	"thread.start": z.strictObject({
 		ventureId: id.optional(),
+		spaceId: id.optional(),
 		agentProfileId: profileId.default(defaultAgentProfileId),
+		title: text.max(threadTitleLength).optional(),
 		body: messageBody,
 		links: z.array(threadLink).max(maxThreadLinks).default([]),
 	}),
+	"thread.message": z.strictObject({ threadId: id, body: messageBody }),
 	"thread.post": z.strictObject({
 		threadId: id,
 		body: messageBody,
@@ -323,6 +334,29 @@ export const commandSchemas = {
 	"thread.archive": z.strictObject({ threadId: id }),
 	"run.cancel": z.strictObject({ runId: id }),
 	"run.retry": z.strictObject({ runId: id }),
+	"space.create": z.strictObject({
+		ventureId: id.optional(),
+		title: text.max(spaceTitleLength),
+		goal: longText.max(2_000).optional(),
+		agentProfileId: profileId.default(defaultAgentProfileId),
+		links: z.array(threadLink).max(maxThreadLinks).default([]),
+	}),
+	"space.update": z
+		.strictObject({
+			spaceId: id,
+			title: text.max(spaceTitleLength).optional(),
+			goal: longText.max(2_000).nullable().optional(),
+			agentProfileId: profileId.optional(),
+		})
+		.refine((value) => someField(value, ["title", "goal", "agentProfileId"]), {
+			message: "Change at least one field",
+		}),
+	"space.archive": z.strictObject({ spaceId: id }),
+	"space.add_thread": z.strictObject({ spaceId: id, threadId: id }),
+	"space.remove_thread": z.strictObject({ spaceId: id, threadId: id }),
+	"input.request": z.strictObject({ question: text.max(4_000) }),
+	"runtime.pause": z.strictObject({ runtime: z.enum(runtimeNames) }),
+	"runtime.resume": z.strictObject({ runtime: z.enum(runtimeNames) }),
 	"proposal.create": z.strictObject({
 		...ventureScoped,
 		threadId: id,
@@ -367,12 +401,19 @@ export const commandsRequiringReason = new Set<CommandName>(["strategy.revise", 
 export const threadCommands = new Set<CommandName>([
 	"thread.start",
 	"thread.post",
+	"thread.message",
 	"thread.link",
 	"thread.unlink",
 	"thread.rename",
 	"thread.archive",
 	"run.cancel",
 	"run.retry",
+	"space.create",
+	"space.update",
+	"space.archive",
+	"space.add_thread",
+	"space.remove_thread",
+	"input.request",
 ]);
 
 export const accessCommands = new Set<CommandName>([
@@ -381,7 +422,11 @@ export const accessCommands = new Set<CommandName>([
 	"access.deny",
 	"grant.add",
 	"grant.revoke",
+	"runtime.pause",
+	"runtime.resume",
 ]);
+
+export const openAgentCommands = new Set<CommandName>(["access.request", "input.request"]);
 
 export const agentActorPrefix = "agent:";
 

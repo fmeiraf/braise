@@ -18,6 +18,7 @@ import {
 	getVentureWork,
 	listVentures,
 } from "./queries.ts";
+import { getCapacity, getSpace, listSpaces } from "./space-queries.ts";
 import { getActiveRuns, getLinkTargets, getThread, listThreads } from "./thread-queries.ts";
 
 const actor = "owner";
@@ -31,8 +32,11 @@ const eventsQuery = z.object({
 	limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
+const spacesQuery = z.object({ ventureId: z.uuid().optional() });
+
 const threadsQuery = z.object({
 	ventureId: z.uuid().optional(),
+	space: z.union([z.literal("none"), z.uuid()]).optional(),
 	subject: z
 		.string()
 		.regex(/^(work_item|bet|assumption|objective|venture):[0-9a-f-]{36}$/u)
@@ -157,12 +161,32 @@ export function createApp({ db, hub, services }: { db: Database; hub: HintHubSha
 	});
 
 	app.get("/threads", async (c) => {
-		const { ventureId, subject } = parseQuery(threadsQuery, c.req.query());
+		const { ventureId, subject, space } = parseQuery(threadsQuery, c.req.query());
 
 		return c.json({
-			threads: await listThreads(db, { ventureId: ventureId ?? null, subject: parseSubject(subject) }),
+			threads: await listThreads(db, {
+				ventureId: ventureId ?? null,
+				subject: parseSubject(subject),
+				space: space ?? null,
+			}),
 		});
 	});
+
+	app.get("/spaces", async (c) => {
+		const { ventureId } = parseQuery(spacesQuery, c.req.query());
+
+		return c.json({ spaces: await listSpaces(db, { ventureId: ventureId ?? null }) });
+	});
+
+	app.get("/spaces/:id", async (c) => {
+		const id = z.uuid().safeParse(c.req.param("id"));
+
+		if (!id.success) throw new AppError("not_found", "Space not found", { spaceId: c.req.param("id") });
+
+		return c.json(await getSpace(db, id.data));
+	});
+
+	app.get("/capacity", async (c) => c.json(await getCapacity(db)));
 
 	app.get("/threads/:id", async (c) => {
 		const id = z.uuid().safeParse(c.req.param("id"));
@@ -220,6 +244,8 @@ export function createApp({ db, hub, services }: { db: Database; hub: HintHubSha
 				return frame("thread", { threadId: message.threadId, ventureId: message.ventureId });
 
 			if (message.type === "access") return frame("access", {});
+
+			if (message.type === "capacity") return frame("capacity", {});
 
 			if (message.type === "reset") return frame("reset", {});
 

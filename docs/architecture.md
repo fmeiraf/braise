@@ -34,7 +34,9 @@ blocks, not as products in their own right.
   objective or Upkeep (work that tests nothing), tagged by function (engineering,
   marketing, ops, ...).
 - **Thread**: a conversation tied to a venture, work item or proposal; humans and
-  agents post in it.
+  agents post in it. A thread may belong to one space.
+- **Space**: a group of threads around one piece of work, with its own chat and an
+  orchestrating agent that starts threads, messages them and reads their reports.
 - **Agent profile**: role/playbook, runtime, model, tools and grants.
 - **Run**: an agent working within a thread; emits run events.
 - **Proposal**: a change set proposed by an agent; applied only when the owner approves.
@@ -126,6 +128,10 @@ Planned (order may change):
 6. **The strategy loop:** objectives, assumptions, bets with marks, learnings and
    readings replace bets and goals; work hangs off a bet, a build objective or Upkeep.
    Spec: `docs/slices/06-strategy-loop.md`.
+7. **Spaces, capacity and needs-you:** spaces group threads under an orchestrating
+   agent; per-runtime concurrency, run instrumentation, subscription-limit readings and
+   a pause gate; `needs_input` in the inbox; retries that don't repeat work. Spec:
+   `docs/slices/07-spaces.md`.
 
 Milestone: braise manages itself as a venture (dogfooding).
 
@@ -204,6 +210,29 @@ Milestone: braise manages itself as a venture (dogfooding).
   while readings and done-list ticks are direct under the `work` capability, like work
   items. Process rule 2 holds: guardrails and budgets are text, since nothing reads them
   as numbers yet. The decisions dated 2026-11-26 below record what the slice settled.
+
+- **Slice 7, Spaces, capacity and needs-you** (2026-11-26): `spaces` with an owned chat
+  thread and membership by `threads.space_id`; the `delegate` capability for a space's
+  agent (start, message and retry member threads, change membership), refused outside a
+  space's chat with 403 `not_in_space_chat`; report lines and coalesced wakes with a cap of
+  5; `input_requests` (`needs_input`) in the inbox; per-runtime pg-boss queues with limits
+  and chat-first priority; `limit_readings` from the Claude SDK and Codex headers, the pause
+  gate and `runtime_pauses`; run instrumentation (`first_token_at`, daily percentiles);
+  retries that list earlier attempts' calls and key creates by the chain's root; the
+  Spaces UI, the capacity panel and the inbox's questions. The spec's tests pass against
+  real Postgres. In the running app with real Claude and GPT runs: steps 1–6 and 8 were
+  exercised (a space started three GPT threads and one Claude thread, five reports led to
+  two wakes, the space agent asked the owner, a thread was dragged in, and a 95% Claude
+  reading paused Claude while GPT ran, until a manual resume); step 7 was exercised
+  end to end against MSW and through a real restart of a single thread, not with a space
+  mid-run.
+  Rule review (process rule 3): invariant 2's exception widened: wake runs, limit
+  readings and limit pauses are written by the worker as run-engine state; anything the
+  owner or an agent changes stays a command. Invariant 4 holds: `delegate` is a grant like
+  the others, and `not_in_space_chat` is a placement rule no grant could satisfy, so it
+  files no access request (like owner-only commands). Invariant 7 holds: limit readings
+  arrive as a new runtime signal (`limit`) on the unchanged contract. Process rule 2 holds:
+  every new table and column is used by this slice. The process rules otherwise held.
 
 ## Decisions log
 
@@ -448,3 +477,67 @@ Milestone: braise manages itself as a venture (dogfooding).
   (`legacyProposableCommands`).
 - 2026-11-26: Biome also skips `strategy-loop-report.html` at the repo root, a proposal
   document like the prototypes.
+- 2026-11-26: Spaces (owner, on `docs/slices/07-spaces.md`, after Amp's Spaces minus team
+  features): a space is its own table with its own id and a chat thread it owns
+  (`spaces.chat_thread_id`). Membership is `threads.space_id`, so joining or leaving changes
+  one column and never moves history. A thread is in at most one space, a space's chat is
+  never a member, spaces don't nest, and a member shares the space's scope. Archiving a space
+  releases its members and archives its chat. Each thread keeps its own agent; there is no
+  per-space model lock and no automatic routing yet. The owner's `thread.start` (the spec's
+  `thread.create`) takes an optional `spaceId`. This extends the threads entry of 2026-11-24.
+- 2026-11-26: A new capability `delegate` ("Start and direct threads") covers `thread.start`,
+  `thread.message`, `run.retry`, `space.add_thread` and `space.remove_thread` for agents. It
+  is allowed only in a run whose thread is a space's chat; anywhere else the pipeline answers
+  403 `not_in_space_chat` (a new error code), which files no access request. Migration `0008`
+  grants it to Claude. A space agent starts at most 8 threads per run, posts as
+  `agent:<name>` into member threads, and sees the delegate tools only in its chat.
+  `run.retry` joined the set because a space agent must retry interrupted members through the
+  retry chain (scenario step 7).
+- 2026-11-26: Reports and auto-wake: when a member run ends, the transaction that finishes it
+  posts a `braise` report line in the space's chat (`thread_messages.meta.kind = report`, with
+  the outcome `succeeded`, `failed`, `interrupted`, `cancelled` or `needs_input`) and queues a
+  wake run for the space agent unless its chat has an active run. Because one active run per
+  thread also covers a running agent, a chat run that finishes queues one wake for any reports
+  posted after it read its context (`seenSeq` in its `run.started` event). Each wake counts
+  toward `wakes_since_owner`; at 5 no wake is queued and the space shows "Paused: needs you"
+  until the owner writes in its chat. Wake runs are inserted by the worker as part of the run
+  lifecycle (invariant 2's exception), not as commands.
+- 2026-11-26: `needs_input` lands (replaces "`needs_input` is deferred", 2026-11-24). Any
+  agent may run `input.request` (no capability, like `access.request`): it opens one pending
+  question per thread, posts the question as the agent's message, and ends the run as
+  succeeded. The owner's next message in that thread answers it and queues the thread's run,
+  never a wake. Questions join the global inbox, where the owner can answer in place.
+- 2026-11-26: Run engine (replaces "two at once overall" in the run-engine entry of
+  2026-11-24): one pg-boss queue per runtime (`runs.claude`, `runs.pi`), each with its own
+  `localConcurrency`: Claude 3 and Pi 4, overridden by `BRAISE_CLAUDE_CONCURRENCY` and
+  `BRAISE_PI_CONCURRENCY`. Runs in a space's chat are sent with priority 1, members with 0.
+  The run queues use pg-boss LISTEN/NOTIFY so a job starts at once rather than on the next
+  2-second poll. One active run per thread stays.
+- 2026-11-26: Limit readings and the pause gate: the Claude SDK's `rate_limit_event`
+  (including its untyped `unifiedWindows`, seen in a recorded event) and Codex's
+  `x-codex-primary-*` / `x-codex-secondary-*` headers (`used-percent`, `reset-at`,
+  `window-minutes`, confirmed against a real response) become append-only `limit_readings`.
+  Pi reads them through a `fetch` wrapper passed to pi-ai, which also reads a 429
+  `usage_limit_reached` body as a rejected reading. A rejected reading, or a use of 0.9 or
+  more (`BRAISE_LIMIT_PAUSE_AT`), opens a `runtime_pauses` row until the reset and schedules a
+  `runtime.lift` job for that time. Before claiming a job, the worker checks for an open pause
+  and leaves the run queued; lifting re-sends the runtime's queued runs. A run refused
+  mid-flight ends `interrupted` with error code `limit`. The owner pauses and resumes by hand
+  with `runtime.pause` / `runtime.resume` (global commands, SSE `capacity` hint). Readings and
+  limit pauses are written by the worker as run-engine state; owner pauses are commands.
+  `braise limit <runtime> <window> <use> [minutes]` records a reading by hand.
+- 2026-11-26: Instrumentation comes from `runs` (`created_at`, `started_at`, the new
+  `first_token_at`, `finished_at`, `usage`) and `limit_readings`, with no extra service:
+  per runtime and day the queue wait, time to first token and duration at p50 and p95,
+  tokens, cost and failures; live running/limit and queue age; the latest reading per
+  window. It shows in a capacity panel in the Agents view, per space in its members panel,
+  and per run in its end line.
+- 2026-11-26: Retries don't repeat work: a retry's context lists the successful tool calls
+  and saved text of every earlier run in its retry chain, read from `run_events`, on both
+  runtimes. Agent `*.create` commands are keyed by the chain's root run and the payload
+  digest (`run:<root>:create:<digest>`), so an identical create returns the original result,
+  also within one run (replacing "write tools are idempotent per (run, tool payload)" for
+  creates, 2026-11-24). Updates and status changes keep the per-call key.
+- 2026-11-26: The API test files run at most four at a time (`maxWorkers: 4`): each holds
+  a pool of up to about 35 connections, and with slice 7's suites ten in parallel exceeded
+  the local Postgres's 100.

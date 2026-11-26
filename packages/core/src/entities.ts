@@ -2,13 +2,18 @@ import type {
 	accessRequestStatuses,
 	assumptionStatuses,
 	betStatuses,
+	inputRequestStatuses,
 	LegacyProposableCommand,
+	limitStatuses,
 	objectiveKinds,
 	objectiveStatuses,
 	ProposableCommand,
+	pauseReasons,
 	proposalStatuses,
 	readingSubjects,
+	reportOutcomes,
 	runStatuses,
+	runtimeNames,
 	threadLinkTypes,
 	ventureKinds,
 	workFunctions,
@@ -45,6 +50,16 @@ export type RunStatus = (typeof runStatuses)[number];
 export type ProposalStatus = (typeof proposalStatuses)[number];
 
 export type AccessRequestStatus = (typeof accessRequestStatuses)[number];
+
+export type ReportOutcome = (typeof reportOutcomes)[number];
+
+export type InputRequestStatus = (typeof inputRequestStatuses)[number];
+
+export type RuntimeName = (typeof runtimeNames)[number];
+
+export type LimitStatus = (typeof limitStatuses)[number];
+
+export type PauseReason = (typeof pauseReasons)[number];
 
 export interface Venture {
 	id: string;
@@ -260,6 +275,7 @@ export const errorCodes = [
 	"idempotency_conflict",
 	"rule_violated",
 	"not_granted",
+	"not_in_space_chat",
 	"internal_error",
 ] as const;
 
@@ -290,6 +306,8 @@ export interface RunDelta {
 export interface Thread {
 	id: string;
 	ventureId: string | null;
+	spaceId: string | null;
+	startedByRunId: string | null;
 	agentProfileId: string;
 	title: string;
 	lastSeq: number;
@@ -316,8 +334,13 @@ export interface ThreadMessage {
 	author: string;
 	runId: string | null;
 	body: string;
+	meta: MessageMeta | null;
 	createdAt: string;
 }
+
+export type MessageMeta =
+	| { kind: "report"; threadId: string; runId: string; outcome: ReportOutcome }
+	| { kind: "question"; inputRequestId: string };
 
 export interface RunUsage {
 	inputTokens: number;
@@ -338,12 +361,18 @@ export interface Run {
 	model: string;
 	actor: string;
 	status: RunStatus;
-	error: { message: string } | null;
+	error: RunError | null;
 	usage: RunUsage | null;
 	createdAt: string;
 	startedAt: string | null;
+	firstTokenAt: string | null;
 	finishedAt: string | null;
 	cancelRequestedAt: string | null;
+}
+
+export interface RunError {
+	message: string;
+	code?: "limit";
 }
 
 export type RunEventPayload =
@@ -359,12 +388,25 @@ export interface ThreadSummary extends Thread {
 	links: ThreadLink[];
 	lastMessage: { author: string; body: string; createdAt: string } | null;
 	activeRun: { id: string; status: RunStatus } | null;
+	needsInput: boolean;
+}
+
+export interface InputRequest {
+	id: string;
+	threadId: string;
+	runId: string;
+	question: string;
+	status: InputRequestStatus;
+	createdAt: string;
+	answeredAt: string | null;
 }
 
 export interface ThreadDetail {
 	thread: Thread;
 	agent: { id: string; name: string };
 	venture: { id: string; slug: string; name: string } | null;
+	space: { id: string; title: string; isChat: boolean } | null;
+	inputRequest: InputRequest | null;
 	links: ThreadLink[];
 	messages: ThreadMessage[];
 	runs: (Run & { events: RunEvent[] })[];
@@ -376,6 +418,7 @@ export interface ActiveRun {
 	threadTitle: string;
 	ventureSlug: string | null;
 	status: RunStatus;
+	runtime: string;
 	createdAt: string;
 	startedAt: string | null;
 }
@@ -452,7 +495,21 @@ export interface InboxAccessRequest {
 	decidedAt: string | null;
 }
 
-export type InboxItem = InboxProposal | InboxAccessRequest;
+export interface InboxNeedsInput {
+	kind: "needs_input";
+	id: string;
+	agent: { id: string; name: string };
+	question: string;
+	venture: { id: string; slug: string; name: string } | null;
+	thread: { id: string; title: string; ventureSlug: string | null };
+	space: { id: string; title: string } | null;
+	runId: string;
+	status: InputRequestStatus;
+	createdAt: string;
+	decidedAt: string | null;
+}
+
+export type InboxItem = InboxProposal | InboxAccessRequest | InboxNeedsInput;
 
 export interface Inbox {
 	pending: InboxItem[];
@@ -490,4 +547,93 @@ export interface ProposalDetail {
 	objectives: Pick<Objective, "id" | "statement" | "kind" | "status">[];
 	assumptions: Pick<Assumption, "id" | "statement" | "confidence" | "objectiveId">[];
 	bets: Pick<Bet, "id" | "action" | "status" | "assumptionId" | "method">[];
+}
+
+export interface Space {
+	id: string;
+	ventureId: string | null;
+	title: string;
+	goal: string | null;
+	agentProfileId: string;
+	chatThreadId: string;
+	wakesSinceOwner: number;
+	createdBy: string;
+	createdAt: string;
+	updatedAt: string;
+	archivedAt: string | null;
+}
+
+export type MemberState = "needs_you" | "running" | "queued" | "done";
+
+export interface SpaceSummary extends Space {
+	venture: { id: string; slug: string; name: string } | null;
+	agent: { id: string; name: string };
+	counts: Record<MemberState, number>;
+	chatActive: boolean;
+	pausedForOwner: boolean;
+}
+
+export interface SpaceMember {
+	thread: Thread;
+	agent: { id: string; name: string; runtime: string };
+	state: MemberState;
+	latestRun: Pick<Run, "id" | "status" | "createdAt" | "startedAt" | "finishedAt" | "error"> | null;
+	question: string | null;
+}
+
+export interface SpaceDetail {
+	space: SpaceSummary;
+	members: SpaceMember[];
+	stats: { runs: number; inputTokens: number; outputTokens: number; costUsd: number };
+}
+
+export interface LimitReading {
+	runtime: RuntimeName;
+	window: string;
+	status: LimitStatus;
+	utilization: number | null;
+	resetsAt: string | null;
+	observedAt: string;
+}
+
+export interface RuntimePause {
+	id: string;
+	runtime: RuntimeName;
+	reason: PauseReason;
+	until: string | null;
+	createdAt: string;
+}
+
+export interface RuntimeDay {
+	day: string;
+	runs: number;
+	failed: number;
+	interrupted: number;
+	queueWaitP50Ms: number | null;
+	queueWaitP95Ms: number | null;
+	firstTokenP50Ms: number | null;
+	firstTokenP95Ms: number | null;
+	durationP50Ms: number | null;
+	durationP95Ms: number | null;
+	inputTokens: number;
+	outputTokens: number;
+	costUsd: number;
+}
+
+export interface RuntimeCapacity {
+	runtime: RuntimeName;
+	label: string;
+	limit: number;
+	running: number;
+	queued: number;
+	oldestQueuedAt: string | null;
+	pause: RuntimePause | null;
+	windows: LimitReading[];
+	readings: LimitReading[];
+	days: RuntimeDay[];
+}
+
+export interface Capacity {
+	pauseAt: number;
+	runtimes: RuntimeCapacity[];
 }

@@ -9,3 +9,5 @@ export * from "./loop.ts";
 export * from "./proposals.ts";
 
 export * from "./slug.ts";
+
+export * from "./spaces.ts";

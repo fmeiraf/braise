@@ -272,6 +272,7 @@ export const capabilityPhrases = {
 	work: "create, edit, reorder and set the status of work items, record readings and tick done lists",
 	links: "link and unlink its threads",
 	propose: "propose changes to strategy, objectives, assumptions and bets",
+	delegate: "start, message and retry threads in a space it orchestrates, and change who is in it",
 } as const satisfies Record<Capability, string>;
 
 /** Numbers a venture's bets in the order they were made: B1, B2, … */

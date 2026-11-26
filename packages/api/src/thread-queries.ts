@@ -1,6 +1,7 @@
 import {
 	type ActiveRun,
 	activeRunStatuses,
+	type InputRequest,
 	type LinkTarget,
 	type Run,
 	type RunEvent,
@@ -9,15 +10,17 @@ import {
 	type ThreadLinkType,
 	type ThreadSummary,
 } from "@braise/core";
-import { and, asc, desc, eq, ilike, inArray, isNull, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, notInArray, type SQL } from "drizzle-orm";
 import type { Database } from "./db/client.ts";
 import {
 	agentProfiles,
 	assumptions,
 	bets,
+	inputRequests,
 	objectives,
 	runEvents,
 	runs,
+	spaces,
 	threadLinks,
 	threadMessages,
 	threads,
@@ -158,12 +161,21 @@ function toRun(row: RunRow) {
 		usage: row.usage as Run["usage"],
 		createdAt: row.createdAt.toISOString(),
 		startedAt: row.startedAt?.toISOString() ?? null,
+		firstTokenAt: row.firstTokenAt?.toISOString() ?? null,
 		finishedAt: row.finishedAt?.toISOString() ?? null,
 		cancelRequestedAt: row.cancelRequestedAt?.toISOString() ?? null,
 	} satisfies Run;
 }
 
-function toThread(row: ThreadRow) {
+export function toInputRequest(row: typeof inputRequests.$inferSelect) {
+	return {
+		...row,
+		createdAt: row.createdAt.toISOString(),
+		answeredAt: row.answeredAt?.toISOString() ?? null,
+	} satisfies InputRequest;
+}
+
+export function toThread(row: ThreadRow) {
 	return {
 		...row,
 		createdAt: row.createdAt.toISOString(),
@@ -172,13 +184,71 @@ function toThread(row: ThreadRow) {
 	};
 }
 
+export async function summarize(db: Database, rows: ThreadRow[]) {
+	const ids = rows.map((row) => row.id);
+
+	if (ids.length === 0) return [];
+
+	const [links, lastMessages, active, pending] = await Promise.all([
+		linksByThread(db, ids),
+		db
+			.selectDistinctOn([threadMessages.threadId], {
+				threadId: threadMessages.threadId,
+				author: threadMessages.author,
+				body: threadMessages.body,
+				createdAt: threadMessages.createdAt,
+			})
+			.from(threadMessages)
+			.where(inArray(threadMessages.threadId, ids))
+			.orderBy(threadMessages.threadId, desc(threadMessages.seq)),
+		db
+			.select({ id: runs.id, threadId: runs.threadId, status: runs.status })
+			.from(runs)
+			.where(and(inArray(runs.threadId, ids), inArray(runs.status, [...activeRunStatuses]))),
+		db
+			.select({ threadId: inputRequests.threadId })
+			.from(inputRequests)
+			.where(and(inArray(inputRequests.threadId, ids), eq(inputRequests.status, "pending"))),
+	]);
+
+	const lastByThread = new Map(lastMessages.map((message) => [message.threadId, message]));
+	const activeByThread = new Map(active.map((run) => [run.threadId, run]));
+	const asking = new Set(pending.map((row) => row.threadId));
+
+	return rows.map((row) => {
+		const last = lastByThread.get(row.id);
+		const run = activeByThread.get(row.id);
+
+		return {
+			...toThread(row),
+			links: links.get(row.id) ?? [],
+			lastMessage:
+				last === undefined
+					? null
+					: { author: last.author, body: last.body.slice(0, 280), createdAt: last.createdAt.toISOString() },
+			activeRun: run === undefined ? null : { id: run.id, status: run.status },
+			needsInput: asking.has(row.id),
+		} satisfies ThreadSummary;
+	});
+}
+
 export async function listThreads(
 	db: Database,
-	filter: { ventureId: string | null; subject: { type: ThreadLinkType; id: string } | null },
+	filter: {
+		ventureId: string | null;
+		subject: { type: ThreadLinkType; id: string } | null;
+		space?: "none" | string | null;
+	},
 ) {
-	const conditions: SQL[] = [isNull(threads.archivedAt)];
+	const conditions: SQL[] = [
+		isNull(threads.archivedAt),
+		notInArray(threads.id, db.select({ id: spaces.chatThreadId }).from(spaces)),
+	];
 
 	if (filter.ventureId !== null) conditions.push(eq(threads.ventureId, filter.ventureId));
+
+	if (filter.space === "none") conditions.push(isNull(threads.spaceId));
+	else if (filter.space !== undefined && filter.space !== null) conditions.push(eq(threads.spaceId, filter.space));
 
 	if (filter.subject !== null) {
 		conditions.push(
@@ -201,45 +271,7 @@ export async function listThreads(
 		.orderBy(desc(threads.updatedAt))
 		.limit(200);
 
-	const ids = rows.map((row) => row.id);
-
-	if (ids.length === 0) return [];
-
-	const [links, lastMessages, active] = await Promise.all([
-		linksByThread(db, ids),
-		db
-			.selectDistinctOn([threadMessages.threadId], {
-				threadId: threadMessages.threadId,
-				author: threadMessages.author,
-				body: threadMessages.body,
-				createdAt: threadMessages.createdAt,
-			})
-			.from(threadMessages)
-			.where(inArray(threadMessages.threadId, ids))
-			.orderBy(threadMessages.threadId, desc(threadMessages.seq)),
-		db
-			.select({ id: runs.id, threadId: runs.threadId, status: runs.status })
-			.from(runs)
-			.where(and(inArray(runs.threadId, ids), inArray(runs.status, [...activeRunStatuses]))),
-	]);
-
-	const lastByThread = new Map(lastMessages.map((message) => [message.threadId, message]));
-	const activeByThread = new Map(active.map((run) => [run.threadId, run]));
-
-	return rows.map((row) => {
-		const last = lastByThread.get(row.id);
-		const run = activeByThread.get(row.id);
-
-		return {
-			...toThread(row),
-			links: links.get(row.id) ?? [],
-			lastMessage:
-				last === undefined
-					? null
-					: { author: last.author, body: last.body.slice(0, 280), createdAt: last.createdAt.toISOString() },
-			activeRun: run === undefined ? null : { id: run.id, status: run.status },
-		} satisfies ThreadSummary;
-	});
+	return summarize(db, rows);
 }
 
 export async function getThread(db: Database, threadId: string) {
@@ -247,7 +279,7 @@ export async function getThread(db: Database, threadId: string) {
 
 	if (row === undefined) throw new AppError("not_found", "Thread not found", { threadId });
 
-	const [agent, venture, links, messages, runRows] = await Promise.all([
+	const [agent, venture, links, messages, runRows, chatOf, memberOf, pending] = await Promise.all([
 		db
 			.select({ id: agentProfiles.id, name: agentProfiles.name })
 			.from(agentProfiles)
@@ -263,6 +295,23 @@ export async function getThread(db: Database, threadId: string) {
 		linksByThread(db, [row.id]),
 		db.select().from(threadMessages).where(eq(threadMessages.threadId, row.id)).orderBy(asc(threadMessages.seq)),
 		db.select().from(runs).where(eq(runs.threadId, row.id)).orderBy(asc(runs.createdAt), asc(runs.id)),
+		db
+			.select({ id: spaces.id, title: spaces.title })
+			.from(spaces)
+			.where(eq(spaces.chatThreadId, row.id))
+			.then(([found]) => found),
+		row.spaceId === null
+			? undefined
+			: db
+					.select({ id: spaces.id, title: spaces.title })
+					.from(spaces)
+					.where(eq(spaces.id, row.spaceId))
+					.then(([found]) => found),
+		db
+			.select()
+			.from(inputRequests)
+			.where(and(eq(inputRequests.threadId, row.id), eq(inputRequests.status, "pending")))
+			.then(([found]) => found),
 	]);
 
 	const eventRows =
@@ -285,6 +334,13 @@ export async function getThread(db: Database, threadId: string) {
 		thread: toThread(row),
 		agent,
 		venture: venture ?? null,
+		space:
+			chatOf === undefined
+				? memberOf === undefined
+					? null
+					: { ...memberOf, isChat: false }
+				: { ...chatOf, isChat: true },
+		inputRequest: pending === undefined ? null : toInputRequest(pending),
 		links: links.get(row.id) ?? [],
 		messages: messages.map((message) => ({ ...message, createdAt: message.createdAt.toISOString() })),
 		runs: runRows.map((run) => ({
@@ -304,6 +360,7 @@ export async function getActiveRuns(db: Database) {
 			threadTitle: threads.title,
 			ventureSlug: ventures.slug,
 			status: runs.status,
+			runtime: runs.runtime,
 			createdAt: runs.createdAt,
 			startedAt: runs.startedAt,
 		})

@@ -1,23 +1,23 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { activeRunStatuses, type RunStatus, type RunUsage } from "@braise/core";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { activeRunStatuses, type RunError, type RunStatus, type RunUsage } from "@braise/core";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { Cause, Effect, Exit, Fiber, FiberSet, Layer, Stream } from "effect";
-import { deltaChannel } from "../channels.ts";
+import { capacityChannel, deltaChannel } from "../channels.ts";
 import { Database, query, Tx, transaction } from "../db/effect.ts";
 import { runEvents, runs } from "../db/schema.ts";
 import { HintHub } from "../hints.ts";
-import { notifyThread } from "../pipeline.ts";
-import { appendMessage, lockThread } from "../thread-handlers.ts";
+import { notifyThread, type RunJob } from "../pipeline.ts";
+import { appendMessage, lockThread, runJobOf } from "../thread-handlers.ts";
 import { loadRunContext, renderPrompt, renderSystemPrompt } from "./context.ts";
 import { makeDeltaPublisher } from "./deltas.ts";
-import { Boss, RunQueue, runQueue } from "./queue.ts";
+import { liftPause, openPauseOf, recordLimit } from "./limits.ts";
+import { Boss, concurrencyOf, liftQueue, queueOf, RunQueue, runtimeNamesInOrder, runtimeQueues } from "./queue.ts";
 import { AgentReader } from "./reader.ts";
+import { reportRunEnd } from "./reports.ts";
 import { type AgentRuntime, type RunSignal, RuntimeError } from "./runtime.ts";
 import { braiseTools } from "./tools.ts";
-
-export const maxConcurrentRuns = 2;
 
 const interruptedMessage = "braise stopped while the agent was working";
 
@@ -25,12 +25,26 @@ const shutdownTimeout = "10 seconds";
 
 type RunRow = typeof runs.$inferSelect;
 
-type StopReason = "cancel" | "shutdown";
+type StopReason = "cancel" | "shutdown" | "input";
 
 interface Outcome {
 	status: RunStatus;
 	usage: RunUsage | null;
-	error: string | null;
+	error: RunError | null;
+}
+
+function runError(message: string | null) {
+	return message === null ? null : ({ message } satisfies RunError);
+}
+
+interface RunState {
+	seq: number;
+	thread: { id: string; ventureId: string | null };
+	finished: Extract<RunSignal, { type: "finished" }> | null;
+	partial: { block: number; text: string } | null;
+	firstToken: boolean;
+	limited: boolean;
+	endAfterTool: boolean;
 }
 
 interface ActiveRun {
@@ -57,14 +71,15 @@ const nextEventSeq = Effect.fn("nextEventSeq")(function* (runId: string) {
 
 export const finishRun = Effect.fn("finishRun")(function* (runId: string, outcome: Outcome) {
 	const seq = yield* nextEventSeq(runId);
+	const queue = yield* RunQueue;
 
-	yield* transaction(
+	const jobs = yield* transaction(
 		Effect.gen(function* () {
 			const tx = yield* Tx;
 
 			const [run] = yield* query(() => tx.select().from(runs).where(eq(runs.id, runId)));
 
-			if (run === undefined) return;
+			if (run === undefined) return [] as RunJob[];
 
 			const thread = yield* query(() => lockThread(tx, run.threadId));
 
@@ -74,7 +89,7 @@ export const finishRun = Effect.fn("finishRun")(function* (runId: string, outcom
 					.set({
 						status: outcome.status,
 						usage: outcome.usage === null ? null : { ...outcome.usage },
-						error: outcome.error === null ? null : { message: outcome.error },
+						error: outcome.error,
 						finishedAt: sql`now()`,
 					})
 					.where(eq(runs.id, runId)),
@@ -99,9 +114,15 @@ export const finishRun = Effect.fn("finishRun")(function* (runId: string, outcom
 
 			if (body !== "") yield* query(() => appendMessage(tx, thread, { author: run.actor, body, runId }));
 
+			const queued = yield* query(() => reportRunEnd(tx, run, thread, outcome.status, outcome.error));
+
 			yield* query(() => notifyThread(tx, thread));
+
+			return queued;
 		}),
 	);
+
+	for (const job of jobs) yield* query(() => queue.enqueueRun(job));
 });
 
 export const recoverRuns = Effect.fn("recoverRuns")(function* () {
@@ -111,12 +132,12 @@ export const recoverRuns = Effect.fn("recoverRuns")(function* () {
 	const interrupted = yield* query(() => db.select({ id: runs.id }).from(runs).where(eq(runs.status, "running")));
 
 	for (const run of interrupted) {
-		yield* finishRun(run.id, { status: "interrupted", usage: null, error: interruptedMessage });
+		yield* finishRun(run.id, { status: "interrupted", usage: null, error: runError(interruptedMessage) });
 	}
 
-	const queued = yield* query(() => db.select({ id: runs.id }).from(runs).where(eq(runs.status, "queued")));
+	const queued = yield* query(() => db.select().from(runs).where(eq(runs.status, "queued")));
 
-	for (const run of queued) yield* query(() => queue.enqueueRun(run.id));
+	for (const run of queued) yield* query(async () => queue.enqueueRun(await runJobOf(db, run)));
 
 	return { interrupted: interrupted.length, requeued: queued.length };
 });
@@ -141,7 +162,7 @@ const failRun = Effect.fn("failRun")(function* (
 	yield* query(() =>
 		db
 			.update(runs)
-			.set({ status: "failed", error: { message }, finishedAt: sql`now()` })
+			.set({ status: "failed", error: runError(message), finishedAt: sql`now()` })
 			.where(and(eq(runs.id, runId), inArray(runs.status, [...activeRunStatuses]))),
 	);
 
@@ -162,29 +183,54 @@ export const claimRun = Effect.fn("claimRun")(function* (runId: string) {
 	return claimed;
 });
 
+function limitOutcome(run: RunRow, usage: RunUsage | null) {
+	const label = Object.hasOwn(runtimeQueues, run.runtime)
+		? runtimeQueues[run.runtime as keyof typeof runtimeQueues].label
+		: run.runtime;
+
+	return {
+		status: "interrupted",
+		usage,
+		error: { message: `${label} hit its subscription limit`, code: "limit" },
+	} satisfies Outcome;
+}
+
 function outcomeOf(
 	run: RunRow,
 	stop: { reason: StopReason | null },
 	exit: Exit.Exit<void, unknown>,
-	finished: Extract<RunSignal, { type: "finished" }> | null,
+	state: { finished: Extract<RunSignal, { type: "finished" }> | null; limited: boolean },
 ) {
+	const { finished } = state;
 	const usage = finished?.usage ?? null;
 
 	if (stop.reason === "cancel") return { status: "cancelled", usage, error: null } satisfies Outcome;
 
-	if (stop.reason === "shutdown") return { status: "interrupted", usage, error: interruptedMessage } satisfies Outcome;
+	if (stop.reason === "input") return { status: "succeeded", usage, error: null } satisfies Outcome;
+
+	if (stop.reason === "shutdown") {
+		return { status: "interrupted", usage, error: runError(interruptedMessage) } satisfies Outcome;
+	}
 
 	if (Exit.isFailure(exit)) {
 		const error = Cause.squash(exit.cause);
 
+		if (state.limited) return limitOutcome(run, null);
+
 		console.error(`agent: run ${run.id} failed`, error);
 
-		return { status: "failed", usage: null, error: errorMessage(error) } satisfies Outcome;
+		return { status: "failed", usage: null, error: runError(errorMessage(error)) } satisfies Outcome;
 	}
 
-	return (
-		finished ?? ({ status: "failed", usage: null, error: "The agent stopped without a result" } satisfies Outcome)
-	);
+	if (finished === null) {
+		return state.limited
+			? limitOutcome(run, null)
+			: ({ status: "failed", usage: null, error: runError("The agent stopped without a result") } satisfies Outcome);
+	}
+
+	if (finished.status === "failed" && state.limited) return limitOutcome(run, usage);
+
+	return { status: finished.status, usage, error: runError(finished.error) } satisfies Outcome;
 }
 
 export function agentWorkerLayer(runtimes: AgentRuntime[]) {
@@ -204,12 +250,7 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 			const agentWork = (
 				run: RunRow,
 				stop: { reason: StopReason | null },
-				state: {
-					seq: number;
-					thread: { id: string; ventureId: string | null };
-					finished: Extract<RunSignal, { type: "finished" }> | null;
-					partial: { block: number; text: string } | null;
-				},
+				state: RunState,
 				append: (type: string, payload: Record<string, unknown>) => Effect.Effect<void, unknown>,
 			) =>
 				Effect.gen(function* () {
@@ -228,7 +269,7 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 
 					state.thread.ventureId = runContext.scope?.id ?? null;
 
-					yield* append("run.started", { model: run.model });
+					yield* append("run.started", { model: run.model, seenSeq: runContext.seenSeq });
 
 					if (yield* cancelRequested(run.id)) {
 						stop.reason = "cancel";
@@ -242,19 +283,51 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 						return yield* new RuntimeError({ message: `braise has no runtime ${run.runtime}` });
 					}
 
+					const firstToken = Effect.suspend(() => {
+						if (state.firstToken) return Effect.void;
+
+						state.firstToken = true;
+
+						return Effect.asVoid(
+							query(() =>
+								db
+									.update(runs)
+									.set({ firstTokenAt: sql`now()` })
+									.where(and(eq(runs.id, run.id), isNull(runs.firstTokenAt))),
+							),
+						);
+					});
+
 					const onSignal = (signal: RunSignal) => {
 						switch (signal.type) {
+							case "limit":
+								if (signal.reading.status === "rejected") state.limited = true;
+
+								return Effect.asVoid(
+									query(() =>
+										recordLimit(db, services, {
+											runtime: run.runtime,
+											runId: run.id,
+											reading: signal.reading,
+										}),
+									),
+								);
 							case "delta":
 								state.partial =
 									state.partial?.block === signal.block
 										? { block: signal.block, text: state.partial.text + signal.text }
 										: { block: signal.block, text: signal.text };
 
-								return Effect.asVoid(deltas.push({ threadId: run.threadId, runId: run.id, ...signal }));
+								return firstToken.pipe(
+									Effect.andThen(deltas.push({ threadId: run.threadId, runId: run.id, ...signal })),
+									Effect.asVoid,
+								);
 							case "message":
 								state.partial = null;
 
-								return append("message", { block: signal.block, text: signal.text });
+								return firstToken.pipe(
+									Effect.andThen(append("message", { block: signal.block, text: signal.text })),
+								);
 							case "tool.call":
 								return append("tool.call", {
 									toolUseId: signal.toolUseId,
@@ -266,7 +339,17 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 									toolUseId: signal.toolUseId,
 									output: signal.output,
 									isError: signal.isError,
-								});
+								}).pipe(
+									Effect.andThen(
+										Effect.sync(() => {
+											if (!state.endAfterTool) return;
+
+											stop.reason = "input";
+
+											active.get(run.id)?.fiber.interruptUnsafe();
+										}),
+									),
+								);
 							case "finished":
 								return Effect.sync(() => {
 									state.finished = signal;
@@ -285,7 +368,15 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 								services,
 								actor: run.actor,
 								runId: run.id,
+								rootRunId: runContext.rootRunId,
 								threadId: run.threadId,
+								chatOf:
+									runContext.space?.role === "chat"
+										? { spaceId: runContext.space.id, ventureId: runContext.space.ventureId }
+										: null,
+								onInputRequested: () => {
+									state.endAfterTool = true;
+								},
 							}),
 							workDir,
 						},
@@ -296,11 +387,14 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 			const execute = Effect.fn("execute")(function* (run: RunRow) {
 				const stop = { reason: null as StopReason | null };
 
-				const state = {
+				const state: RunState = {
 					seq: 0,
-					thread: { id: run.threadId, ventureId: null as string | null },
-					finished: null as Extract<RunSignal, { type: "finished" }> | null,
-					partial: null as { block: number; text: string } | null,
+					thread: { id: run.threadId, ventureId: null },
+					finished: null,
+					partial: null,
+					firstToken: false,
+					limited: false,
+					endAfterTool: false,
 				};
 
 				const append = (type: string, payload: Record<string, unknown>) =>
@@ -328,7 +422,7 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 
 				active.delete(run.id);
 
-				const outcome = outcomeOf(run, stop, exit, state.finished);
+				const outcome = outcomeOf(run, stop, exit, state);
 
 				const { partial } = state;
 
@@ -347,7 +441,15 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 				);
 			});
 
-			const claimAndExecute = Effect.fn("claimAndExecute")(function* (runId: string) {
+			const claimAndExecute = Effect.fn("claimAndExecute")(function* (runId: string, runtime: string) {
+				const pause = yield* query(() => openPauseOf(db, runtime));
+
+				if (pause !== undefined) {
+					yield* query(() => db.execute(sql`SELECT pg_notify(${capacityChannel}, ${runId})`));
+
+					return;
+				}
+
 				const run = yield* claimRun(runId);
 
 				if (run !== undefined) yield* execute(run);
@@ -396,16 +498,26 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 
 			if (recovered.interrupted > 0) console.log(`agent: marked ${recovered.interrupted} run(s) interrupted`);
 
-			yield* query(() =>
-				boss.work<{ runId: string }>(
-					runQueue,
-					{ localConcurrency: maxConcurrentRuns, batchSize: 1 },
-					async ([job]) => {
-						if (job === undefined) return;
+			for (const runtime of runtimeNamesInOrder) {
+				yield* query(() =>
+					boss.work<{ runId: string }>(
+						queueOf(runtime),
+						{ localConcurrency: concurrencyOf(runtime), batchSize: 1 },
+						async ([job]) => {
+							if (job === undefined) return;
 
-						await runJob(claimAndExecute(job.data.runId));
-					},
-				),
+							await runJob(claimAndExecute(job.data.runId, runtime));
+						},
+					),
+				);
+			}
+
+			yield* query(() =>
+				boss.work<{ pauseId: string }>(liftQueue, { batchSize: 1 }, async ([job]) => {
+					if (job === undefined) return;
+
+					await liftPause(db, services, job.data.pauseId);
+				}),
 			);
 		}),
 	);

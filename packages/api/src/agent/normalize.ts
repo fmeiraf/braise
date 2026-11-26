@@ -1,6 +1,6 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { RunUsage } from "@braise/core";
-import type { RunSignal } from "./runtime.ts";
+import type { LimitSignal, RunSignal } from "./runtime.ts";
 
 export const toolPrefix = "mcp__braise__";
 
@@ -41,6 +41,49 @@ function finished(result: ResultMessage) {
 		result.subtype === "success" ? result.result : result.errors.join("\n") || result.subtype.replaceAll("_", " ");
 
 	return { type: "finished", status: "failed", usage, error } satisfies RunSignal;
+}
+
+type RateLimitInfo = Extract<SDKMessage, { type: "rate_limit_event" }>["rate_limit_info"];
+
+interface WindowInfo {
+	status?: string;
+	utilization?: number;
+	resetsAt?: number;
+}
+
+function limitStatus(status: string | undefined) {
+	if (status === "rejected") return "rejected";
+
+	return status === "allowed_warning" ? "warning" : "allowed";
+}
+
+function clampUtilization(value: number | undefined) {
+	return value === undefined || !Number.isFinite(value) ? null : Math.min(1, Math.max(0, value));
+}
+
+function limitReading(window: string, info: WindowInfo) {
+	return {
+		window,
+		status: limitStatus(info.status),
+		utilization: clampUtilization(info.utilization),
+		resetsAt: info.resetsAt === undefined ? null : new Date(info.resetsAt * 1000),
+	} satisfies LimitSignal;
+}
+
+export function claudeLimitReadings(info: RateLimitInfo) {
+	const windows =
+		"unifiedWindows" in info ? (info.unifiedWindows as Record<string, WindowInfo> | undefined) : undefined;
+
+	const readings =
+		windows === undefined ? [] : Object.entries(windows).map(([window, found]) => limitReading(window, found));
+
+	const headline = info.rateLimitType ?? "five_hour";
+
+	if (!readings.some((reading) => reading.window === headline)) readings.push(limitReading(headline, info));
+
+	return readings.map((reading) =>
+		reading.window === headline && info.status === "rejected" ? { ...reading, status: "rejected" as const } : reading,
+	);
 }
 
 export function createTranslator() {
@@ -115,6 +158,10 @@ export function createTranslator() {
 						: [],
 				);
 			}
+			case "rate_limit_event":
+				return claudeLimitReadings(message.rate_limit_info).map(
+					(reading) => ({ type: "limit", reading }) satisfies RunSignal,
+				);
 			case "result":
 				return [finished(message)];
 			default:

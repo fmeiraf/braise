@@ -2,6 +2,7 @@ import type {
 	ActiveRun,
 	AgentOverview,
 	ApiError,
+	Capacity,
 	Cockpit,
 	CommandInput,
 	CommandName,
@@ -13,6 +14,8 @@ import type {
 	Inbox,
 	LinkTarget,
 	ProposalDetail,
+	SpaceDetail,
+	SpaceSummary,
 	StrategyVersion,
 	ThreadDetail,
 	ThreadSummary,
@@ -75,16 +78,22 @@ export const api = {
 	work: (slug: string) => request<VentureWork>(`/api/ventures/${encodeURIComponent(slug)}/work`),
 	holdingWork: () => request<HoldingWork>("/api/work"),
 	recentEvents: (limit = 100) => request<{ events: RecentEvent[] }>(`/api/events?limit=${limit}`),
-	threads: (filter: { ventureId?: string; subject?: string }) => {
+	threads: (filter: { ventureId?: string; subject?: string; space?: string }) => {
 		const params = new URLSearchParams();
 
 		if (filter.ventureId !== undefined) params.set("ventureId", filter.ventureId);
 
 		if (filter.subject !== undefined) params.set("subject", filter.subject);
 
+		if (filter.space !== undefined) params.set("space", filter.space);
+
 		return request<{ threads: ThreadSummary[] }>(`/api/threads?${params.toString()}`);
 	},
 	thread: (id: string) => request<ThreadDetail>(`/api/threads/${encodeURIComponent(id)}`),
+	spaces: (ventureId: string | undefined) =>
+		request<{ spaces: SpaceSummary[] }>(`/api/spaces${ventureId === undefined ? "" : `?ventureId=${ventureId}`}`),
+	space: (id: string) => request<SpaceDetail>(`/api/spaces/${encodeURIComponent(id)}`),
+	capacity: () => request<Capacity>("/api/capacity"),
 	activeRuns: () => request<{ runs: ActiveRun[] }>("/api/runs/active"),
 	inbox: () => request<Inbox>("/api/inbox"),
 	agents: () => request<{ agents: AgentOverview[] }>("/api/agents"),

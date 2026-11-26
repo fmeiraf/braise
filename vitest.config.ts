@@ -8,6 +8,7 @@ const sourceConditions = {
 export default defineConfig({
 	...sourceConditions,
 	test: {
+		maxWorkers: 4,
 		projects: [
 			{
 				...sourceConditions,

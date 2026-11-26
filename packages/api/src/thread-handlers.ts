@@ -1,14 +1,24 @@
-import { activeRunStatuses, type ThreadLinkType, threadTitle } from "@braise/core";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import {
+	activeRunStatuses,
+	isAgentActor,
+	type MessageMeta,
+	maxThreadsStartedPerRun,
+	type ThreadLinkType,
+	threadTitle,
+} from "@braise/core";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
+import { chatPriority, memberPriority } from "./agent/queue.ts";
 import { runControlChannel } from "./channels.ts";
 import type { Database, Transaction } from "./db/client.ts";
 import {
 	agentProfiles,
 	assumptions,
 	bets,
+	inputRequests,
 	objectives,
 	runs,
+	spaces,
 	threadLinks,
 	threadMessages,
 	threads,
@@ -16,9 +26,11 @@ import {
 	workItems,
 } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
-import type { HandlerContext, Handlers } from "./pipeline.ts";
+import { type HandlerContext, type Handlers, notifyThread, type RunJob } from "./pipeline.ts";
 
-type ThreadRow = typeof threads.$inferSelect;
+export type ThreadRow = typeof threads.$inferSelect;
+
+export type SpaceRow = typeof spaces.$inferSelect;
 
 interface LinkInput {
 	type: ThreadLinkType;
@@ -33,7 +45,7 @@ export async function lockThread(tx: Transaction, threadId: string) {
 	return thread;
 }
 
-function assertLive(thread: ThreadRow) {
+export function assertLive(thread: ThreadRow) {
 	if (thread.archivedAt !== null) {
 		throw new AppError("rule_violated", "The thread is archived", { rule: "thread_archived", threadId: thread.id });
 	}
@@ -115,7 +127,7 @@ function uniqueLinks(links: LinkInput[]) {
 	return [...seen.values()];
 }
 
-async function addLinks(tx: Transaction, thread: ThreadRow, links: LinkInput[], actor: string) {
+export async function addLinks(tx: Transaction, thread: ThreadRow, links: LinkInput[], actor: string) {
 	const unique = uniqueLinks(links);
 
 	for (const link of unique) await assertLinkable(tx, thread, link);
@@ -148,7 +160,7 @@ async function linkExists(tx: Transaction, threadId: string, link: LinkInput) {
 export async function appendMessage(
 	tx: Transaction,
 	thread: ThreadRow,
-	message: { author: string; body: string; runId: string | null },
+	message: { author: string; body: string; runId: string | null; meta?: MessageMeta | null },
 ) {
 	const seq = thread.lastSeq + 1;
 
@@ -158,6 +170,8 @@ export async function appendMessage(
 		.returning();
 
 	await tx.update(threads).set({ lastSeq: seq, updatedAt: sql`now()` }).where(eq(threads.id, thread.id));
+
+	thread.lastSeq = seq;
 
 	if (inserted === undefined) throw new AppError("internal_error", "Message insert returned nothing");
 
@@ -173,7 +187,7 @@ async function activeRun(tx: Transaction | Database, threadId: string) {
 	return run;
 }
 
-async function assertNoActiveRun(tx: Transaction, threadId: string) {
+export async function assertNoActiveRun(tx: Transaction, threadId: string) {
 	const run = await activeRun(tx, threadId);
 
 	if (run !== undefined) {
@@ -184,7 +198,7 @@ async function assertNoActiveRun(tx: Transaction, threadId: string) {
 	}
 }
 
-async function profileOf(tx: Transaction, profileId: string) {
+export async function profileOf(tx: Transaction, profileId: string) {
 	const [profile] = await tx.select().from(agentProfiles).where(eq(agentProfiles.id, profileId));
 
 	if (profile === undefined) throw new AppError("not_found", "Agent profile not found", { agentProfileId: profileId });
@@ -192,10 +206,26 @@ async function profileOf(tx: Transaction, profileId: string) {
 	return profile;
 }
 
-async function queueRun(context: HandlerContext, thread: ThreadRow, messageId: string, retryOf: string | null = null) {
-	const profile = await profileOf(context.tx, thread.agentProfileId);
+export async function spaceOfChat(tx: Transaction | Database, threadId: string) {
+	const [space] = await tx.select().from(spaces).where(eq(spaces.chatThreadId, threadId));
 
-	const [run] = await context.tx
+	return space;
+}
+
+export async function runJobOf(tx: Transaction | Database, run: { id: string; runtime: string; threadId: string }) {
+	const chat = await spaceOfChat(tx, run.threadId);
+
+	return {
+		runId: run.id,
+		runtime: run.runtime,
+		priority: chat === undefined ? memberPriority : chatPriority,
+	} satisfies RunJob;
+}
+
+export async function insertRun(tx: Transaction, thread: ThreadRow, messageId: string, retryOf: string | null = null) {
+	const profile = await profileOf(tx, thread.agentProfileId);
+
+	const [run] = await tx
 		.insert(runs)
 		.values({
 			id: uuidv7(),
@@ -211,9 +241,84 @@ async function queueRun(context: HandlerContext, thread: ThreadRow, messageId: s
 
 	if (run === undefined) throw new AppError("internal_error", "Run insert returned nothing");
 
-	context.queueRun(run.id);
+	return { run, job: await runJobOf(tx, run) };
+}
+
+export async function queueRun(
+	context: HandlerContext,
+	thread: ThreadRow,
+	messageId: string,
+	retryOf: string | null = null,
+) {
+	const { run, job } = await insertRun(context.tx, thread, messageId, retryOf);
+
+	context.queueRun(job);
 
 	return run;
+}
+
+export async function lockSpace(tx: Transaction, spaceId: string) {
+	const [space] = await tx.select().from(spaces).where(eq(spaces.id, spaceId)).for("update");
+
+	if (space === undefined) throw new AppError("not_found", "Space not found", { spaceId });
+
+	if (space.archivedAt !== null) {
+		throw new AppError("rule_violated", "The space is archived", { rule: "space_archived", spaceId });
+	}
+
+	return space;
+}
+
+export async function delegatingSpace(context: HandlerContext) {
+	if (!isAgentActor(context.actor)) return null;
+
+	const [run] =
+		context.runId === null
+			? []
+			: await context.tx.select({ threadId: runs.threadId }).from(runs).where(eq(runs.id, context.runId));
+
+	const space = run === undefined ? undefined : await spaceOfChat(context.tx, run.threadId);
+
+	if (space === undefined) {
+		throw new AppError("not_in_space_chat", "Only a space's agent, in the space's chat, can direct threads", {
+			actor: context.actor,
+		});
+	}
+
+	if (space.archivedAt !== null) {
+		throw new AppError("rule_violated", "The space is archived", { rule: "space_archived", spaceId: space.id });
+	}
+
+	return space;
+}
+
+export function assertMemberOf(space: SpaceRow, thread: ThreadRow) {
+	if (thread.spaceId !== space.id) {
+		throw new AppError("rule_violated", "The thread is not in this space", {
+			rule: "not_a_member",
+			threadId: thread.id,
+			spaceId: space.id,
+		});
+	}
+}
+
+export function assertInScope(space: SpaceRow, ventureId: string | null) {
+	if (space.ventureId !== ventureId) {
+		throw new AppError("rule_violated", "A space's threads belong to the space's scope", {
+			rule: "space_out_of_scope",
+			spaceId: space.id,
+		});
+	}
+}
+
+async function answerInput(tx: Transaction, threadId: string) {
+	const [answered] = await tx
+		.update(inputRequests)
+		.set({ status: "answered", answeredAt: sql`now()` })
+		.where(and(eq(inputRequests.threadId, threadId), eq(inputRequests.status, "pending")))
+		.returning();
+
+	return answered ?? null;
 }
 
 async function touch(tx: Transaction, thread: ThreadRow) {
@@ -226,7 +331,17 @@ async function touch(tx: Transaction, thread: ThreadRow) {
 	return updated ?? thread;
 }
 
-function threadOutcome(thread: ThreadRow, seq: number, result: unknown) {
+export async function notifyChat(tx: Transaction, space: SpaceRow) {
+	await notifyThread(tx, { id: space.chatThreadId, ventureId: space.ventureId });
+}
+
+export async function notifyChatOf(tx: Transaction, spaceId: string) {
+	const [space] = await tx.select().from(spaces).where(eq(spaces.id, spaceId));
+
+	if (space !== undefined) await notifyChat(tx, space);
+}
+
+export function threadOutcome(thread: ThreadRow, seq: number, result: unknown) {
 	return { thread: { id: thread.id, ventureId: thread.ventureId, seq }, result };
 }
 
@@ -249,6 +364,33 @@ export const threadHandlers = {
 		const { tx, actor } = context;
 		const ventureId = context.venture?.id ?? null;
 
+		const delegating = await delegatingSpace(context);
+
+		if (delegating !== null && payload.spaceId !== undefined && payload.spaceId !== delegating.id) {
+			throw new AppError("rule_violated", "An agent starts threads only in its own space", {
+				rule: "not_own_space",
+				spaceId: payload.spaceId,
+			});
+		}
+
+		const space = delegating ?? (payload.spaceId === undefined ? null : await lockSpace(tx, payload.spaceId));
+
+		if (space !== null) assertInScope(space, ventureId);
+
+		if (delegating !== null && context.runId !== null) {
+			const [started] = await tx
+				.select({ total: count() })
+				.from(threads)
+				.where(eq(threads.startedByRunId, context.runId));
+
+			if ((started?.total ?? 0) >= maxThreadsStartedPerRun) {
+				throw new AppError("rule_violated", `A run starts at most ${maxThreadsStartedPerRun} threads`, {
+					rule: "thread_start_cap",
+					limit: maxThreadsStartedPerRun,
+				});
+			}
+		}
+
 		const profile = await profileOf(tx, payload.agentProfileId);
 
 		const [thread] = await tx
@@ -256,8 +398,10 @@ export const threadHandlers = {
 			.values({
 				id: uuidv7(),
 				ventureId,
+				spaceId: space?.id ?? null,
+				startedByRunId: delegating === null ? null : context.runId,
 				agentProfileId: profile.id,
-				title: threadTitle(payload.body),
+				title: payload.title ?? threadTitle(payload.body),
 				createdBy: actor,
 			})
 			.returning();
@@ -269,6 +413,8 @@ export const threadHandlers = {
 		const message = await appendMessage(tx, thread, { author: actor, body: payload.body, runId: null });
 
 		const run = await queueRun(context, thread, message.id);
+
+		if (space !== null) await notifyChat(tx, space);
 
 		return threadOutcome(thread, message.seq, { thread: { ...thread, lastSeq: message.seq }, message, run });
 	},
@@ -283,9 +429,42 @@ export const threadHandlers = {
 
 		await addLinks(tx, thread, payload.links, actor);
 
+		const answered = isAgentActor(actor) ? null : await answerInput(tx, thread.id);
+
+		const chat = await spaceOfChat(tx, thread.id);
+
+		if (chat !== undefined && !isAgentActor(actor)) {
+			await tx.update(spaces).set({ wakesSinceOwner: 0, updatedAt: sql`now()` }).where(eq(spaces.id, chat.id));
+		}
+
 		const message = await appendMessage(tx, thread, { author: actor, body: payload.body, runId: null });
 
 		const run = await queueRun(context, thread, message.id);
+
+		if (thread.spaceId !== null) await notifyChatOf(tx, thread.spaceId);
+
+		return threadOutcome(thread, message.seq, { message, run, answered });
+	},
+	"thread.message": async (context, payload) => {
+		const { tx, actor } = context;
+
+		const space = await delegatingSpace(context);
+
+		if (space === null) throw new AppError("not_granted", "Only a space's agent messages its threads", { actor });
+
+		const thread = await lockThread(tx, payload.threadId);
+
+		assertLive(thread);
+
+		assertMemberOf(space, thread);
+
+		await assertNoActiveRun(tx, thread.id);
+
+		const message = await appendMessage(tx, thread, { author: actor, body: payload.body, runId: null });
+
+		const run = await queueRun(context, thread, message.id);
+
+		await notifyChat(tx, space);
 
 		return threadOutcome(thread, message.seq, { message, run });
 	},
@@ -381,9 +560,13 @@ export const threadHandlers = {
 		return threadOutcome(thread, thread.lastSeq, { run: requested });
 	},
 	"run.retry": async (context, payload) => {
+		const delegating = await delegatingSpace(context);
+
 		const { run, thread } = await lockRun(context.tx, payload.runId);
 
 		assertLive(thread);
+
+		if (delegating !== null) assertMemberOf(delegating, thread);
 
 		if (run.status !== "failed" && run.status !== "interrupted") {
 			throw new AppError("rule_violated", "Only failed or interrupted runs can be retried", {
@@ -408,12 +591,15 @@ export const threadHandlers = {
 
 		const retry = await queueRun(context, thread, run.messageId, run.id);
 
+		if (thread.spaceId !== null) await notifyChatOf(context.tx, thread.spaceId);
+
 		return threadOutcome(thread, thread.lastSeq, { run: retry });
 	},
 } satisfies Pick<
 	Handlers,
 	| "thread.start"
 	| "thread.post"
+	| "thread.message"
 	| "thread.link"
 	| "thread.unlink"
 	| "thread.rename"

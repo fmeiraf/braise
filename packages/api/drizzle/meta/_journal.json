@@ -57,6 +57,13 @@
 			"when": 1795668679316,
 			"tag": "0007_strategy_loop",
 			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "7",
+			"when": 1795726258782,
+			"tag": "0008_spaces",
+			"breakpoints": true
 		}
 	]
 }

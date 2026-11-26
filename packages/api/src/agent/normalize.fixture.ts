@@ -696,3 +696,32 @@ export const abortedStream = [
 		session_id: "session",
 	},
 ] as unknown as SDKMessage[];
+
+export const recordedRateLimit = [
+	{
+		type: "rate_limit_event",
+		rate_limit_info: {
+			status: "allowed",
+			resetsAt: 1795729200,
+			rateLimitType: "five_hour",
+			overageStatus: "rejected",
+			overageDisabledReason: "out_of_credits",
+			isUsingOverage: false,
+			unifiedWindows: {
+				five_hour: { utilization: 0.24, resetsAt: 1795729200, status: "allowed" },
+				seven_day: { utilization: 0.28, resetsAt: 1795856400, status: "allowed" },
+			},
+		},
+		uuid: "00000000-0000-4000-8000-000000000004",
+		session_id: "session",
+	},
+] as unknown as SDKMessage[];
+
+export const rejectedRateLimit = [
+	{
+		type: "rate_limit_event",
+		rate_limit_info: { status: "rejected", resetsAt: 1795729200, rateLimitType: "five_hour", utilization: 1 },
+		uuid: "00000000-0000-4000-8000-000000000005",
+		session_id: "session",
+	},
+] as unknown as SDKMessage[];

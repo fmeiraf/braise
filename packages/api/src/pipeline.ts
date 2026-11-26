@@ -11,17 +11,25 @@ import {
 	commandsRequiringReason,
 	isAgentActor,
 	isCommandName,
+	openAgentCommands,
 } from "@braise/core";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import type { z } from "zod";
-import { accessChannel, notifyChannel, threadChannel } from "./channels.ts";
+import { accessChannel, capacityChannel, notifyChannel, threadChannel } from "./channels.ts";
 import type { Database, Transaction } from "./db/client.ts";
-import { agentGrants, agentProfiles, commands, events, runs, ventures } from "./db/schema.ts";
+import { agentGrants, agentProfiles, commands, events, runs, spaces, ventures } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 
+export interface RunJob {
+	runId: string;
+	runtime: string;
+	priority: number;
+}
+
 export interface Services {
-	enqueueRun(runId: string): Promise<void>;
+	enqueueRun(job: RunJob): Promise<void>;
+	scheduleLift(pause: { id: string; until: Date }): Promise<void>;
 }
 
 export type VentureRow = typeof ventures.$inferSelect;
@@ -38,7 +46,8 @@ export interface HandlerContext {
 	reason: string | null;
 	runId: string | null;
 	venture: VentureRow | null;
-	queueRun(runId: string): void;
+	queueRun(job: RunJob): void;
+	scheduleLift(pause: { id: string; until: Date }): void;
 }
 
 export interface VentureOutcome {
@@ -54,6 +63,7 @@ export interface ThreadOutcome {
 
 export interface GlobalOutcome {
 	global: true;
+	channel?: "access" | "capacity";
 	result: unknown;
 }
 
@@ -167,8 +177,10 @@ async function finishThreadCommand(tx: Transaction, outcome: ThreadOutcome) {
 	return { ventureId: outcome.thread.ventureId, seq: outcome.thread.seq };
 }
 
-async function finishGlobalCommand(tx: Transaction) {
-	await tx.execute(sql`SELECT pg_notify(${accessChannel}, '')`);
+async function finishGlobalCommand(tx: Transaction, outcome: GlobalOutcome) {
+	const channel = outcome.channel === "capacity" ? capacityChannel : accessChannel;
+
+	await tx.execute(sql`SELECT pg_notify(${channel}, '')`);
 
 	return { ventureId: null, seq: 0 };
 }
@@ -206,8 +218,30 @@ async function assertStillGranted(tx: Transaction, name: CommandName, actor: str
 }
 
 function assertGrantable(name: CommandName, actor: string) {
-	if (isAgentActor(actor) && name !== "access.request" && capabilityOf(name) === null) {
+	if (isAgentActor(actor) && !openAgentCommands.has(name) && capabilityOf(name) === null) {
 		throw new AppError("not_granted", "Agents may not run this command", { command: name, actor });
+	}
+}
+
+async function assertInSpaceChat(db: Database, name: CommandName, request: CommandRequest) {
+	if (!isAgentActor(request.actor) || capabilityOf(name) !== "delegate") return;
+
+	const runId = request.runId ?? null;
+
+	const [chat] =
+		runId === null
+			? []
+			: await db
+					.select({ spaceId: spaces.id })
+					.from(runs)
+					.innerJoin(spaces, eq(spaces.chatThreadId, runs.threadId))
+					.where(eq(runs.id, runId));
+
+	if (chat === undefined) {
+		throw new AppError("not_in_space_chat", "Only a space's agent, in the space's chat, can direct threads", {
+			command: name,
+			actor: request.actor,
+		});
 	}
 }
 
@@ -268,11 +302,14 @@ async function run<Name extends CommandName>(
 
 	const { payload, idempotencyKey, reason } = parse(name, request.body);
 
+	await assertInSpaceChat(db, name, request);
+
 	await assertGranted(db, handlers, services, name, request, { payload, idempotencyKey });
 
 	const payloadHash = hashCommand(name, payload, reason);
 	const targetVentureId = ventureIdOf(payload);
-	const queuedRuns: string[] = [];
+	const queuedRuns: RunJob[] = [];
+	const lifts: { id: string; until: Date }[] = [];
 
 	const response = await db.transaction(async (tx) => {
 		const commandId = uuidv7();
@@ -319,14 +356,15 @@ async function run<Name extends CommandName>(
 				reason,
 				runId: request.runId ?? null,
 				venture,
-				queueRun: (runId) => queuedRuns.push(runId),
+				queueRun: (job) => queuedRuns.push(job),
+				scheduleLift: (pause) => lifts.push(pause),
 			},
 			payload,
 		);
 
 		const finished =
 			"global" in outcome
-				? await finishGlobalCommand(tx)
+				? await finishGlobalCommand(tx, outcome)
 				: "thread" in outcome
 					? await finishThreadCommand(tx, outcome)
 					: await finishVentureCommand(tx, commandId, request, outcome);
@@ -343,7 +381,9 @@ async function run<Name extends CommandName>(
 		return response;
 	});
 
-	for (const runId of queuedRuns) await services.enqueueRun(runId);
+	for (const job of queuedRuns) await services.enqueueRun(job);
+
+	for (const pause of lifts) await services.scheduleLift(pause);
 
 	return response;
 }

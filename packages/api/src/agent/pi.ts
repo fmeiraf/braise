@@ -3,7 +3,7 @@ import { Agent, type AgentEvent, type AgentMessage, type AgentTool as PiTool } f
 import { type AssistantMessage, type CredentialStore, createModels } from "@earendil-works/pi-ai";
 import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex";
 import { z } from "zod";
-import { type AgentTool, promiseRuntime, type RunSignal } from "./runtime.ts";
+import { type AgentTool, type LimitSignal, promiseRuntime, type RunSignal } from "./runtime.ts";
 
 export const piProvider = "openai-codex";
 
@@ -12,6 +12,89 @@ const maxTurns = 30;
 export const turnLimitMessage = `GPT stopped after ${maxTurns} turns without finishing`;
 
 export const piLoginHint = "GPT isn't logged in. Log in with `pi` (run `pi`, then `/login`, OpenAI Codex) and retry.";
+
+const codexWindows = ["primary", "secondary"] as const;
+
+function finiteNumber(value: string | undefined) {
+	if (value === undefined || value.trim() === "") return null;
+
+	const parsed = Number(value);
+
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function epochSeconds(value: unknown) {
+	return typeof value === "number" && Number.isFinite(value) ? new Date(value * 1000) : null;
+}
+
+export function codexLimitReadings(headers: Record<string, string>) {
+	return codexWindows.flatMap((window) => {
+		const used = finiteNumber(headers[`x-codex-${window}-used-percent`]);
+
+		if (used === null) return [];
+
+		const resetAt = finiteNumber(headers[`x-codex-${window}-reset-at`]);
+
+		return [
+			{
+				window,
+				status: "allowed",
+				utilization: Math.min(1, Math.max(0, used / 100)),
+				resetsAt: resetAt === null ? null : new Date(resetAt * 1000),
+			} satisfies LimitSignal,
+		];
+	});
+}
+
+function parseBody(body: string) {
+	try {
+		return JSON.parse(body) as unknown;
+	} catch (error) {
+		console.error("pi: a 429 body is not JSON", error);
+
+		return null;
+	}
+}
+
+export function codexRejection(body: string, readings: LimitSignal[]) {
+	const parsed = parseBody(body);
+
+	const error =
+		typeof parsed === "object" && parsed !== null && "error" in parsed && typeof parsed.error === "object"
+			? (parsed.error as Record<string, unknown>)
+			: null;
+
+	if (error?.code !== "usage_limit_reached" && error?.type !== "usage_limit_reached") return null;
+
+	const fullest = readings.toSorted((a, b) => (b.utilization ?? 0) - (a.utilization ?? 0))[0];
+
+	return {
+		window: fullest?.window ?? "primary",
+		status: "rejected",
+		utilization: 1,
+		resetsAt: epochSeconds(error.resets_at) ?? fullest?.resetsAt ?? null,
+	} satisfies LimitSignal;
+}
+
+export function limitWatchingFetch(onLimit: (reading: LimitSignal) => Promise<void>) {
+	return (async (input, init) => {
+		const response = await globalThis.fetch(input, init);
+
+		const headers = Object.fromEntries(response.headers.entries());
+
+		const readings = codexLimitReadings(headers);
+
+		const rejection = response.status === 429 ? codexRejection(await response.clone().text(), readings) : null;
+
+		for (const reading of rejection === null
+			? readings
+			: [...readings.filter((found) => found.window !== rejection.window), rejection]) {
+			await onLimit(reading);
+		}
+
+		return response;
+	}) satisfies typeof globalThis.fetch;
+}
 
 function isAssistant(message: AgentMessage): message is AssistantMessage {
 	return typeof message === "object" && message !== null && "role" in message && message.role === "assistant";
@@ -173,7 +256,11 @@ export function createPiRuntime(credentials: CredentialStore) {
 		const agent = new Agent({
 			initialState: { systemPrompt: input.systemPrompt, model, tools: input.tools.map(toPiTool), messages: [] },
 			streamFn: (streamModel, context, options) =>
-				models.streamSimple(streamModel, context, { ...options, transport: "sse" }),
+				models.streamSimple(streamModel, context, {
+					...options,
+					transport: "sse",
+					fetch: limitWatchingFetch((reading) => onSignal({ type: "limit", reading })),
+				}),
 			transport: "sse",
 			toolExecution: "sequential",
 			finishTurn: () => {

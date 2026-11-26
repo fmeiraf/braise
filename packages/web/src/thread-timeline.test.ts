@@ -34,6 +34,7 @@ const run = {
 	startedAt: at,
 	finishedAt: at,
 	cancelRequestedAt: null,
+	firstTokenAt: null,
 } satisfies Run;
 
 const events = [
@@ -78,6 +79,8 @@ describe("buildTimeline", () => {
 				id: "t1",
 				ventureId: null,
 				agentProfileId: "claude",
+				spaceId: null,
+				startedByRunId: null,
 				title: "T",
 				lastSeq: 2,
 				createdBy: "owner",
@@ -87,9 +90,11 @@ describe("buildTimeline", () => {
 			},
 			agent: { id: "claude", name: "Claude" },
 			venture: null,
+			space: null,
+			inputRequest: null,
 			links: [],
 			messages: [
-				{ id: "m1", threadId: "t1", seq: 1, author: "owner", runId: null, body: "Hi", createdAt: at },
+				{ id: "m1", threadId: "t1", seq: 1, author: "owner", runId: null, body: "Hi", meta: null, createdAt: at },
 				{
 					id: "m2",
 					threadId: "t1",
@@ -97,6 +102,7 @@ describe("buildTimeline", () => {
 					author: "agent:claude",
 					runId: "r1",
 					body: "Two goals.\n\nDone.",
+					meta: null,
 					createdAt: at,
 				},
 			],
@@ -236,5 +242,25 @@ describe("proposals", () => {
 
 	it("names braise system lines", () => {
 		expect(actorName("braise")).toBe("braise");
+	});
+});
+
+describe("describeCall for spaces", () => {
+	it("names the thread a space's agent started and who works it", () => {
+		expect(
+			describeCall({
+				id: "c1",
+				name: "start_thread",
+				input: { agentProfileId: "gpt", title: "Research Acme", message: "Go" },
+				result: { output: '{"threadId":"t2","runId":"r2","status":"queued"}', isError: false },
+			}),
+		).toEqual({ action: "Started “Research Acme”", detail: "with GPT" });
+	});
+
+	it("says the agent asked the owner", () => {
+		expect(describeCall({ id: "c2", name: "ask_owner", input: { question: "Which tier?" }, result: null })).toEqual({
+			action: "Asked you",
+			detail: null,
+		});
 	});
 });

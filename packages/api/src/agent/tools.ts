@@ -10,17 +10,18 @@ import {
 	impacts,
 	maxConfidence,
 	maxProposalChanges,
+	maxThreadsStartedPerRun,
 	proposalTitleLength,
 	threadLinkTypes,
 	workFunctions,
 	workPriorities,
 	workStatuses,
 } from "@braise/core";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type pg from "pg";
 import { z } from "zod";
 import type { Database } from "../db/client.ts";
-import { bets, objectives, workItems } from "../db/schema.ts";
+import { bets, objectives, runs, workItems } from "../db/schema.ts";
 import { AppError } from "../errors.ts";
 import { handlers } from "../handlers.ts";
 import { executeCommand, type Services } from "../pipeline.ts";
@@ -37,7 +38,10 @@ export interface ToolScope {
 	services: Services;
 	actor: string;
 	runId: string;
+	rootRunId?: string;
 	threadId: string;
+	chatOf?: { spaceId: string; ventureId: string | null } | null;
+	onInputRequested?: () => void;
 }
 
 function defineTool<Shape extends z.ZodRawShape>(tool: {
@@ -202,10 +206,29 @@ async function homeOf(db: Database, args: HomeArgs) {
 	return { ventureId: args.upkeepVentureId, home: { type: "upkeep" } };
 }
 
-export function toolIdempotencyKey(runId: string, call: number, name: string, payload: unknown) {
+export function toolIdempotencyKey(
+	runId: string,
+	call: number,
+	name: string,
+	payload: unknown,
+	rootRunId: string = runId,
+) {
 	const digest = createHash("sha256").update(JSON.stringify({ name, payload })).digest("hex").slice(0, 32);
 
-	return `run:${runId}:${call}:${digest}`;
+	return name.endsWith(".create") ? `run:${rootRunId}:create:${digest}` : `run:${runId}:${call}:${digest}`;
+}
+
+async function latestRunOf(db: Database, threadId: string) {
+	const [run] = await db
+		.select({ id: runs.id })
+		.from(runs)
+		.where(eq(runs.threadId, threadId))
+		.orderBy(desc(runs.createdAt), desc(runs.id))
+		.limit(1);
+
+	if (run === undefined) throw new AppError("not_found", "The thread has no run to retry", { threadId });
+
+	return run.id;
 }
 
 const reference = (target: string) =>
@@ -354,7 +377,7 @@ export function braiseTools(scope: ToolScope) {
 		try {
 			const response = await executeCommand(scope.db, handlers, scope.services, {
 				name,
-				body: { payload, idempotencyKey: toolIdempotencyKey(scope.runId, call, name, payload) },
+				body: { payload, idempotencyKey: toolIdempotencyKey(scope.runId, call, name, payload, scope.rootRunId) },
 				actor: scope.actor,
 				runId: scope.runId,
 			});
@@ -373,7 +396,84 @@ export function braiseTools(scope: ToolScope) {
 		}
 	};
 
+	const chat = scope.chatOf ?? null;
+
+	const delegateTools =
+		chat === null
+			? []
+			: [
+					defineTool({
+						name: "start_thread",
+						description: `Start a member thread in this space: pick the agent, give a short title and a first message that stands on its own (the agent sees only that thread). Its run is queued at once; you don't wait for it. At most ${maxThreadsStartedPerRun} per run.`,
+						input: {
+							agentProfileId: z.string().min(1).max(40).describe("The agent profile id, e.g. claude or gpt"),
+							title: z.string().min(1).max(80),
+							message: z.string().min(1).max(20_000),
+						},
+						execute: ({ agentProfileId, title, message }) =>
+							command(
+								"thread.start",
+								{
+									...(chat.ventureId === null ? {} : { ventureId: chat.ventureId }),
+									spaceId: chat.spaceId,
+									agentProfileId,
+									title,
+									body: message,
+								},
+								(result) => {
+									const started = result as { thread: { id: string }; run: { id: string } };
+
+									return { threadId: started.thread.id, runId: started.run.id, status: "queued" };
+								},
+							),
+					}),
+					defineTool({
+						name: "message_thread",
+						description:
+							"Send a follow-up message to a member thread of this space and queue its agent's run. Refused while that thread's agent is still working.",
+						input: { threadId: z.uuid(), message: z.string().min(1).max(20_000) },
+						execute: ({ threadId, message }) => command("thread.message", { threadId, body: message }),
+					}),
+					defineTool({
+						name: "retry_thread",
+						description:
+							"Retry a member thread whose latest run failed or was interrupted. The retry sees what the earlier attempt already did and continues from there.",
+						input: { threadId: z.uuid() },
+						execute: ({ threadId }) =>
+							attempt(async () => command("run.retry", { runId: await latestRunOf(scope.db, threadId) })),
+					}),
+					defineTool({
+						name: "add_thread_to_space",
+						description: "Add an existing thread of the same scope to this space.",
+						input: { threadId: z.uuid() },
+						execute: ({ threadId }) => command("space.add_thread", { spaceId: chat.spaceId, threadId }),
+					}),
+					defineTool({
+						name: "remove_thread_from_space",
+						description: "Remove a member thread from this space; its history stays.",
+						input: { threadId: z.uuid() },
+						execute: ({ threadId }) => command("space.remove_thread", { spaceId: chat.spaceId, threadId }),
+					}),
+				];
+
 	return [
+		defineTool({
+			name: "ask_owner",
+			description:
+				"Ask the owner one clear question you can't answer by looking things up. It goes to the owner's inbox as Needs you, and your run ends right after; the owner's reply in this thread starts your next run.",
+			input: { question: z.string().min(1).max(4_000) },
+			execute: async ({ question }) => {
+				const output = await command("input.request", { question }, () => ({
+					asked: true,
+					message: "Asked. Your run ends now; the owner's reply resumes the work.",
+				}));
+
+				if (!output.isError) scope.onInputRequested?.();
+
+				return output;
+			},
+		}),
+		...delegateTools,
 		defineTool({
 			name: "describe_schema",
 			description: "List the tables and columns of braise's database that the query tool can read.",

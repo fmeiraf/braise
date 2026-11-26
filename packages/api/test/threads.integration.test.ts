@@ -67,7 +67,7 @@ async function ventureWithWork() {
 
 async function jobFor(runId: string) {
 	const result = await database.db.execute<{ count: number }>(
-		sql`SELECT count(*)::int AS count FROM pgboss.job WHERE name = 'agent-run' AND data->>'runId' = ${runId}`,
+		sql`SELECT count(*)::int AS count FROM pgboss.job WHERE name IN ('runs.claude', 'runs.pi') AND data->>'runId' = ${runId}`,
 	);
 
 	return result.rows[0]?.count ?? 0;
@@ -343,7 +343,7 @@ describe("agent tools", () => {
 		expect(settings).toEqual(["5s", "on", "braise_agent_reader"]);
 	});
 
-	it("writes work items as the agent, recording the run, and applies repeated calls", async () => {
+	it("writes work items as the agent, recording the run, keying creates by payload and applying repeated changes", async () => {
 		const { call, item, venture, started } = await toolsFor();
 
 		const args = { parentId: item.id, title: "Shape the loaves" };
@@ -354,14 +354,14 @@ describe("agent tools", () => {
 
 		expect(first.isError).toBe(false);
 
-		expect(JSON.parse(again.text).id).not.toBe(JSON.parse(first.text).id);
+		expect(JSON.parse(again.text).id).toBe(JSON.parse(first.text).id);
 
 		const children = await database.db
 			.select({ id: workItems.id })
 			.from(workItems)
 			.where(and(eq(workItems.parentId, item.id), eq(workItems.title, "Shape the loaves")));
 
-		expect(children).toHaveLength(2);
+		expect(children).toHaveLength(1);
 
 		await call("set_work_item_status", { workItemId: item.id, status: "doing" });
 
@@ -378,7 +378,6 @@ describe("agent tools", () => {
 
 		expect(agentEvents.map((event) => event.type)).toEqual([
 			"work.created",
-			"work.created",
 			"work.status_set",
 			"work.status_set",
 			"work.status_set",
@@ -391,7 +390,7 @@ describe("agent tools", () => {
 			.from(commands)
 			.where(eq(commands.runId, started.run.id));
 
-		expect(recorded).toHaveLength(5);
+		expect(recorded).toHaveLength(4);
 	});
 
 	it("links its own thread and reports API errors as tool errors", async () => {

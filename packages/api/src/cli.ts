@@ -1,6 +1,8 @@
 #!/usr/bin/env -S node --conditions=@braise/source
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { recordLimit } from "./agent/limits.ts";
+import { isRuntimeName, runQueueServices, startBoss } from "./agent/queue.ts";
 import { createDatabase, migrateDatabase } from "./db/client.ts";
 import { assertLocalDatabase, resetDatabase } from "./db/reset.ts";
 import { readEnv } from "./env.ts";
@@ -12,7 +14,10 @@ const usage = `Usage: braise <command>
   serve [--watch]   run the API (migrates first)
   migrate           apply pending migrations
   reset             drop and re-create the local database schema (no seed)
-  seed              add the labelled example venture`;
+  seed              add the labelled example venture
+  limit <runtime> <window> <use> [minutes]
+                    record a subscription-limit reading, e.g. \`limit claude-agent-sdk five_hour 0.95 90\`
+                    (pauses the runtime at or above BRAISE_LIMIT_PAUSE_AT until the reset)`;
 
 async function withDatabase(task: (db: ReturnType<typeof createDatabase>["db"], url: string) => Promise<void>) {
 	const { DATABASE_URL } = readEnv();
@@ -62,6 +67,40 @@ async function main(args: string[]) {
 
 				console.log(`Seeded ${venture.slug}.`);
 			});
+		case "limit": {
+			const [runtime = "", window = "", use = "", minutes = "300"] = rest;
+			const utilization = Number(use);
+
+			if (!isRuntimeName(runtime) || window === "" || !(utilization >= 0 && utilization <= 1)) {
+				console.log(usage);
+
+				process.exitCode = 1;
+
+				return;
+			}
+
+			return withDatabase(async (db) => {
+				const resetsAt = new Date(Date.now() + Number(minutes) * 60_000);
+
+				const boss = await startBoss(readEnv().DATABASE_URL);
+
+				try {
+					const { paused } = await recordLimit(db, runQueueServices(boss), {
+						runtime,
+						runId: null,
+						reading: { window, status: utilization >= 1 ? "rejected" : "allowed", utilization, resetsAt },
+					});
+
+					console.log(
+						paused
+							? `Recorded; ${runtime} is paused until ${resetsAt.toLocaleTimeString()}`
+							: `Recorded ${Math.round(utilization * 100)}% of ${window}.`,
+					);
+				} finally {
+					await boss.stop({ graceful: true });
+				}
+			});
+		}
 		default:
 			console.log(usage);
 

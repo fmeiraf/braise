@@ -13,7 +13,19 @@ import {
 } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { type ChangeEvent, type KeyboardEvent, type MouseEvent, useEffect, useId, useRef, useState } from "react";
+import {
+	type ChangeEvent,
+	createContext,
+	type DragEvent,
+	type KeyboardEvent,
+	type MouseEvent,
+	type ReactNode,
+	useContext,
+	useEffect,
+	useId,
+	useRef,
+	useState,
+} from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "./api.ts";
@@ -24,6 +36,16 @@ import { keys, queries } from "./live.ts";
 import { accent, Cast, Drone, Icon, isSquare, Need, You } from "./marks.tsx";
 import { Select } from "./menu.tsx";
 import { Skeleton } from "./parts.tsx";
+import {
+	MemberCard,
+	NewSpace,
+	ReportLine,
+	SpaceBand,
+	SpaceRows,
+	SpaceScreen,
+	type SpaceView,
+	threadDragType,
+} from "./spaces.tsx";
 import { useThreadStream } from "./thread-stream.ts";
 import {
 	accessRequestOf,
@@ -44,9 +66,18 @@ import { ago, clockTime, dayLabel, formatDateTime } from "./time.ts";
 import { useCommand } from "./use-command.ts";
 import { ThreadLink, useAgentLookup } from "./working.tsx";
 
-interface Scope {
+export interface Scope {
 	venture: { id: string; slug: string; name: string } | null;
 }
+
+export interface Selection {
+	thread?: string | undefined;
+	space?: string | undefined;
+	new?: "thread" | "space" | undefined;
+	in?: string | undefined;
+}
+
+export const SpaceChat = createContext<SpaceView | null>(null);
 
 interface DraftLink {
 	type: ThreadLinkType;
@@ -83,6 +114,10 @@ function parseLink(value: string | undefined, label: string | undefined) {
 	return [{ type: type as ThreadLinkType, id, label: label ?? linkKinds[type as ThreadLinkType] }];
 }
 
+function selectionOf(search: Selection) {
+	return { thread: search.thread, space: search.space, new: search.new, in: search.in } satisfies Selection;
+}
+
 export function HoldingThreadsPage() {
 	const search = useSearch({ from: "/threads" });
 	const navigate = useNavigate();
@@ -90,9 +125,9 @@ export function HoldingThreadsPage() {
 	return (
 		<ThreadsScreen
 			scope={{ venture: null }}
-			selectedId={search.thread ?? null}
+			selection={selectionOf(search)}
 			draftLinks={parseLink(search.link, search.label)}
-			open={(thread) => void navigate({ to: "/threads", search: thread === null ? {} : { thread } })}
+			go={(next) => void navigate({ to: "/threads", search: next })}
 		/>
 	);
 }
@@ -129,75 +164,92 @@ export function VentureThreadsPage() {
 	return (
 		<ThreadsScreen
 			scope={{ venture: { id: venture.id, slug: venture.slug, name: venture.name } }}
-			selectedId={search.thread ?? null}
+			selection={selectionOf(search)}
 			draftLinks={parseLink(search.link, search.label)}
-			open={(thread) =>
-				void navigate({ to: "/v/$slug/threads", params: { slug }, search: thread === null ? {} : { thread } })
-			}
+			go={(next) => void navigate({ to: "/v/$slug/threads", params: { slug }, search: next })}
 		/>
 	);
 }
 
 function ThreadsScreen({
 	scope,
-	selectedId,
+	selection,
 	draftLinks,
-	open,
+	go,
 }: {
 	scope: Scope;
-	selectedId: string | null;
+	selection: Selection;
 	draftLinks: DraftLink[];
-	open: (threadId: string | null) => void;
+	go: (next: Selection) => void;
 }) {
 	const [listHidden, setListHidden] = useState(false);
+	const toggleList = () => setListHidden((hidden) => !hidden);
+	const selectedId = selection.thread ?? null;
+
+	const main =
+		selectedId !== null ? (
+			<Conversation
+				key={selectedId}
+				threadId={selectedId}
+				scope={scope}
+				listHidden={listHidden}
+				toggleList={toggleList}
+				go={go}
+			/>
+		) : selection.new === "space" ? (
+			<NewSpace scope={scope} go={go} />
+		) : selection.space !== undefined && selection.new === undefined ? (
+			<SpaceScreen
+				key={selection.space}
+				spaceId={selection.space}
+				scope={scope}
+				listHidden={listHidden}
+				toggleList={toggleList}
+				go={go}
+			/>
+		) : (
+			<NewThread
+				key={`${draftLinks.map((link) => link.id).join()}:${selection.in ?? ""}`}
+				scope={scope}
+				draftLinks={draftLinks}
+				spaceId={selection.in ?? null}
+				go={go}
+			/>
+		);
 
 	return (
 		<div className={listHidden ? "split solo" : "split"}>
-			<ThreadList scope={scope} selectedId={selectedId} startNew={() => open(null)} />
-			{selectedId === null ? (
-				<NewThread
-					key={draftLinks.map((link) => link.id).join()}
-					scope={scope}
-					draftLinks={draftLinks}
-					open={open}
-				/>
-			) : (
-				<Conversation
-					key={selectedId}
-					threadId={selectedId}
-					scope={scope}
-					listHidden={listHidden}
-					toggleList={() => setListHidden((hidden) => !hidden)}
-				/>
-			)}
+			<ThreadList scope={scope} selection={selection} go={go} />
+			{main}
 		</div>
 	);
 }
 
-function ThreadList({
-	scope,
-	selectedId,
-	startNew,
-}: {
-	scope: Scope;
-	selectedId: string | null;
-	startNew: () => void;
-}) {
-	const filter = scope.venture === null ? {} : { ventureId: scope.venture.id };
+function ThreadList({ scope, selection, go }: { scope: Scope; selection: Selection; go: (next: Selection) => void }) {
+	const filter = scope.venture === null ? { space: "none" } : { ventureId: scope.venture.id, space: "none" };
 	const threads = useQuery(queries.threads(filter));
 	const ventures = useQuery(queries.ventures()).data?.ventures ?? [];
 	const now = Date.now();
+	const selectedId = selection.thread ?? null;
 
 	return (
 		<nav className="list" aria-label="Threads">
 			<div className="bar">
 				<h1>Threads</h1>
-				{threads.isSuccess ? <span className="cnt">{threads.data.threads.length}</span> : null}
 				<span className="grow" />
-				<button type="button" className="btn sm" onClick={startNew}>
+				<button type="button" className="btn ghost sm" onClick={() => go({ new: "space" })}>
 					<Icon name="plus" />
-					New
+					Space
 				</button>
+				<button type="button" className="btn sm" onClick={() => go({})}>
+					<Icon name="plus" />
+					Thread
+				</button>
+			</div>
+			<SpaceRows scope={scope} selectedId={selection.thread === undefined ? (selection.space ?? null) : null} />
+			<div className="group">
+				<h2 className="cap">Threads</h2>
+				{threads.isSuccess ? <span className="cnt">{threads.data.threads.length}</span> : null}
 			</div>
 			{threads.isPending ? (
 				<Skeleton label="Loading threads…" widths={[70, 90, 60, 80]} />
@@ -206,7 +258,7 @@ function ThreadList({
 					{describeError(threads.error)}
 				</p>
 			) : threads.data.threads.length === 0 ? (
-				<p className="empty list-note">No threads yet. Start one to talk with an agent.</p>
+				<p className="empty list-note">No loose threads. Start one to talk with an agent.</p>
 			) : (
 				threads.data.threads.map((thread) => (
 					<ThreadRow
@@ -240,6 +292,12 @@ function ThreadRow({
 	const running = thread.activeRun !== null;
 	const snippet = thread.lastMessage === null ? "" : plainSnippet(thread.lastMessage.body);
 
+	const drag = (event: DragEvent<HTMLAnchorElement>) => {
+		event.dataTransfer.setData(threadDragType, thread.id);
+
+		event.dataTransfer.effectAllowed = "link";
+	};
+
 	return (
 		<ThreadLink
 			ventureSlug={scope.venture?.slug ?? null}
@@ -247,10 +305,12 @@ function ThreadRow({
 			className="lr"
 			current={selected}
 			style={accent(venture?.slug)}
+			onDragStart={drag}
 		>
 			<span className="lr-h">
 				<Drone size={15} run={running} square={isSquare(agentOf(thread.agentProfileId))} />
 				<b>{thread.title}</b>
+				{thread.needsInput ? <Need /> : null}
 				<time className="mono" dateTime={thread.updatedAt} title={formatDateTime(thread.updatedAt)}>
 					{running ? "now" : ago(thread.updatedAt, now)}
 				</time>
@@ -269,15 +329,19 @@ function ThreadRow({
 function NewThread({
 	scope,
 	draftLinks,
-	open,
+	spaceId: initialSpace,
+	go,
 }: {
 	scope: Scope;
 	draftLinks: DraftLink[];
-	open: (threadId: string) => void;
+	spaceId: string | null;
+	go: (next: Selection) => void;
 }) {
 	const client = useQueryClient();
 	const agents = useQuery(queries.agents());
+	const spaces = useQuery(queries.spaces(scope.venture?.id)).data?.spaces ?? [];
 	const [agentId, setAgentId] = useState(defaultAgentProfileId);
+	const [spaceId, setSpaceId] = useState(initialSpace ?? "none");
 	const list = agents.data?.agents ?? [];
 	const agentName = list.find((agent) => agent.id === agentId)?.name ?? actorName(`agent:${agentId}`);
 
@@ -286,8 +350,15 @@ function NewThread({
 
 		void client.invalidateQueries({ queryKey: keys.activeRuns });
 
-		open(response.result.thread.id);
+		void client.invalidateQueries({ queryKey: keys.spaces });
+
+		go({ thread: response.result.thread.id });
 	});
+
+	const spaceOptions = [
+		{ value: "none", label: "No space" },
+		...spaces.map((space) => ({ value: space.id, label: space.title, sub: space.agent.name })),
+	];
 
 	return (
 		<section className="conv" aria-label="New thread" style={accent(scope.venture?.slug)}>
@@ -313,6 +384,12 @@ function NewThread({
 							}
 							onChange={setAgentId}
 						/>
+						{spaces.length === 0 ? null : (
+							<>
+								in
+								<Select title="Space" value={spaceId} options={spaceOptions} onChange={setSpaceId} />
+							</>
+						)}
 					</p>
 					<p className="lede">
 						Ask {agentName} about {scope.venture === null ? "any venture" : scope.venture.name}. It reads
@@ -333,6 +410,7 @@ function NewThread({
 						{
 							payload: {
 								...(scope.venture === null ? {} : { ventureId: scope.venture.id }),
+								...(spaceId === "none" ? {} : { spaceId }),
 								agentProfileId: agentId,
 								body,
 								links: links.map(({ type, id }) => ({ type, id })),
@@ -388,11 +466,13 @@ function Conversation({
 	scope,
 	listHidden,
 	toggleList,
+	go,
 }: {
 	threadId: string;
 	scope: Scope;
 	listHidden: boolean;
 	toggleList: () => void;
+	go: (next: Selection) => void;
 }) {
 	const detail = useQuery(queries.thread(threadId));
 	const { live, down } = useThreadStream(threadId);
@@ -420,6 +500,9 @@ function Conversation({
 
 	return (
 		<section className="conv" aria-label={detail.data.thread.title} style={accent(detail.data.venture?.slug)}>
+			{detail.data.space === null || detail.data.space.isChat ? null : (
+				<SpaceBand spaceId={detail.data.space.id} go={go} />
+			)}
 			<ConversationHead
 				detail={detail.data}
 				scope={scope}
@@ -428,6 +511,7 @@ function Conversation({
 				toggleList={toggleList}
 			/>
 			<Timeline detail={detail.data} live={live} />
+			{archived ? null : <QuestionStrip detail={detail.data} />}
 			{down ? (
 				<output className="conv-note">
 					<Need />
@@ -442,17 +526,43 @@ function Conversation({
 					scope={scope}
 					working={activeRun !== null}
 					agentName={detail.data.agent.name}
+					answering={detail.data.inputRequest !== null}
 				/>
 			)}
 		</section>
 	);
 }
 
+export function QuestionStrip({ detail }: { detail: ThreadDetail }) {
+	const [open, setOpen] = useState(false);
+
+	if (detail.inputRequest === null) return null;
+
+	return (
+		<output className={open ? "asks open" : "asks"}>
+			<Need />
+			<button
+				type="button"
+				className="asks-q"
+				aria-expanded={open}
+				data-tip={open ? "Show less" : "Show the whole question"}
+				onClick={() => setOpen((current) => !current)}
+			>
+				<b>{detail.agent.name} asks</b> {detail.inputRequest.question}
+			</button>
+			<span className="cap">Your reply answers it</span>
+		</output>
+	);
+}
+
+export { Composer, ConversationHead, Timeline };
+
 function entryTime(entry: TimelineEntry) {
 	return entry.kind === "message" ? entry.message.createdAt : (entry.run.startedAt ?? entry.run.createdAt);
 }
 
 function Timeline({ detail, live }: { detail: ThreadDetail; live: LiveRuns }) {
+	const space = useContext(SpaceChat);
 	const timeline = buildTimeline(detail);
 	const scroll = useStickToBottom();
 	const now = Date.now();
@@ -473,7 +583,9 @@ function Timeline({ detail, live }: { detail: ThreadDetail; live: LiveRuns }) {
 							</li>
 						) : null,
 						entry.kind === "message" ? (
-							entry.message.author === systemAuthor ? (
+							entry.message.meta?.kind === "report" ? (
+								<ReportLine key={key} message={entry.message} space={space} />
+							) : entry.message.author === systemAuthor ? (
 								<SystemLine key={key} message={entry.message} />
 							) : (
 								<OwnerMessage key={key} message={entry.message} />
@@ -494,16 +606,18 @@ function Timeline({ detail, live }: { detail: ThreadDetail; live: LiveRuns }) {
 	);
 }
 
-function PostComposer({
+export function PostComposer({
 	threadId,
 	scope,
 	working,
 	agentName,
+	answering = false,
 }: {
 	threadId: string;
 	scope: Scope;
 	working: boolean;
 	agentName: string;
+	answering?: boolean;
 }) {
 	const client = useQueryClient();
 
@@ -511,10 +625,15 @@ function PostComposer({
 		void client.invalidateQueries({ queryKey: keys.thread(threadId) });
 
 		void client.invalidateQueries({ queryKey: keys.activeRuns });
+
+		void client.invalidateQueries({ queryKey: keys.inbox });
+
+		void client.invalidateQueries({ queryKey: keys.spaces });
 	});
 
 	return (
 		<Composer
+			placeholder={answering ? `Answer ${agentName}` : undefined}
 			scope={scope}
 			initialLinks={[]}
 			busy={post.isPending}
@@ -537,12 +656,18 @@ function ConversationHead({
 	running,
 	listHidden,
 	toggleList,
+	title,
+	kind = "thread",
+	extra,
 }: {
 	detail: ThreadDetail;
 	scope: Scope;
 	running: boolean;
 	listHidden: boolean;
 	toggleList: () => void;
+	title?: ReactNode;
+	kind?: "thread" | "space";
+	extra?: ReactNode;
 }) {
 	const client = useQueryClient();
 	const agentOf = useAgentLookup();
@@ -557,7 +682,7 @@ function ConversationHead({
 	const agent = agentOf(detail.agent.id);
 
 	return (
-		<header className="conv-h">
+		<header className={kind === "space" ? "conv-h space-h" : "conv-h"}>
 			<h2>
 				<button
 					type="button"
@@ -569,15 +694,17 @@ function ConversationHead({
 				>
 					<Icon name="panel" />
 				</button>
-				<Editable
-					label="thread title"
-					value={detail.thread.title}
-					required
-					save={(title) => rename.mutateAsync({ payload: { threadId, title } })}
-				/>
+				{title ?? (
+					<Editable
+						label="thread title"
+						value={detail.thread.title}
+						required
+						save={(next) => rename.mutateAsync({ payload: { threadId, title: next } })}
+					/>
+				)}
 				<span className="with">
 					<Drone size={14} run={running} square={isSquare(agent)} />
-					{detail.agent.name}
+					{kind === "space" ? `Orchestrated by ${detail.agent.name}` : detail.agent.name}
 					{agent === undefined ? null : ` · ${agent.model}`}
 				</span>
 			</h2>
@@ -624,6 +751,7 @@ function ConversationHead({
 					{describeError(error)}
 				</p>
 			)}
+			{extra === undefined ? null : <div className="conv-x">{extra}</div>}
 		</header>
 	);
 }
@@ -819,8 +947,10 @@ function Composer({
 	error,
 	autoFocus = false,
 	agentName,
+	placeholder,
 	submit,
 }: {
+	placeholder?: string | undefined;
 	scope: Scope;
 	initialLinks: DraftLink[];
 	busy: boolean;
@@ -965,7 +1095,7 @@ function Composer({
 				ref={field}
 				rows={2}
 				value={body}
-				placeholder={working ? `${agentName} is working on a reply…` : `Message ${agentName}`}
+				placeholder={working ? `${agentName} is working on a reply…` : (placeholder ?? `Message ${agentName}`)}
 				aria-label="Message"
 				aria-describedby={hintId}
 				aria-activedescendant={mention !== null && options.length > 0 ? `${listId}-${active.index}` : undefined}
@@ -1010,14 +1140,17 @@ function SystemLine({ message }: { message: ThreadMessage }) {
 }
 
 function OwnerMessage({ message }: { message: ThreadMessage }) {
+	const agentOf = useAgentLookup();
+	const fromAgent = message.author !== "owner";
+
 	return (
-		<li className="turn you">
+		<li className={fromAgent ? "turn you from-agent" : "turn you"}>
 			<div className="turn-m">
 				<time className="mono" dateTime={message.createdAt} title={formatDateTime(message.createdAt)}>
 					{clockTime(message.createdAt)}
 				</time>
-				<b>{actorName(message.author)}</b>
-				<You size={13} />
+				<b>{fromAgent ? `${actorName(message.author)}, the space's agent` : actorName(message.author)}</b>
+				{fromAgent ? <Drone size={13} square={isSquare(agentOf(message.author))} /> : <You size={13} />}
 			</div>
 			<div className="bubble">
 				<p>{message.body}</p>
@@ -1169,7 +1302,7 @@ function RunEntry({
 			<div className="trace">
 				{segments.map((segment, index) =>
 					segment.kind === "tools" ? (
-						<ToolGroup key={segment.calls[0]?.id ?? index} calls={segment.calls} />
+						<ToolCards key={segment.calls[0]?.id ?? index} calls={segment.calls} />
 					) : (
 						<Prose key={`text-${segment.block}`} text={segment.text} />
 					),
@@ -1216,6 +1349,7 @@ function RunFoot({ run, latest }: { run: Run; latest: boolean }) {
 				{tokens === null ? null : ` · used ${formatTokens(tokens)} tokens`}
 			</span>
 			<span className="mono">{run.model}</span>
+			<RunTimings run={run} />
 			{run.error === null ? null : (
 				<span className={run.status === "failed" ? "err" : "mute"}>{run.error.message}</span>
 			)}
@@ -1236,6 +1370,64 @@ function RunFoot({ run, latest }: { run: Run; latest: boolean }) {
 				</span>
 			)}
 		</div>
+	);
+}
+
+function startedThreadOf(call: ToolCall) {
+	if (call.name !== "start_thread" || call.result === null || call.result.isError) return null;
+
+	const parsed = parseJson(call.result.output);
+
+	if (!parsed.ok) return null;
+
+	const { value } = parsed;
+
+	return typeof value === "object" && value !== null && "threadId" in value && typeof value.threadId === "string"
+		? value.threadId
+		: null;
+}
+
+function RunTimings({ run }: { run: Run }) {
+	if (run.startedAt === null) return null;
+
+	const waited = Date.parse(run.startedAt) - Date.parse(run.createdAt);
+	const first = run.firstTokenAt === null ? null : Date.parse(run.firstTokenAt) - Date.parse(run.startedAt);
+
+	return (
+		<span className="mono" data-tip="Queue wait · time to first token">
+			waited {formatDuration(waited)}
+			{first === null ? null : ` · first token ${formatDuration(first)}`}
+		</span>
+	);
+}
+
+function ToolCards({ calls }: { calls: ToolCall[] }) {
+	const started = calls.map(startedThreadOf).filter((threadId) => threadId !== null);
+
+	const asked = calls.filter((call) => call.name === "ask_owner" && call.result !== null && !call.result.isError);
+
+	return (
+		<>
+			<ToolGroup calls={calls} />
+			{asked.map((call) => {
+				const input = call.input as { question?: unknown };
+
+				return (
+					<div key={call.id} className="step">
+						<div className="card-link asked">
+							<Need />
+							<span className="cap">Asked you</span>
+							<b>{typeof input.question === "string" ? input.question : "A question"}</b>
+						</div>
+					</div>
+				);
+			})}
+			{started.map((threadId) => (
+				<div key={threadId} className="step">
+					<MemberCard threadId={threadId} />
+				</div>
+			))}
+		</>
 	);
 }
 

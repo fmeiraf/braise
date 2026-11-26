@@ -9,6 +9,9 @@ const seedServices = {
 	enqueueRun() {
 		return Promise.reject(new Error("The seed does not start agent runs"));
 	},
+	scheduleLift() {
+		return Promise.reject(new Error("The seed does not pause runtimes"));
+	},
 } satisfies Services;
 
 function send(db: Database, name: string, key: string, payload: Record<string, unknown>, reason?: string) {
@@ -256,6 +259,14 @@ export async function seedExample(db: Database) {
 		home: { type: "upkeep" },
 		title: "Count leftover loaves at closing",
 		function: "ops",
+	});
+
+	await send(db, "space.create", "space:pricing", {
+		ventureId,
+		title: "Pre-order page launch",
+		goal: "Ship the one-screen pre-order page with copy that sells the morning bake, and know what nearby bakeries charge.",
+		agentProfileId: "claude",
+		links: [betHome],
 	});
 
 	await send(db, "work.set_status", "loop:work-tally-doing", {

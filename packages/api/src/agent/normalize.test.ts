@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { abortedStream, failedRun, recordedToolRun } from "./normalize.fixture.ts";
+import {
+	abortedStream,
+	failedRun,
+	recordedRateLimit,
+	recordedToolRun,
+	rejectedRateLimit,
+} from "./normalize.fixture.ts";
 import { createTranslator } from "./normalize.ts";
 
 function translate(messages: typeof recordedToolRun) {
@@ -104,5 +110,39 @@ describe("blank text blocks", () => {
 		translator(start);
 
 		expect(translator(delta)).toEqual([{ type: "delta", block: 1, offset: 0, text: "Hi" }]);
+	});
+});
+
+describe("rate limit events", () => {
+	it("map a recorded subscription event to one reading per window", () => {
+		expect(translate(recordedRateLimit)).toEqual([
+			{
+				type: "limit",
+				reading: {
+					window: "five_hour",
+					status: "allowed",
+					utilization: 0.24,
+					resetsAt: new Date(1795729200 * 1000),
+				},
+			},
+			{
+				type: "limit",
+				reading: {
+					window: "seven_day",
+					status: "allowed",
+					utilization: 0.28,
+					resetsAt: new Date(1795856400 * 1000),
+				},
+			},
+		]);
+	});
+
+	it("map a rejection without window details to a rejected reading", () => {
+		expect(translate(rejectedRateLimit)).toEqual([
+			{
+				type: "limit",
+				reading: { window: "five_hour", status: "rejected", utilization: 1, resetsAt: new Date(1795729200 * 1000) },
+			},
+		]);
 	});
 });

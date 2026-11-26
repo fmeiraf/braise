@@ -13,8 +13,12 @@ export const keys = {
 	events: (slug: string) => ["venture", slug, "events"] as const,
 	work: (slug: string) => ["venture", slug, "work"] as const,
 	threads: ["threads"] as const,
-	threadList: (scope: { ventureId?: string; subject?: string }) =>
-		["threads", "list", scope.ventureId ?? "holding", scope.subject ?? "all"] as const,
+	threadList: (scope: { ventureId?: string; subject?: string; space?: string }) =>
+		["threads", "list", scope.ventureId ?? "holding", scope.subject ?? "all", scope.space ?? "any"] as const,
+	spaces: ["spaces"] as const,
+	spaceList: (ventureId: string | undefined) => ["spaces", "list", ventureId ?? "holding"] as const,
+	space: (id: string) => ["spaces", "detail", id] as const,
+	capacity: ["capacity"] as const,
 	thread: (id: string) => ["threads", "detail", id] as const,
 	activeRuns: ["runs", "active"] as const,
 	inbox: ["inbox"] as const,
@@ -29,9 +33,13 @@ export const queries = {
 	versions: (slug: string) => queryOptions({ queryKey: keys.versions(slug), queryFn: () => api.versions(slug) }),
 	work: (slug: string) => queryOptions({ queryKey: keys.work(slug), queryFn: () => api.work(slug) }),
 	holdingWork: () => queryOptions({ queryKey: keys.holdingWork, queryFn: api.holdingWork }),
-	threads: (scope: { ventureId?: string; subject?: string }) =>
+	threads: (scope: { ventureId?: string; subject?: string; space?: string }) =>
 		queryOptions({ queryKey: keys.threadList(scope), queryFn: () => api.threads(scope) }),
 	thread: (id: string) => queryOptions({ queryKey: keys.thread(id), queryFn: () => api.thread(id) }),
+	spaces: (ventureId: string | undefined) =>
+		queryOptions({ queryKey: keys.spaceList(ventureId), queryFn: () => api.spaces(ventureId) }),
+	space: (id: string) => queryOptions({ queryKey: keys.space(id), queryFn: () => api.space(id) }),
+	capacity: () => queryOptions({ queryKey: keys.capacity, queryFn: api.capacity }),
 	activeRuns: () => queryOptions({ queryKey: keys.activeRuns, queryFn: api.activeRuns }),
 	inbox: () => queryOptions({ queryKey: keys.inbox, queryFn: api.inbox }),
 	agents: () => queryOptions({ queryKey: keys.agents, queryFn: api.agents }),
@@ -50,6 +58,16 @@ export function applyThreadHint(client: QueryClient, hint: ThreadHint) {
 	void client.invalidateQueries({ queryKey: ["threads", "list"] });
 
 	void client.invalidateQueries({ queryKey: keys.activeRuns });
+
+	void client.invalidateQueries({ queryKey: keys.spaces });
+
+	void client.invalidateQueries({ queryKey: keys.inbox });
+
+	void client.invalidateQueries({ queryKey: keys.capacity });
+}
+
+export function applyCapacityHint(client: QueryClient) {
+	void client.invalidateQueries({ queryKey: keys.capacity });
 }
 
 const knownSeq = new Map<string, number>();
@@ -217,6 +235,12 @@ export function useHintStream(client: QueryClient) {
 				heard();
 
 				applyAccessHint(client);
+			});
+
+			next.addEventListener("capacity", () => {
+				heard();
+
+				applyCapacityHint(client);
 			});
 
 			next.addEventListener("reset", () => {

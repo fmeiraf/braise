@@ -1,6 +1,7 @@
-import type { AppliedChange, DoneItem, ProposalChange } from "@braise/core";
+import type { AppliedChange, DoneItem, MessageMeta, ProposalChange, RunError } from "@braise/core";
 import { sql } from "drizzle-orm";
 import {
+	type AnyPgColumn,
 	bigint,
 	check,
 	date,
@@ -320,11 +321,19 @@ export const agentProfiles = pgTable("agent_profiles", {
 	createdAt: createdAt(),
 });
 
+const spaceIdColumn: () => AnyPgColumn = () => spaces.id;
+
+const runIdColumn: () => AnyPgColumn = () => runs.id;
+
+const threadIdColumn: () => AnyPgColumn = () => threads.id;
+
 export const threads = pgTable(
 	"threads",
 	{
 		id: uuid("id").primaryKey(),
 		ventureId: uuid("venture_id").references(() => ventures.id),
+		spaceId: uuid("space_id").references(spaceIdColumn),
+		startedByRunId: uuid("started_by_run_id").references(runIdColumn),
 		agentProfileId: text("agent_profile_id")
 			.notNull()
 			.default("claude")
@@ -336,7 +345,31 @@ export const threads = pgTable(
 		updatedAt: updatedAt(),
 		archivedAt: archivedAt(),
 	},
-	(table) => [index("threads_venture_updated_idx").on(table.ventureId, table.updatedAt.desc())],
+	(table) => [
+		index("threads_venture_updated_idx").on(table.ventureId, table.updatedAt.desc()),
+		index("threads_space_idx").on(table.spaceId),
+		index("threads_started_by_run_idx").on(table.startedByRunId),
+	],
+);
+
+export const spaces = pgTable(
+	"spaces",
+	{
+		id: uuid("id").primaryKey(),
+		ventureId: uuid("venture_id").references(() => ventures.id),
+		title: text("title").notNull(),
+		goal: text("goal"),
+		agentProfileId: text("agent_profile_id")
+			.notNull()
+			.references(() => agentProfiles.id),
+		chatThreadId: uuid("chat_thread_id").notNull().unique().references(threadIdColumn),
+		wakesSinceOwner: integer("wakes_since_owner").notNull().default(0),
+		createdBy: text("created_by").notNull(),
+		createdAt: createdAt(),
+		updatedAt: updatedAt(),
+		archivedAt: archivedAt(),
+	},
+	(table) => [index("spaces_venture_updated_idx").on(table.ventureId, table.updatedAt.desc())],
 );
 
 export const threadLinks = pgTable(
@@ -377,16 +410,19 @@ export const runs = pgTable(
 		status: text("status", {
 			enum: ["queued", "running", "succeeded", "failed", "cancelled", "interrupted"],
 		}).notNull(),
-		error: jsonb("error").$type<{ message: string }>(),
+		error: jsonb("error").$type<RunError>(),
 		usage: jsonb("usage").$type<Record<string, number>>(),
 		createdAt: createdAt(),
 		startedAt: timestamp("started_at", { withTimezone: true }),
+		firstTokenAt: timestamp("first_token_at", { withTimezone: true }),
 		finishedAt: timestamp("finished_at", { withTimezone: true }),
 		cancelRequestedAt: timestamp("cancel_requested_at", { withTimezone: true }),
 	},
 	(table) => [
 		foreignKey({ columns: [table.retryOf], foreignColumns: [table.id] }),
 		index("runs_thread_idx").on(table.threadId),
+		index("runs_retry_of_idx").on(table.retryOf),
+		index("runs_runtime_created_idx").on(table.runtime, table.createdAt),
 		uniqueIndex("runs_one_active_per_thread").on(table.threadId).where(sql`${table.status} IN ('queued','running')`),
 		check(
 			"runs_status_check",
@@ -406,9 +442,72 @@ export const threadMessages = pgTable(
 		author: text("author").notNull(),
 		runId: uuid("run_id").references(() => runs.id),
 		body: text("body").notNull(),
+		meta: jsonb("meta").$type<MessageMeta>(),
 		createdAt: createdAt(),
 	},
 	(table) => [unique("thread_messages_thread_seq_unique").on(table.threadId, table.seq)],
+);
+
+export const inputRequests = pgTable(
+	"input_requests",
+	{
+		id: uuid("id").primaryKey(),
+		threadId: uuid("thread_id")
+			.notNull()
+			.references(() => threads.id),
+		runId: uuid("run_id")
+			.notNull()
+			.references(() => runs.id),
+		question: text("question").notNull(),
+		status: text("status", { enum: ["pending", "answered"] }).notNull(),
+		createdAt: createdAt(),
+		answeredAt: timestamp("answered_at", { withTimezone: true }),
+	},
+	(table) => [
+		uniqueIndex("input_requests_one_pending").on(table.threadId).where(sql`${table.status} = 'pending'`),
+		index("input_requests_status_created_idx").on(table.status, table.createdAt),
+		index("input_requests_run_idx").on(table.runId),
+		check("input_requests_status_check", sql`${table.status} IN ('pending','answered')`),
+	],
+);
+
+const runtimeCheck = (column: unknown) => sql`${column} IN ('claude-agent-sdk','pi')`;
+
+export const limitReadings = pgTable(
+	"limit_readings",
+	{
+		id: uuid("id").primaryKey(),
+		runtime: text("runtime", { enum: ["claude-agent-sdk", "pi"] }).notNull(),
+		window: text("window").notNull(),
+		status: text("status", { enum: ["allowed", "warning", "rejected"] }).notNull(),
+		utilization: doublePrecision("utilization"),
+		resetsAt: timestamp("resets_at", { withTimezone: true }),
+		runId: uuid("run_id").references(() => runs.id),
+		observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("limit_readings_runtime_observed_idx").on(table.runtime, table.window, table.observedAt.desc()),
+		check("limit_readings_runtime_check", runtimeCheck(table.runtime)),
+		check("limit_readings_status_check", sql`${table.status} IN ('allowed','warning','rejected')`),
+		check("limit_readings_utilization_check", sql`${table.utilization} BETWEEN 0 AND 1`),
+	],
+);
+
+export const runtimePauses = pgTable(
+	"runtime_pauses",
+	{
+		id: uuid("id").primaryKey(),
+		runtime: text("runtime", { enum: ["claude-agent-sdk", "pi"] }).notNull(),
+		reason: text("reason", { enum: ["limit", "owner"] }).notNull(),
+		until: timestamp("until", { withTimezone: true }),
+		createdAt: createdAt(),
+		liftedAt: timestamp("lifted_at", { withTimezone: true }),
+	},
+	(table) => [
+		uniqueIndex("runtime_pauses_one_open").on(table.runtime).where(sql`${table.liftedAt} IS NULL`),
+		check("runtime_pauses_runtime_check", runtimeCheck(table.runtime)),
+		check("runtime_pauses_reason_check", sql`${table.reason} IN ('limit','owner')`),
+	],
 );
 
 export const runEvents = pgTable(
@@ -456,7 +555,7 @@ export const proposals = pgTable(
 	],
 );
 
-const capabilityCheck = (column: unknown) => sql`${column} IN ('work','links','propose')`;
+const capabilityCheck = (column: unknown) => sql`${column} IN ('work','links','propose','delegate')`;
 
 export const accessRequests = pgTable(
 	"access_requests",
@@ -465,7 +564,7 @@ export const accessRequests = pgTable(
 		profileId: text("profile_id")
 			.notNull()
 			.references(() => agentProfiles.id),
-		capability: text("capability", { enum: ["work", "links", "propose"] }).notNull(),
+		capability: text("capability", { enum: ["work", "links", "propose", "delegate"] }).notNull(),
 		threadId: uuid("thread_id")
 			.notNull()
 			.references(() => threads.id),
@@ -498,7 +597,7 @@ export const agentGrants = pgTable(
 		profileId: text("profile_id")
 			.notNull()
 			.references(() => agentProfiles.id),
-		capability: text("capability", { enum: ["work", "links", "propose"] }).notNull(),
+		capability: text("capability", { enum: ["work", "links", "propose", "delegate"] }).notNull(),
 		grantedBy: text("granted_by").notNull(),
 		grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
 		accessRequestId: uuid("access_request_id").references(() => accessRequests.id),

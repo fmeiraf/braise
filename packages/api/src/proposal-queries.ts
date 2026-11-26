@@ -5,6 +5,7 @@ import type { Database } from "./db/client.ts";
 import { assumptions, bets, objectives, proposals, strategyVersions, threads, ventures } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 import { staleness } from "./proposal-handlers.ts";
+import { needsInputInbox } from "./space-queries.ts";
 
 const decidedLimit = 20;
 
@@ -64,17 +65,18 @@ export async function getInbox(db: Database) {
 		inboxRows(db).where(ne(proposals.status, "pending")).orderBy(desc(proposals.decidedAt)).limit(decidedLimit),
 	]);
 
-	const [pendingProposals, decidedProposals, access] = await Promise.all([
+	const [pendingProposals, decidedProposals, access, questions] = await Promise.all([
 		Promise.all(pending.map((row) => toInboxItem(db, row))),
 		Promise.all(decided.map((row) => toInboxItem(db, row))),
 		accessInbox(db),
+		needsInputInbox(db),
 	]);
 
 	return {
-		pending: [...pendingProposals, ...access.pending].toSorted((left, right) =>
+		pending: [...pendingProposals, ...access.pending, ...questions.pending].toSorted((left, right) =>
 			left.createdAt.localeCompare(right.createdAt),
 		),
-		decided: [...decidedProposals, ...access.decided]
+		decided: [...decidedProposals, ...access.decided, ...questions.decided]
 			.toSorted((left, right) => (right.decidedAt ?? "").localeCompare(left.decidedAt ?? ""))
 			.slice(0, decidedLimit),
 	} satisfies Inbox;

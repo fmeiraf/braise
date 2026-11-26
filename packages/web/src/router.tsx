@@ -38,6 +38,9 @@ const holdingWorkRoute = createRoute({
 
 const threadsSearch = z.object({
 	thread: z.string().optional(),
+	space: z.string().optional(),
+	new: z.enum(["thread", "space"]).optional(),
+	in: z.string().optional(),
 	link: z.string().optional(),
 	label: z.string().optional(),
 });
@@ -52,7 +55,11 @@ const holdingThreadsRoute = createRoute({
 const inboxRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/inbox",
-	validateSearch: z.object({ proposal: z.string().optional(), access: z.string().optional() }),
+	validateSearch: z.object({
+		proposal: z.string().optional(),
+		access: z.string().optional(),
+		question: z.string().optional(),
+	}),
 	component: InboxPage,
 });
 

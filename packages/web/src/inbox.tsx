@@ -6,6 +6,7 @@ import {
 	changeLabels,
 	type InboxAccessRequest,
 	type InboxItem,
+	type InboxNeedsInput,
 	impacts,
 	isRef,
 	methodLabels,
@@ -254,7 +255,7 @@ export function InboxPage() {
 	if (inbox.isError) return <PageError error={inbox.error} retry={() => void inbox.refetch()} />;
 
 	const { pending, decided } = inbox.data;
-	const selectedId = search.access ?? search.proposal ?? pending[0]?.id ?? decided[0]?.id ?? null;
+	const selectedId = search.question ?? search.access ?? search.proposal ?? pending[0]?.id ?? decided[0]?.id ?? null;
 	const selected = [...pending, ...decided].find((item) => item.id === selectedId);
 
 	return (
@@ -265,7 +266,9 @@ export function InboxPage() {
 					<span className="cnt">{pending.length}</span>
 				</div>
 				{pending.length === 0 ? (
-					<p className="empty list-note">Nothing needs you. Agents' proposals and access requests land here.</p>
+					<p className="empty list-note">
+						Nothing needs you. Agents' proposals, access requests and questions land here.
+					</p>
 				) : (
 					pending.map((item) => <InboxRow key={item.id} item={item} selected={item.id === selectedId} />)
 				)}
@@ -291,11 +294,13 @@ export function InboxPage() {
 					</div>
 				) : selected?.kind === "access_request" ? (
 					<AccessReview key={`${selected.id}:${selected.status}`} item={selected} />
-				) : search.access === undefined ? (
+				) : selected?.kind === "needs_input" ? (
+					<QuestionReview key={`${selected.id}:${selected.status}`} item={selected} />
+				) : search.access === undefined && search.question === undefined ? (
 					<Review key={selectedId} proposalId={selectedId} />
 				) : (
 					<div className="rev">
-						<p className="lede">This access request is no longer in the inbox.</p>
+						<p className="lede">This item is no longer in the inbox.</p>
 					</div>
 				)}
 			</section>
@@ -307,6 +312,31 @@ function accessTitle(item: InboxAccessRequest) {
 	return `${item.agent.name} asks for ${capabilityLabels[item.capability].toLowerCase()}`;
 }
 
+function questionTitle(item: InboxNeedsInput) {
+	return `${item.agent.name} asks: ${item.question}`;
+}
+
+function itemTitle(item: InboxItem) {
+	if (item.kind === "proposal") return item.title;
+
+	return item.kind === "needs_input" ? questionTitle(item) : accessTitle(item);
+}
+
+function itemSearch(item: InboxItem) {
+	if (item.kind === "proposal") return { proposal: item.id };
+
+	return item.kind === "needs_input" ? { question: item.id } : { access: item.id };
+}
+
+function itemMeta(item: InboxItem) {
+	if (item.kind === "proposal") return `${plural(item.changeCount, "change")} · ${actorName(item.createdBy)}`;
+
+	if (item.kind === "needs_input")
+		return item.space === null ? item.thread.title : `${item.space.title} · ${item.thread.title}`;
+
+	return `Access request${item.attempts > 1 ? ` · tried ${item.attempts}×` : ""}`;
+}
+
 function InboxRow({ item, selected }: { item: InboxItem; selected: boolean }) {
 	const now = Date.now();
 	const decided = item.status !== "pending";
@@ -316,26 +346,27 @@ function InboxRow({ item, selected }: { item: InboxItem; selected: boolean }) {
 	return (
 		<Link
 			to="/inbox"
-			search={item.kind === "proposal" ? { proposal: item.id } : { access: item.id }}
+			search={itemSearch(item)}
 			className={decided ? "lr dim" : "lr"}
 			aria-current={selected ? "page" : undefined}
 			style={accent(item.venture?.slug)}
 		>
 			<span className="lr-h">
 				<span className="lr-mark">
-					{decided ? <Dia status={item.status === "approved" ? "won" : "lost"} /> : <Need />}
+					{decided ? (
+						<Dia status={item.status === "approved" || item.status === "answered" ? "won" : "lost"} />
+					) : (
+						<Need />
+					)}
 				</span>
-				<b>{item.kind === "proposal" ? item.title : accessTitle(item)}</b>
+				<b>{itemTitle(item)}</b>
 				<time className="mono" dateTime={at} title={formatDateTime(at)}>
 					{ago(at, now)}
 				</time>
 			</span>
 			<span className="lr-s">
 				<span>
-					{item.venture?.name ?? "Holding"} ·{" "}
-					{item.kind === "proposal"
-						? `${plural(item.changeCount, "change")} · ${actorName(item.createdBy)}`
-						: `Access request${item.attempts > 1 ? ` · tried ${item.attempts}×` : ""}`}
+					{item.venture?.name ?? "Holding"} · {itemMeta(item)}
 					{decided ? ` · ${decisionWord(item)}` : null}
 					{proposal !== null && !decided && proposal.staleCount > 0 ? (
 						<>
@@ -351,6 +382,8 @@ function InboxRow({ item, selected }: { item: InboxItem; selected: boolean }) {
 
 function decisionWord(item: InboxItem) {
 	if (item.kind === "proposal") return item.status;
+
+	if (item.kind === "needs_input") return "answered";
 
 	return item.status === "approved" ? "granted" : "denied";
 }
@@ -664,6 +697,102 @@ function attemptValue(value: unknown) {
 
 function isIdField(key: string) {
 	return key.endsWith("Id") || ["link", "changes", "subject", "home"].includes(key);
+}
+
+function QuestionReview({ item }: { item: InboxNeedsInput }) {
+	const client = useQueryClient();
+	const navigate = useNavigate();
+	const [answer, setAnswer] = useState("");
+	const now = Date.now();
+	const answerId = `answer-${item.id}`;
+
+	const send = useCommand<"thread.post", unknown>("thread.post", () => {
+		void client.invalidateQueries({ queryKey: keys.inbox });
+
+		void client.invalidateQueries({ queryKey: keys.thread(item.thread.id) });
+
+		void client.invalidateQueries({ queryKey: keys.spaces });
+
+		toast(
+			<>
+				Answered <b>{item.agent.name}</b>; the thread carries on
+			</>,
+			"threads",
+		);
+
+		void navigate({ to: "/inbox", search: {} });
+	});
+
+	const submit = (event: FormEvent) => {
+		event.preventDefault();
+
+		if (answer.trim() === "" || send.isPending) return;
+
+		send.mutate({ payload: { threadId: item.thread.id, body: answer.trim(), links: [] } });
+	};
+
+	return (
+		<div className="rev" style={accent(item.venture?.slug)}>
+			<div className="rev-kind">
+				{item.venture === null ? <Icon name="holding" /> : <Crest seed={item.venture.slug} size={14} />}
+				<span>{item.venture?.name ?? "Holding"}</span>
+				<i>·</i>
+				<span>{item.space === null ? "Question" : `Question in ${item.space.title}`}</span>
+			</div>
+			<h2>{item.agent.name} asks</h2>
+			<p className="rev-meta">
+				<time dateTime={item.createdAt} title={formatDateTime(item.createdAt)}>
+					{ago(item.createdAt, now)}
+				</time>{" "}
+				in{" "}
+				<ThreadLink ventureSlug={item.thread.ventureSlug} threadId={item.thread.id}>
+					{item.thread.title}
+				</ThreadLink>
+			</p>
+			<blockquote className="ask-q">{item.question}</blockquote>
+			{item.status === "pending" ? (
+				<form className="ask-f" onSubmit={submit}>
+					<label htmlFor={answerId} className="cap">
+						Your answer goes to the thread and starts {item.agent.name}'s next run
+					</label>
+					<textarea
+						id={answerId}
+						className="inp"
+						rows={4}
+						value={answer}
+						placeholder={`Answer ${item.agent.name}`}
+						onChange={(event) => setAnswer(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) submit(event);
+						}}
+					/>
+					<div className="ask-b">
+						<button type="submit" className="btn pri" disabled={answer.trim() === "" || send.isPending}>
+							Send answer
+						</button>
+						<ThreadLink ventureSlug={item.thread.ventureSlug} threadId={item.thread.id} className="btn ghost">
+							Open the thread
+						</ThreadLink>
+					</div>
+					{send.error === null ? null : (
+						<p className="err" role="alert">
+							{describeError(send.error)}
+						</p>
+					)}
+				</form>
+			) : (
+				<p className="decided">
+					<Dia status="won" />
+					Answered{" "}
+					{item.decidedAt === null ? null : (
+						<time dateTime={item.decidedAt} title={formatDateTime(item.decidedAt)}>
+							{ago(item.decidedAt, now)}
+						</time>
+					)}
+				</p>
+			)}
+		</div>
+	);
 }
 
 function AccessReview({ item }: { item: InboxAccessRequest }) {
@@ -1133,6 +1262,14 @@ export function NeedsYou({ ventureId }: { ventureId: string }) {
 						<span>
 							{plural(item.changeCount, "change")} · {actorName(item.createdBy)} · {ago(item.createdAt, now)}
 							{item.staleCount > 0 ? " · stale" : ""}
+						</span>
+					</Link>
+				) : item.kind === "needs_input" ? (
+					<Link key={item.id} to="/inbox" search={{ question: item.id }} className="quest">
+						<Need />
+						<b>{questionTitle(item)}</b>
+						<span>
+							{itemMeta(item)} · {ago(item.createdAt, now)}
 						</span>
 					</Link>
 				) : (

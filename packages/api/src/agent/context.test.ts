@@ -3,8 +3,18 @@ import { type LoopState, type RunContext, renderLoop, renderPrompt, renderSystem
 
 const base = {
 	today: "2026-11-24",
-	agent: { name: "Claude", grants: ["work", "links", "propose"] },
+	agent: { name: "Claude", actor: "agent:claude", grants: ["work", "links", "propose"] },
 	thread: { id: "thread-1", title: "Launch plan" },
+	seenSeq: 0,
+	rootRunId: "run-1",
+	profiles: [
+		{ id: "claude", name: "Claude", actor: "agent:claude", runtime: "claude-agent-sdk" },
+		{ id: "gpt", name: "GPT", actor: "agent:gpt", runtime: "pi" },
+	],
+	space: null,
+	reports: [],
+	retry: null,
+	trigger: { author: "owner" },
 	scope: null,
 	ventures: [{ id: "v-1", slug: "corner-bakery", name: "Corner Bakery" }],
 	links: [],
@@ -77,7 +87,7 @@ describe("permissions in the system prompt", () => {
 	});
 
 	it("marks what isn't granted and explains access requests", () => {
-		const prompt = renderSystemPrompt({ ...base, agent: { name: "GPT", grants: ["links"] } });
+		const prompt = renderSystemPrompt({ ...base, agent: { name: "GPT", actor: "agent:gpt", grants: ["links"] } });
 
 		expect(prompt).toContain("- Work and readings (not granted): create");
 
@@ -222,5 +232,93 @@ describe("renderPrompt", () => {
 		).toBe(
 			"The conversation so far:\n\nOwner:\nHi\n\nYou (agent):\nHello\n\nThe owner's new message:\nWhat should we do next?",
 		);
+	});
+});
+
+const chatSpace = {
+	id: "space-1",
+	title: "Pricing page",
+	goal: "Ship the pricing page",
+	ventureId: "v-1",
+	role: "chat",
+	agentName: "Claude",
+	wakesLeft: 3,
+	members: [
+		{
+			threadId: "t-2",
+			title: "Research Acme",
+			agent: "GPT",
+			state: "needs_you",
+			latestRunId: "r-2",
+			latestStatus: "succeeded",
+			question: "Which tier?",
+		},
+	],
+} satisfies RunContext["space"];
+
+describe("spaces in the prompt", () => {
+	it("tells a space's agent how to direct threads and lists the members", () => {
+		const prompt = renderSystemPrompt({ ...base, space: chatSpace });
+
+		expect(prompt).toContain('you are the agent of the space "Pricing page"');
+
+		expect(prompt).toContain("Claude (id claude), GPT (id gpt)");
+
+		expect(prompt).toContain("(3 left)");
+
+		expect(prompt).toContain(
+			'- "Research Acme" (thread t-2, GPT): needs the owner: "Which tier?", latest run r-2 succeeded',
+		);
+	});
+
+	it("tells a member who directs it", () => {
+		const prompt = renderSystemPrompt({ ...base, space: { ...chatSpace, role: "member", members: [] } });
+
+		expect(prompt).toContain('a member of the space "Pricing page", directed by Claude');
+	});
+
+	it("wakes the space's agent on its reports", () => {
+		const prompt = renderPrompt({
+			...base,
+			space: chatSpace,
+			trigger: { author: "braise" },
+			message: "“Research Acme” finished",
+			reports: ["“Research Acme” finished", "“Research Beta” failed: timeout"],
+		});
+
+		expect(prompt).toBe(
+			"Reports from the space's threads since your last run:\n- “Research Acme” finished\n- “Research Beta” failed: timeout\n\nRead the reports and decide the next step for the space.",
+		);
+	});
+
+	it("names the space's agent when it writes in a member thread", () => {
+		const prompt = renderPrompt({
+			...base,
+			agent: { name: "GPT", actor: "agent:gpt", grants: [] },
+			trigger: { author: "agent:claude" },
+			message: "Find Acme's prices",
+		});
+
+		expect(prompt).toBe("New message from Claude (the space's agent):\nFind Acme's prices");
+	});
+});
+
+describe("retries in the prompt", () => {
+	it("lists what the earlier attempts already did", () => {
+		const prompt = renderPrompt({
+			...base,
+			retry: {
+				calls: [{ name: "create_work_item", input: { title: "Flyers" }, output: '{"id":"w-1"}' }],
+				partial: "I created the flyers item and",
+			},
+		});
+
+		expect(prompt).toContain(
+			'Before braise stopped, your previous attempt already did:\n- create_work_item {"title":"Flyers"} → {"id":"w-1"}',
+		);
+
+		expect(prompt).toContain("What it had written so far:\nI created the flyers item and");
+
+		expect(prompt).toContain("Continue from there; don't repeat these.");
 	});
 });

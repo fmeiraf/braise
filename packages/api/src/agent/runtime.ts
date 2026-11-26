@@ -1,4 +1,4 @@
-import type { RunUsage } from "@braise/core";
+import type { LimitStatus, RunUsage } from "@braise/core";
 import { Data, Effect } from "effect";
 import type { z } from "zod";
 
@@ -19,7 +19,15 @@ export type RunSignal =
 	| { type: "message"; block: number; text: string }
 	| { type: "tool.call"; toolUseId: string; name: string; input: unknown }
 	| { type: "tool.result"; toolUseId: string; output: string; isError: boolean }
+	| { type: "limit"; reading: LimitSignal }
 	| { type: "finished"; status: "succeeded" | "failed"; usage: RunUsage | null; error: string | null };
+
+export interface LimitSignal {
+	window: string;
+	status: LimitStatus;
+	utilization: number | null;
+	resetsAt: Date | null;
+}
 
 export interface RunInput {
 	model: string;

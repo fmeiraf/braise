@@ -120,6 +120,23 @@ Holding scope `--acc` is `ink`, so the Holding is neutral.
 - `ok` / `danger`: inserted and removed text, granted capabilities, approved and
   rejected marks, errors.
 
+### State tones (slice 7)
+
+Work that is in flight carries its state as colour wherever it shows (space rows, the
+space header's status bar, member rows, thread cards, report lines), set with
+`data-tone` on the element so `--tone` resolves:
+
+- `live` (running): the venture hue, pulsing.
+- `needs` (waiting for the owner): `beacon`.
+- `ok` (finished): `ok`.
+- `bad` (failed or interrupted): `danger`.
+- `wait` (queued or idle): `ink-3`, drawn as a hollow pip.
+
+A space is its own object, never drawn like a thread: a tinted `SpaceMark` tile of its
+members' states, a venture-tinted header band with a segmented status bar, and a tinted
+"Part of the space" band on each member thread. Added after the owner found the first
+spaces screen too bland to tell what was happening (2026-11-26).
+
 ### Named rules
 
 - **The Hue Means Venture Rule.** Never use a venture hue for status, and never pick a

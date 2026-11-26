@@ -227,6 +227,24 @@ export function describeCall(call: ToolCall) {
 				detail: Array.isArray(changes) ? `${changes.length} ${changes.length === 1 ? "change" : "changes"}` : null,
 			};
 		}
+		case "start_thread": {
+			const agent = field(call.input, "agentProfileId");
+
+			return {
+				action: `Started ${quoted(title)}`,
+				detail: typeof agent === "string" ? `with ${actorName(`agent:${agent}`)}` : null,
+			};
+		}
+		case "message_thread":
+			return { action: "Messaged a thread", detail: null };
+		case "retry_thread":
+			return { action: "Retried a thread", detail: null };
+		case "add_thread_to_space":
+			return { action: "Added a thread to the space", detail: null };
+		case "remove_thread_from_space":
+			return { action: "Removed a thread from the space", detail: null };
+		case "ask_owner":
+			return { action: "Asked you", detail: null };
 		default:
 			return { action: `Used ${call.name}`, detail: null };
 	}

@@ -28,6 +28,7 @@ import {
 import { AppError } from "./errors.ts";
 import type { HandlerContext, Handlers, VentureRow } from "./pipeline.ts";
 import { proposalHandlers } from "./proposal-handlers.ts";
+import { spaceHandlers } from "./space-handlers.ts";
 import { threadHandlers } from "./thread-handlers.ts";
 
 function requireVenture(context: HandlerContext) {
@@ -1288,10 +1289,19 @@ const domainHandlers = {
 	| "access.deny"
 	| "grant.add"
 	| "grant.revoke"
+	| "space.create"
+	| "space.update"
+	| "space.archive"
+	| "space.add_thread"
+	| "space.remove_thread"
+	| "input.request"
+	| "runtime.pause"
+	| "runtime.resume"
 >;
 
 export const handlers = {
 	...domainHandlers,
 	...proposalHandlers(domainHandlers),
 	...accessHandlers,
+	...spaceHandlers,
 } satisfies Handlers;
