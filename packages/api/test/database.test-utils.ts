@@ -1,3 +1,4 @@
+import pg from "pg";
 import { runQueueServices, startBoss } from "../src/agent/queue.ts";
 import { openReader } from "../src/agent/reader.ts";
 import { createApp } from "../src/app.ts";
@@ -12,6 +13,40 @@ export function testUrl() {
 	return testDatabaseUrl(readEnv().DATABASE_URL);
 }
 
+export function isolatedTestUrl(name: string) {
+	const url = new URL(testUrl());
+
+	url.pathname = `/${name}`;
+
+	return url.toString();
+}
+
+export async function createIsolatedDatabase(name: string) {
+	const url = isolatedTestUrl(name);
+
+	assertLocalDatabase(url);
+
+	const admin = new pg.Client({ connectionString: testUrl() });
+
+	await admin.connect();
+
+	try {
+		const found = await admin.query("SELECT 1 FROM pg_database WHERE datname = $1", [name]);
+
+		if (found.rowCount === 0) await admin.query(`CREATE DATABASE ${name}`);
+	} finally {
+		await admin.end();
+	}
+
+	const { db, pool } = createDatabase(url, { max: 1 });
+
+	await resetDatabase(db);
+
+	await pool.end();
+
+	return url;
+}
+
 export async function setup() {
 	const url = testUrl();
 
@@ -24,15 +59,15 @@ export async function setup() {
 	await pool.end();
 }
 
-export async function openTestDatabase() {
-	const { db, pool } = createDatabase(testUrl(), { max: 20 });
-	const hub = createHintHub(testUrl());
+export async function openTestDatabase(url = testUrl()) {
+	const { db, pool } = createDatabase(url, { max: 20 });
+	const hub = createHintHub(url);
 
-	const boss = await startBoss(testUrl());
+	const boss = await startBoss(url);
 
 	const services = runQueueServices(boss);
 
-	const reader = await openReader(db, testUrl());
+	const reader = await openReader(db, url);
 
 	const app = createApp({ db, hub, services });
 
