@@ -20,7 +20,10 @@ import { Integrations } from "./repos.tsx";
 import { ago } from "./time.ts";
 import { toast } from "./toast.ts";
 import { useCommand } from "./use-command.ts";
-import { ThreadLink, useWorking, workingLabel } from "./working.tsx";
+import { City } from "./valley/city.tsx";
+import { Kicker, Sky } from "./valley/hero.tsx";
+import { planOne } from "./valley/layout.ts";
+import { ThreadLink, useVentureTones, useWorking, workingLabel } from "./working.tsx";
 
 const kernelFields = [
 	{ key: "why", label: "Why", prompt: "Why should this venture exist?" },
@@ -247,20 +250,34 @@ function VentureSheet({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 }
 
 function OverviewView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
+	const toneOf = useVentureTones();
+	const { venture } = cockpit;
+
 	return (
-		<div className="page" style={accent(slug)}>
-			<VentureSheet slug={slug} cockpit={cockpit} />
-			<Integrations slug={slug} />
-			<div className="cols home">
-				<section aria-labelledby="topics-heading">
-					<Sec title="At a glance" id="topics-heading" />
-					<Topics slug={slug} cockpit={cockpit} />
-				</section>
-				<aside className="ov-aside">
-					<NeedsYou ventureId={cockpit.venture.id} />
-					<RecentActivity slug={slug} ventureId={cockpit.venture.id} lastSeq={cockpit.venture.lastSeq} />
-				</aside>
-			</div>
+		<div className="valley vl-venture" style={accent(slug)}>
+			<section className="vl-hero">
+				<Sky />
+				<City layout={planOne(venture)} ventures={[venture]} toneOf={toneOf} />
+				<div className="vl-hud">
+					<Kicker>The Valley</Kicker>
+					<VentureSheet slug={slug} cockpit={cockpit} />
+				</div>
+			</section>
+			<section className="vl-sheet">
+				<div className="vl-page">
+					<Integrations slug={slug} />
+					<div className="cols home">
+						<section aria-labelledby="topics-heading">
+							<Sec title="At a glance" id="topics-heading" />
+							<Topics slug={slug} cockpit={cockpit} />
+						</section>
+						<aside className="ov-aside">
+							<NeedsYou ventureId={cockpit.venture.id} />
+							<RecentActivity slug={slug} ventureId={cockpit.venture.id} lastSeq={cockpit.venture.lastSeq} />
+						</aside>
+					</div>
+				</div>
+			</section>
 		</div>
 	);
 }
