@@ -3,13 +3,14 @@ import { Link, Outlet, useLocation, useNavigate, useParams } from "@tanstack/rea
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DraftBar, DraftRoomProvider } from "./draft.tsx";
 import { queries, rememberVenture, useHintStream } from "./live.ts";
-import { accent, Crest, Drone, Elapsed, hueOf, Icon, type IconName, isSquare, You } from "./marks.tsx";
+import { AppIcon, accent, Drone, Elapsed, HoldingIcon, hueOf, Icon, type IconName, isSquare, You } from "./marks.tsx";
 import { Select } from "./menu.tsx";
 import { OperatorPanel } from "./operator.tsx";
 import { Palette } from "./palette.tsx";
 import { ago } from "./time.ts";
 import { useToasts } from "./toast.ts";
-import { ThreadLink, useWorking } from "./working.tsx";
+import { toneWords } from "./venture-state.ts";
+import { ThreadLink, useVentureTones, useWorking } from "./working.tsx";
 
 const weekMs = 7 * 24 * 60 * 60 * 1000;
 
@@ -73,6 +74,7 @@ export function Shell() {
 	const inbox = useQuery(queries.inbox());
 	const agents = useQuery(queries.agents());
 	const working = useWorking();
+	const toneOf = useVentureTones();
 	const navigate = useNavigate();
 	const pathname = useLocation({ select: (location) => location.pathname });
 	const { slug } = useParams({ strict: false });
@@ -166,12 +168,12 @@ export function Shell() {
 					data-tip="Holding|all ventures"
 					data-side="r"
 				>
-					<Icon name="holding" />
+					<HoldingIcon size={58} />
 				</Link>
 				<span className="r-sep" />
 				{rows.map((venture) => {
-					const live = working.some((item) => item.run.ventureSlug === venture.slug);
-					const quiet = !live && now - Date.parse(venture.lastActivityAt) > weekMs;
+					const tone = toneOf(venture);
+					const quiet = tone === null && now - Date.parse(venture.lastActivityAt) > weekMs;
 
 					return (
 						<Link
@@ -182,11 +184,10 @@ export function Shell() {
 							aria-label={venture.name}
 							aria-current={venture.slug === scope ? "true" : undefined}
 							style={accent(venture.slug)}
-							data-tip={`${venture.name}|${live ? "an agent is working" : `v${venture.strategyVersion} · ${ago(venture.lastActivityAt, now)}`}`}
+							data-tip={`${venture.name}|${tone === null ? `v${venture.strategyVersion} · ${ago(venture.lastActivityAt, now)}` : toneWords[tone]}`}
 							data-side="r"
 						>
-							<Crest seed={venture.slug} size={20} live={live} />
-							{live ? <i className="r-live" /> : null}
+							<AppIcon slug={venture.slug} size={58} tone={tone} />
 						</Link>
 					);
 				})}
@@ -254,11 +255,11 @@ export function Shell() {
 						tip="Switch venture|H goes to the holding"
 						value={scope ?? ""}
 						options={[
-							{ value: "", label: "Holding", glyph: <Icon name="holding" />, sub: "All ventures" },
+							{ value: "", label: "Holding", glyph: <HoldingIcon size={16} />, sub: "All ventures" },
 							...rows.map((venture) => ({
 								value: venture.slug,
 								label: venture.name,
-								glyph: <Crest seed={venture.slug} size={14} />,
+								glyph: <AppIcon slug={venture.slug} size={16} />,
 								sub: `v${venture.strategyVersion}`,
 								accent: hueOf(venture.slug),
 							})),
@@ -272,7 +273,7 @@ export function Shell() {
 							})
 						}
 					>
-						{scope === null ? <Icon name="holding" /> : <Crest seed={scope} size={16} />}
+						{scope === null ? <HoldingIcon size={28} /> : <AppIcon slug={scope} size={28} />}
 						<span>{scope === null ? "Holding" : (scopeVenture?.name ?? scope)}</span>
 						<Icon name="chevd" className="chev" />
 					</Select>
@@ -315,6 +316,13 @@ export function Shell() {
 							>
 								<Drone square={isSquare(agent)} size={16} run />
 								<span>{agent.name}</span>
+								{busy.run.ventureSlug === null ? null : (
+									<span className="where">
+										over{" "}
+										{rows.find((venture) => venture.slug === busy.run.ventureSlug)?.name ??
+											busy.run.ventureSlug}
+									</span>
+								)}
 								<Elapsed since={busy.run.startedAt ?? busy.run.createdAt} />
 							</ThreadLink>
 						);

@@ -10,7 +10,7 @@ import {
 	useState,
 } from "react";
 import { queries } from "./live.ts";
-import { Crest, Drone, hueOf, Icon, isSquare } from "./marks.tsx";
+import { AppIcon, Drone, hueOf, Icon, isSquare } from "./marks.tsx";
 import { useAgentLookup } from "./working.tsx";
 
 interface PaletteItem {
@@ -52,7 +52,7 @@ export function Palette({ scope, close, operator }: { scope: string | null; clos
 			key: `venture:${venture.id}`,
 			label: venture.name,
 			sub: "Venture",
-			glyph: <Crest seed={venture.slug} size={14} />,
+			glyph: <AppIcon slug={venture.slug} size={16} />,
 			accent: hueOf(venture.slug),
 			go: () => void navigate({ to: "/v/$slug", params: { slug: venture.slug } }),
 		})),

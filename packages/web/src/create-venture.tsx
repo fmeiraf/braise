@@ -7,7 +7,7 @@ import { describeError, errorField } from "./errors.ts";
 import { focusOnMount } from "./focus.ts";
 import { kindLabel } from "./labels.ts";
 import { keys, queries, rememberVenture } from "./live.ts";
-import { accent, Crest } from "./marks.tsx";
+import { AppIcon, accent } from "./marks.tsx";
 import { Hero } from "./parts.tsx";
 import { toast } from "./toast.ts";
 import { useCommand } from "./use-command.ts";
@@ -152,10 +152,10 @@ export function CreateVenture({ firstRun = false }: { firstRun?: boolean }) {
 				</form>
 
 				<div className="preview">
-					<span className="cap">Its crest and colour are drawn from the slug</span>
+					<span className="cap">Its icon and colour are drawn from the slug</span>
 					<div className="vc">
 						<div className="vc-top">
-							<Crest seed={previewSlug} size={44} />
+							<AppIcon slug={previewSlug} size={52} />
 							<span className="cap">{kindLabel[kind]}</span>
 						</div>
 						<h3>{name.trim() === "" ? "Unnamed" : name}</h3>
