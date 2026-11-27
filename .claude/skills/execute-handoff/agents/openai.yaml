@@ -1,5 +1,0 @@
-interface:
-  display_name: "Execute Handoff"
-  short_description: "Prepare context and launch the next agent below"
-policy:
-  allow_implicit_invocation: false
