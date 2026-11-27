@@ -8613,3 +8613,69 @@ pre {
 		}
 	}
 }
+
+.vl-venture .vl-hero {
+	height: 400px;
+}
+.vl-venture .vl-hud {
+	right: 44%;
+	max-width: none;
+}
+.vl-venture .vl-hud .sheet {
+	margin: 26px 0 0;
+	pointer-events: auto;
+}
+.vl-venture .vl-hud .h1 {
+	font: 800 46px / 1.06 var(--f-display);
+	letter-spacing: -0.035em;
+	color: #fff;
+}
+.vl-venture .vl-hud .sheet-meta .cap {
+	font-size: 14px;
+	color: var(--ink-2);
+}
+.vl-venture .vl-city {
+	left: 72%;
+	top: 72%;
+	width: min(var(--gw), 34%);
+}
+.vl-venture .vl-sheet .integ {
+	border-color: transparent;
+	border-radius: 18px;
+	box-shadow: var(--lift);
+}
+.vl-venture .vl-sheet .cols.home {
+	margin-top: 8px;
+}
+@media (max-width: 1100px) {
+	.vl-venture .vl-hud {
+		right: 40%;
+	}
+	.vl-venture .vl-hud .h1 {
+		font-size: 36px;
+	}
+}
+@media (max-width: 760px) {
+	.vl-venture .vl-hud {
+		right: 16px;
+	}
+	.vl-venture .vl-city {
+		display: none;
+	}
+}
+.vl-venture .vl-hud .sheet {
+	grid-template-columns: auto minmax(0, 1fr);
+	row-gap: 14px;
+}
+.vl-venture .vl-hud .sheet > .btn {
+	grid-column: 2;
+	justify-self: start;
+	margin-left: -9px;
+}
+.vl-venture .vl-hero {
+	height: 380px;
+}
+.vl-venture .vl-sheet .vl-page > :first-child .sec,
+.vl-venture .vl-sheet .vl-page > .sec:first-child {
+	margin-top: 0;
+}

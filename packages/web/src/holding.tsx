@@ -11,6 +11,7 @@ import { BreakGround, VentureCard } from "./valley/campus.tsx";
 import { City } from "./valley/city.tsx";
 import { doneThisWeek, workCounts } from "./valley/figures.ts";
 import { Attention, Kicker, Legend, Sky } from "./valley/hero.tsx";
+import { plan } from "./valley/layout.ts";
 import { OnShift } from "./valley/on-shift.tsx";
 import { useVentureTones, useWorking } from "./working.tsx";
 
@@ -87,7 +88,13 @@ export function HoldingPage() {
 		<div className="valley">
 			<section className="vl-hero">
 				<Sky />
-				<City ventures={ventures.data.ventures} toneOf={toneOf} hot={hot} setHot={setHot} />
+				<City
+					layout={plan(ventures.data.ventures)}
+					ventures={ventures.data.ventures}
+					toneOf={toneOf}
+					hot={hot}
+					setHot={setHot}
+				/>
 				<div className="vl-hud">
 					<Kicker>The Holding</Kicker>
 					<h1 className="vl-h1">The Valley never sleeps.</h1>

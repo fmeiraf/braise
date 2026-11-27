@@ -43,6 +43,13 @@ export type Plot =
 	| { kind: "venture"; slug: string; sprite: SpriteName; i: number; j: number }
 	| { kind: "park" | "pond"; sprite: "park" | "pond"; i: number; j: number };
 
+/** One venture on a lot of its own, for its Overview. */
+export function planOne(venture: { slug: string }) {
+	const plot: Plot = { kind: "venture", slug: venture.slug, sprite: spriteOf(venture.slug), i: 0, j: 0 };
+
+	return { grid: "1" as const, plots: [plot] };
+}
+
 /** Places ventures (oldest first) on the city's lots, fills the rest with parks and one pond, and lists everything back to front. */
 export function plan(ventures: readonly { id: string; slug: string }[]) {
 	const grid = gridFor(ventures.length);
