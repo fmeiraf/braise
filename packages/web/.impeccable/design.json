@@ -1,731 +1,397 @@
 {
 	"schemaVersion": 2,
-	"generatedAt": "2026-11-24T23:03:36+00:00",
-	"title": "Design System: braise",
+	"generatedAt": "2026-11-27T15:01:49.028Z",
+	"title": "Design System: braise (v7, the Valley)",
 	"extensions": {
 		"colorMeta": {
-			"pith": {
+			"space": {
 				"role": "neutral",
-				"displayName": "Pith",
-				"canonical": "#131a16",
-				"tonalRamp": [
-					"oklch(15% 0.006 160)",
-					"oklch(26% 0.008 160)",
-					"oklch(38% 0.010 160)",
-					"oklch(49% 0.011 160)",
-					"oklch(61% 0.013 160)",
-					"oklch(72% 0.011 160)",
-					"oklch(84% 0.009 160)",
-					"oklch(95% 0.008 160)"
-				]
+				"displayName": "Night",
+				"canonical": "oklch(15.3% 0.021 -67.1)",
+				"tonalRamp": ["#0b0b0d", "#252429", "#424149", "#61606b", "#82808e", "#a5a3af", "#c9c8d1", "#eeedf4"]
 			},
-			"pith-2": {
+			"stage": {
 				"role": "neutral",
-				"displayName": "Pith Raised",
-				"canonical": "#1d2721",
-				"tonalRamp": [
-					"oklch(15% 0.009 159)",
-					"oklch(26% 0.011 159)",
-					"oklch(38% 0.013 159)",
-					"oklch(49% 0.016 159)",
-					"oklch(61% 0.018 159)",
-					"oklch(72% 0.015 159)",
-					"oklch(84% 0.013 159)",
-					"oklch(95% 0.011 159)"
-				]
+				"displayName": "Stage",
+				"canonical": "oklch(18.1% 0.020 -66.6)",
+				"tonalRamp": ["#0b0b0d", "#252429", "#424148", "#61606a", "#82808e", "#a5a3af", "#c9c8d1", "#eeedf4"]
 			},
-			"rail-hover": {
+			"sunk": {
 				"role": "neutral",
-				"displayName": "Rail Hover",
-				"canonical": "#1b241f",
-				"tonalRamp": [
-					"oklch(15% 0.008 161)",
-					"oklch(26% 0.010 161)",
-					"oklch(38% 0.012 161)",
-					"oklch(49% 0.014 161)",
-					"oklch(61% 0.016 161)",
-					"oklch(72% 0.014 161)",
-					"oklch(84% 0.012 161)",
-					"oklch(95% 0.009 161)"
-				]
+				"displayName": "Sunk",
+				"canonical": "oklch(16.2% 0.021 -66.9)",
+				"tonalRamp": ["#0b0b0d", "#252429", "#424149", "#61606a", "#82808e", "#a5a3af", "#c9c8d1", "#eeedf4"]
 			},
-			"rail-line": {
+			"card": {
 				"role": "neutral",
-				"displayName": "Rail Line",
-				"canonical": "#26302a",
-				"tonalRamp": [
-					"oklch(15% 0.008 159)",
-					"oklch(26% 0.011 159)",
-					"oklch(38% 0.013 159)",
-					"oklch(49% 0.015 159)",
-					"oklch(61% 0.017 159)",
-					"oklch(72% 0.015 159)",
-					"oklch(84% 0.013 159)",
-					"oklch(95% 0.010 159)"
-				]
+				"displayName": "Card",
+				"canonical": "oklch(20.7% 0.018 -65.0)",
+				"tonalRamp": ["#0b0b0d", "#252429", "#424148", "#626069", "#83808c", "#a5a3ad", "#c9c8d0", "#efeef3"]
 			},
-			"rail-muted": {
+			"raise": {
 				"role": "neutral",
-				"displayName": "Rail Muted",
-				"canonical": "#a9b5ad",
-				"tonalRamp": [
-					"oklch(15% 0.008 157)",
-					"oklch(26% 0.011 157)",
-					"oklch(38% 0.013 157)",
-					"oklch(49% 0.015 157)",
-					"oklch(61% 0.017 157)",
-					"oklch(72% 0.015 157)",
-					"oklch(84% 0.013 157)",
-					"oklch(95% 0.010 157)"
-				]
+				"displayName": "Raise",
+				"canonical": "oklch(24.4% 0.023 -63.9)",
+				"tonalRamp": ["#0b0b0d", "#25242a", "#424149", "#625f6b", "#83808f", "#a6a3b0", "#cac7d1", "#efedf4"]
 			},
-			"rail-dim": {
+			"hover": {
 				"role": "neutral",
-				"displayName": "Rail Dim",
-				"canonical": "#7d8a81",
-				"tonalRamp": [
-					"oklch(15% 0.010 156)",
-					"oklch(26% 0.012 156)",
-					"oklch(38% 0.015 156)",
-					"oklch(49% 0.018 156)",
-					"oklch(61% 0.020 156)",
-					"oklch(72% 0.017 156)",
-					"oklch(84% 0.015 156)",
-					"oklch(95% 0.012 156)"
-				]
-			},
-			"rail-quiet": {
-				"role": "neutral",
-				"displayName": "Rail Quiet",
-				"canonical": "#4d5a52",
-				"tonalRamp": [
-					"oklch(15% 0.010 158)",
-					"oklch(26% 0.013 158)",
-					"oklch(38% 0.015 158)",
-					"oklch(49% 0.018 158)",
-					"oklch(61% 0.021 158)",
-					"oklch(72% 0.018 158)",
-					"oklch(84% 0.015 158)",
-					"oklch(95% 0.012 158)"
-				]
-			},
-			"sage": {
-				"role": "neutral",
-				"displayName": "Sage Ink",
-				"canonical": "#e8ede5",
-				"tonalRamp": [
-					"oklch(15% 0.006 133)",
-					"oklch(26% 0.007 133)",
-					"oklch(38% 0.009 133)",
-					"oklch(49% 0.010 133)",
-					"oklch(61% 0.012 133)",
-					"oklch(72% 0.010 133)",
-					"oklch(84% 0.009 133)",
-					"oklch(95% 0.007 133)"
-				]
-			},
-			"ground": {
-				"role": "neutral",
-				"displayName": "Sage-White Ground",
-				"canonical": "#f4f5f1",
-				"tonalRamp": [
-					"oklch(15% 0.003 118)",
-					"oklch(26% 0.003 118)",
-					"oklch(38% 0.004 118)",
-					"oklch(49% 0.005 118)",
-					"oklch(61% 0.005 118)",
-					"oklch(72% 0.005 118)",
-					"oklch(84% 0.004 118)",
-					"oklch(95% 0.003 118)"
-				]
-			},
-			"ground-sunk": {
-				"role": "neutral",
-				"displayName": "Sunk Ground",
-				"canonical": "#eceee8",
-				"tonalRamp": [
-					"oklch(15% 0.004 122)",
-					"oklch(26% 0.005 122)",
-					"oklch(38% 0.006 122)",
-					"oklch(49% 0.007 122)",
-					"oklch(61% 0.008 122)",
-					"oklch(72% 0.007 122)",
-					"oklch(84% 0.006 122)",
-					"oklch(95% 0.005 122)"
-				]
-			},
-			"paper": {
-				"role": "neutral",
-				"displayName": "Paper",
-				"canonical": "#ffffff",
-				"tonalRamp": [
-					"oklch(15% 0.000 90)",
-					"oklch(26% 0.000 90)",
-					"oklch(38% 0.000 90)",
-					"oklch(49% 0.000 90)",
-					"oklch(61% 0.000 90)",
-					"oklch(72% 0.000 90)",
-					"oklch(84% 0.000 90)",
-					"oklch(95% 0.000 90)"
-				]
+				"displayName": "Hover",
+				"canonical": "oklch(27.2% 0.019 -61.1)",
+				"tonalRamp": ["#0b0b0d", "#252429", "#434148", "#625f69", "#84808c", "#a6a3ad", "#cac8d0", "#efedf3"]
 			},
 			"ink": {
 				"role": "neutral",
 				"displayName": "Ink",
-				"canonical": "#151b18",
-				"tonalRamp": [
-					"oklch(15% 0.005 164)",
-					"oklch(26% 0.007 164)",
-					"oklch(38% 0.008 164)",
-					"oklch(49% 0.009 164)",
-					"oklch(61% 0.011 164)",
-					"oklch(72% 0.009 164)",
-					"oklch(84% 0.008 164)",
-					"oklch(95% 0.006 164)"
-				]
+				"canonical": "oklch(95.9% 0.010 -60.8)",
+				"tonalRamp": ["#0b0b0c", "#252527", "#424145", "#626065", "#838187", "#a5a4a9", "#c9c8cc", "#efeef1"]
 			},
 			"ink-2": {
 				"role": "neutral",
-				"displayName": "Ink Secondary",
-				"canonical": "#47504b",
-				"tonalRamp": [
-					"oklch(15% 0.007 161)",
-					"oklch(26% 0.009 161)",
-					"oklch(38% 0.010 161)",
-					"oklch(49% 0.012 161)",
-					"oklch(61% 0.014 161)",
-					"oklch(72% 0.012 161)",
-					"oklch(84% 0.010 161)",
-					"oklch(95% 0.008 161)"
-				]
+				"displayName": "Ink 2",
+				"canonical": "oklch(82.0% 0.018 -63.4)",
+				"tonalRamp": ["#0b0b0d", "#252429", "#424148", "#626069", "#83808c", "#a6a3ad", "#cac8d0", "#efedf3"]
 			},
 			"ink-3": {
 				"role": "neutral",
-				"displayName": "Ink Meta",
-				"canonical": "#5f6963",
-				"tonalRamp": [
-					"oklch(15% 0.007 160)",
-					"oklch(26% 0.009 160)",
-					"oklch(38% 0.011 160)",
-					"oklch(49% 0.013 160)",
-					"oklch(61% 0.015 160)",
-					"oklch(72% 0.013 160)",
-					"oklch(84% 0.011 160)",
-					"oklch(95% 0.009 160)"
-				]
+				"displayName": "Ink 3",
+				"canonical": "oklch(68.4% 0.022 -65.0)",
+				"tonalRamp": ["#0b0b0d", "#252429", "#424149", "#625f6b", "#83808e", "#a5a3af", "#c9c8d1", "#efedf4"]
 			},
-			"line": {
+			"ink-4": {
 				"role": "neutral",
-				"displayName": "Line",
-				"canonical": "#e2e5de",
-				"tonalRamp": [
-					"oklch(15% 0.005 126)",
-					"oklch(26% 0.006 126)",
-					"oklch(38% 0.007 126)",
-					"oklch(49% 0.009 126)",
-					"oklch(61% 0.010 126)",
-					"oklch(72% 0.008 126)",
-					"oklch(84% 0.007 126)",
-					"oklch(95% 0.006 126)"
-				]
+				"displayName": "Ink 4",
+				"canonical": "oklch(52.9% 0.025 -65.9)",
+				"tonalRamp": ["#0b0b0e", "#25242a", "#42404a", "#625f6c", "#838090", "#a5a3b1", "#c9c7d2", "#efedf5"]
 			},
-			"line-strong": {
+			"acc-ink": {
 				"role": "neutral",
-				"displayName": "Line Strong",
-				"canonical": "#cdd2c9",
-				"tonalRamp": [
-					"oklch(15% 0.006 131)",
-					"oklch(26% 0.008 131)",
-					"oklch(38% 0.010 131)",
-					"oklch(49% 0.012 131)",
-					"oklch(61% 0.013 131)",
-					"oklch(72% 0.011 131)",
-					"oklch(84% 0.010 131)",
-					"oklch(95% 0.008 131)"
-				]
+				"displayName": "Ink on accent",
+				"canonical": "oklch(17.7% 0.019 -60.3)",
+				"tonalRamp": ["#0b0b0d", "#262429", "#434148", "#625f69", "#84808c", "#a6a3ad", "#cac8d0", "#efedf3"]
 			},
-			"resin": {
+			"hue-lime": {
 				"role": "primary",
-				"displayName": "Resin Amber",
-				"canonical": "#f0a63a",
-				"tonalRamp": [
-					"oklch(15% 0.070 72)",
-					"oklch(26% 0.089 72)",
-					"oklch(38% 0.109 72)",
-					"oklch(49% 0.128 72)",
-					"oklch(61% 0.145 72)",
-					"oklch(72% 0.126 72)",
-					"oklch(84% 0.106 72)",
-					"oklch(95% 0.087 72)"
-				]
+				"displayName": "Signal Lime",
+				"canonical": "oklch(79.3% 0.180 154.0)",
+				"tonalRamp": ["#001003", "#002f11", "#005223", "#007837", "#009f4d", "#4dbf7a", "#8edea9", "#c8fed8"]
 			},
-			"resin-light": {
+			"hue-cyan": {
 				"role": "primary",
-				"displayName": "Light Resin",
-				"canonical": "#f6c071",
-				"tonalRamp": [
-					"oklch(15% 0.055 76)",
-					"oklch(26% 0.070 76)",
-					"oklch(38% 0.085 76)",
-					"oklch(49% 0.101 76)",
-					"oklch(61% 0.114 76)",
-					"oklch(72% 0.099 76)",
-					"oklch(84% 0.083 76)",
-					"oklch(95% 0.068 76)"
-				]
+				"displayName": "Night Cyan",
+				"canonical": "oklch(71.5% 0.155 -110.6)",
+				"tonalRamp": ["#010c1b", "#042644", "#0b4473", "#1464a6", "#2486d9", "#64aaef", "#99ceff", "#cef3ff"]
 			},
-			"resin-deep": {
+			"hue-violet": {
 				"role": "primary",
-				"displayName": "Deep Resin",
-				"canonical": "#b8720f",
-				"tonalRamp": [
-					"oklch(15% 0.063 67)",
-					"oklch(26% 0.080 67)",
-					"oklch(38% 0.098 67)",
-					"oklch(49% 0.115 67)",
-					"oklch(61% 0.131 67)",
-					"oklch(72% 0.113 67)",
-					"oklch(84% 0.096 67)",
-					"oklch(95% 0.078 67)"
-				]
+				"displayName": "Neon Violet",
+				"canonical": "oklch(63.8% 0.210 -69.6)",
+				"tonalRamp": ["#0c061f", "#26194e", "#442f82", "#6447ba", "#8662f3", "#a68fff", "#c8baff", "#ede5ff"]
 			},
-			"resin-wash": {
+			"hue-tangerine": {
 				"role": "primary",
-				"displayName": "Resin Wash",
-				"canonical": "#fdf1dd",
-				"tonalRamp": [
-					"oklch(15% 0.014 81)",
-					"oklch(26% 0.018 81)",
-					"oklch(38% 0.022 81)",
-					"oklch(49% 0.026 81)",
-					"oklch(61% 0.029 81)",
-					"oklch(72% 0.025 81)",
-					"oklch(84% 0.021 81)",
-					"oklch(95% 0.017 81)"
-				]
+				"displayName": "Ember Tangerine",
+				"canonical": "oklch(74.9% 0.173 54.0)",
+				"tonalRamp": ["#180500", "#401800", "#6c2d00", "#9c4400", "#cd5e00", "#e78b49", "#ffb787", "#ffe2c2"]
 			},
-			"resin-wash-strong": {
+			"hue-pink": {
 				"role": "primary",
-				"displayName": "Resin Wash Strong",
-				"canonical": "#fadfb4",
-				"tonalRamp": [
-					"oklch(15% 0.030 79)",
-					"oklch(26% 0.039 79)",
-					"oklch(38% 0.047 79)",
-					"oklch(49% 0.055 79)",
-					"oklch(61% 0.063 79)",
-					"oklch(72% 0.054 79)",
-					"oklch(84% 0.046 79)",
-					"oklch(95% 0.037 79)"
-				]
+				"displayName": "Hot Pink",
+				"canonical": "oklch(69.2% 0.220 -1.4)",
+				"tonalRamp": ["#1c010b", "#460724", "#761241", "#aa1e60", "#df3080", "#f86fa3", "#ffa3c8", "#ffd5ed"]
 			},
-			"on-resin": {
+			"hue-blue": {
 				"role": "primary",
-				"displayName": "On-Resin",
-				"canonical": "#1b1306",
-				"tonalRamp": [
-					"oklch(15% 0.013 79)",
-					"oklch(26% 0.017 79)",
-					"oklch(38% 0.020 79)",
-					"oklch(49% 0.024 79)",
-					"oklch(61% 0.027 79)",
-					"oklch(72% 0.023 79)",
-					"oklch(84% 0.020 79)",
-					"oklch(95% 0.016 79)"
-				]
+				"displayName": "Electric Blue",
+				"canonical": "oklch(63.1% 0.198 -90.6)",
+				"tonalRamp": ["#040920", "#15204f", "#283a83", "#3e56bc", "#5575f5", "#7e9eff", "#aac6ff", "#d8edff"]
 			},
-			"moss": {
-				"role": "tertiary",
-				"displayName": "Moss",
-				"canonical": "#4f7a45",
-				"tonalRamp": [
-					"oklch(15% 0.044 140)",
-					"oklch(26% 0.056 140)",
-					"oklch(38% 0.069 140)",
-					"oklch(49% 0.081 140)",
-					"oklch(61% 0.092 140)",
-					"oklch(72% 0.080 140)",
-					"oklch(84% 0.067 140)",
-					"oklch(95% 0.055 140)"
-				]
+			"hue-lime-light": {
+				"role": "primary",
+				"displayName": "Lime tint",
+				"canonical": "oklch(93.0% 0.066 159.0)",
+				"tonalRamp": ["#060d09", "#182920", "#2e493a", "#466b56", "#608f74", "#89b099", "#b4d2c0", "#e0f5e8"]
 			},
-			"bark": {
-				"role": "tertiary",
-				"displayName": "Bark",
-				"canonical": "#b23a24",
-				"tonalRamp": [
-					"oklch(15% 0.076 33)",
-					"oklch(26% 0.097 33)",
-					"oklch(38% 0.118 33)",
-					"oklch(49% 0.140 33)",
-					"oklch(61% 0.158 33)",
-					"oklch(72% 0.137 33)",
-					"oklch(84% 0.116 33)",
-					"oklch(95% 0.095 33)"
-				]
+			"hue-cyan-light": {
+				"role": "primary",
+				"displayName": "Cyan tint",
+				"canonical": "oklch(91.6% 0.042 -109.5)",
+				"tonalRamp": ["#080c10", "#1e262e", "#384350", "#536375", "#70859b", "#96a7ba", "#bdcbda", "#e6f0fa"]
 			},
-			"ring-1": {
+			"hue-violet-light": {
+				"role": "primary",
+				"displayName": "Violet tint",
+				"canonical": "oklch(88.9% 0.061 -64.4)",
+				"tonalRamp": ["#0c0a11", "#262231", "#433e54", "#635c7b", "#857ba3", "#a79fc1", "#cbc5df", "#efebfe"]
+			},
+			"hue-tangerine-light": {
+				"role": "primary",
+				"displayName": "Tangerine tint",
+				"canonical": "oklch(90.9% 0.061 62.9)",
+				"tonalRamp": ["#100a05", "#2f2217", "#513e2d", "#765b43", "#9d7b5d", "#bc9f86", "#dbc5b1", "#fbebde"]
+			},
+			"hue-pink-light": {
+				"role": "primary",
+				"displayName": "Pink tint",
+				"canonical": "oklch(89.0% 0.067 -7.8)",
+				"tonalRamp": ["#11080c", "#301f26", "#543944", "#7a5464", "#a27286", "#c198a8", "#dfbfcc", "#ffe7f0"]
+			},
+			"hue-blue-light": {
+				"role": "primary",
+				"displayName": "Blue tint",
+				"canonical": "oklch(89.9% 0.049 -86.0)",
+				"tonalRamp": ["#090b10", "#222430", "#3d4153", "#5a6079", "#7981a0", "#9da4be", "#c3c8dd", "#eaeefd"]
+			},
+			"holding": {
+				"role": "primary",
+				"displayName": "Holding Periwinkle",
+				"canonical": "oklch(71.0% 0.153 -82.8)",
+				"tonalRamp": ["#08091b", "#1e2145", "#363b74", "#5157a7", "#6e76db", "#929df1", "#bac4ff", "#e3ebff"]
+			},
+			"beacon": {
 				"role": "secondary",
-				"displayName": "Violet Ring",
-				"canonical": "#7c6cf0",
-				"tonalRamp": [
-					"oklch(15% 0.091 285)",
-					"oklch(26% 0.116 285)",
-					"oklch(38% 0.142 285)",
-					"oklch(49% 0.167 285)",
-					"oklch(61% 0.189 285)",
-					"oklch(72% 0.164 285)",
-					"oklch(84% 0.139 285)",
-					"oklch(95% 0.113 285)"
-				]
+				"displayName": "Beacon Amber",
+				"canonical": "oklch(86.1% 0.159 86.4)",
+				"tonalRamp": ["#120900", "#342100", "#593c00", "#815900", "#ab7900", "#c89f38", "#e5c57e", "#ffecbc"]
 			},
-			"ring-2": {
+			"danger": {
 				"role": "secondary",
-				"displayName": "Rose Ring",
-				"canonical": "#e0566b",
-				"tonalRamp": [
-					"oklch(15% 0.082 14)",
-					"oklch(26% 0.105 14)",
-					"oklch(38% 0.128 14)",
-					"oklch(49% 0.151 14)",
-					"oklch(61% 0.171 14)",
-					"oklch(72% 0.148 14)",
-					"oklch(84% 0.125 14)",
-					"oklch(95% 0.102 14)"
-				]
+				"displayName": "Alarm Red",
+				"canonical": "oklch(71.2% 0.181 22.8)",
+				"tonalRamp": ["#1a0304", "#441012", "#732124", "#a53437", "#d94a4d", "#f27d7a", "#ffaca8", "#ffdbd7"]
 			},
-			"ring-3": {
+			"ok": {
 				"role": "secondary",
-				"displayName": "Teal Ring",
-				"canonical": "#2fa58a",
-				"tonalRamp": [
-					"oklch(15% 0.052 174)",
-					"oklch(26% 0.067 174)",
-					"oklch(38% 0.082 174)",
-					"oklch(49% 0.097 174)",
-					"oklch(61% 0.110 174)",
-					"oklch(72% 0.095 174)",
-					"oklch(84% 0.080 174)",
-					"oklch(95% 0.065 174)"
-				]
+				"displayName": "Done Green",
+				"canonical": "oklch(80.0% 0.129 150.2)",
+				"tonalRamp": ["#020f05", "#0c2d16", "#1b4e2a", "#2b7240", "#3f9758", "#74b783", "#a5d8af", "#d6f9dc"]
 			},
-			"ring-4": {
-				"role": "secondary",
-				"displayName": "Blue Ring",
-				"canonical": "#3b8fe0",
-				"tonalRamp": [
-					"oklch(15% 0.069 251)",
-					"oklch(26% 0.089 251)",
-					"oklch(38% 0.108 251)",
-					"oklch(49% 0.128 251)",
-					"oklch(61% 0.145 251)",
-					"oklch(72% 0.125 251)",
-					"oklch(84% 0.106 251)",
-					"oklch(95% 0.086 251)"
-				]
+			"sky-top": {
+				"role": "neutral",
+				"displayName": "Sky top",
+				"canonical": "oklch(19.6% 0.056 -68.5)",
+				"tonalRamp": ["#0b0a11", "#252330", "#423f54", "#615d7a", "#827da2", "#a5a1c0", "#c9c6de", "#eeecfe"]
 			},
-			"ring-5": {
-				"role": "secondary",
-				"displayName": "Orchid Ring",
-				"canonical": "#b35cc9",
-				"tonalRamp": [
-					"oklch(15% 0.085 319)",
-					"oklch(26% 0.109 319)",
-					"oklch(38% 0.133 319)",
-					"oklch(49% 0.157 319)",
-					"oklch(61% 0.177 319)",
-					"oklch(72% 0.154 319)",
-					"oklch(84% 0.130 319)",
-					"oklch(95% 0.106 319)"
-				]
+			"sky-mid": {
+				"role": "neutral",
+				"displayName": "Sky haze",
+				"canonical": "oklch(16.6% 0.039 -68.7)",
+				"tonalRamp": ["#0b0a0f", "#25242d", "#42404e", "#615e72", "#827f98", "#a5a2b8", "#c9c7d8", "#eeedf9"]
 			},
-			"ring-6": {
-				"role": "secondary",
-				"displayName": "Leaf Ring",
-				"canonical": "#6e9b2f",
-				"tonalRamp": [
-					"oklch(15% 0.069 129)",
-					"oklch(26% 0.088 129)",
-					"oklch(38% 0.107 129)",
-					"oklch(49% 0.127 129)",
-					"oklch(61% 0.144 129)",
-					"oklch(72% 0.124 129)",
-					"oklch(84% 0.105 129)",
-					"oklch(95% 0.086 129)"
-				]
-			},
-			"ring-7": {
-				"role": "secondary",
-				"displayName": "Indigo Ring",
-				"canonical": "#4f5bd5",
-				"tonalRamp": [
-					"oklch(15% 0.088 274)",
-					"oklch(26% 0.113 274)",
-					"oklch(38% 0.138 274)",
-					"oklch(49% 0.162 274)",
-					"oklch(61% 0.184 274)",
-					"oklch(72% 0.159 274)",
-					"oklch(84% 0.135 274)",
-					"oklch(95% 0.110 274)"
-				]
-			},
-			"ring-8": {
-				"role": "secondary",
-				"displayName": "Magenta Ring",
-				"canonical": "#d14d9b",
-				"tonalRamp": [
-					"oklch(15% 0.088 347)",
-					"oklch(26% 0.112 347)",
-					"oklch(38% 0.137 347)",
-					"oklch(49% 0.162 347)",
-					"oklch(61% 0.183 347)",
-					"oklch(72% 0.159 347)",
-					"oklch(84% 0.134 347)",
-					"oklch(95% 0.109 347)"
-				]
+			"sky-glow": {
+				"role": "neutral",
+				"displayName": "Sky glow",
+				"canonical": "oklch(34.2% 0.134 -69.8)",
+				"tonalRamp": ["#0b0818", "#251f3f", "#42396b", "#61549b", "#8272cb", "#a499e3", "#c8c1fb", "#ede9ff"]
 			}
 		},
 		"typographyMeta": {
+			"hero": {
+				"displayName": "Hero",
+				"purpose": "The Overview headline over the city; only on the two Overviews."
+			},
+			"hero-sub": {
+				"displayName": "Hero sub",
+				"purpose": "The line under the hero."
+			},
 			"display": {
 				"displayName": "Display",
-				"purpose": "Venture title beside its core sample."
+				"purpose": "Page titles on working pages."
 			},
-			"headline": {
-				"displayName": "Headline",
-				"purpose": "Page titles."
+			"figure": {
+				"displayName": "Figure",
+				"purpose": "Stat tile numbers."
 			},
-			"wordmark": {
-				"displayName": "Wordmark",
-				"purpose": "The braise wordmark in the rail."
-			},
-			"venture-name": {
-				"displayName": "Venture Name",
-				"purpose": "Venture names on holding cross-section tiles."
+			"section": {
+				"displayName": "Section",
+				"purpose": "Section heads."
 			},
 			"title": {
 				"displayName": "Title",
-				"purpose": "Section heads and topbar titles."
+				"purpose": "Card names."
+			},
+			"kicker": {
+				"displayName": "Kicker",
+				"purpose": "Uppercase scope label above the hero."
+			},
+			"status": {
+				"displayName": "Status",
+				"purpose": "Uppercase state word in a status label."
+			},
+			"reading": {
+				"displayName": "Reading",
+				"purpose": "Strategy, messages, proposed changes."
 			},
 			"body": {
 				"displayName": "Body",
-				"purpose": "All running UI text."
-			},
-			"label": {
-				"displayName": "Label",
-				"purpose": "Field labels and rail headings."
+				"purpose": "Default UI text."
 			},
 			"caption": {
 				"displayName": "Caption",
-				"purpose": "Tags, counts, timestamps."
+				"purpose": "The one quiet meta style."
 			},
 			"data": {
 				"displayName": "Data",
-				"purpose": "Ids, durations, costs and run metadata only."
+				"purpose": "Times, counts, tool I/O."
+			},
+			"quote": {
+				"displayName": "Quote",
+				"purpose": "A venture's why and agents' reasons."
 			}
 		},
 		"shadows": [
 			{
-				"name": "focus",
-				"value": "0 0 0 2px var(--ground), 0 0 0 4px var(--resin)",
-				"purpose": "Every :focus-visible element."
+				"name": "lift",
+				"value": "0 1px 0 rgb(240 236 255 / 0.04) inset, 0 0 0 1px rgb(240 236 255 / 0.07), 0 14px 30px -18px rgb(0 0 0 / 0.8)",
+				"purpose": "Cards and tiles at rest."
 			},
 			{
-				"name": "input-halo",
-				"value": "0 0 0 3px var(--resin-wash)",
-				"purpose": "Focused inputs and the composer."
+				"name": "lift-hi",
+				"value": "0 1px 0 rgb(240 236 255 / 0.06) inset, 0 0 0 1px rgb(240 236 255 / 0.12), 0 24px 44px -20px rgb(0 0 0 / 0.9)",
+				"purpose": "Hovered cards, toasts, tooltips, menus."
 			},
 			{
-				"name": "primary-lift",
-				"value": "0 1px 2px rgb(120 70 0 / 0.25)",
-				"purpose": "The resin primary button only."
-			},
-			{
-				"name": "node-gap-ring",
-				"value": "0 0 0 3px var(--ground), 0 0 0 4px var(--ring)",
-				"purpose": "Bet nodes sitting on the trunk."
-			},
-			{
-				"name": "hollow-stroke",
-				"value": "inset 0 0 0 1.5px currentColor",
-				"purpose": "Settled, loose and pending markers."
+				"name": "sheet",
+				"value": "0 -1px 0 rgb(240 236 255 / 0.12), 0 -24px 50px -20px rgb(0 0 0 / 0.9)",
+				"purpose": "The sheet rising over the hero."
 			}
 		],
 		"motion": [
 			{
-				"name": "ease-out",
-				"value": "cubic-bezier(0.16, 1, 0.3, 1)",
-				"purpose": "Default easing for ring growth, reveals and state transitions."
+				"name": "ease",
+				"value": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+				"purpose": "Default easing."
 			},
 			{
-				"name": "ring-grow",
-				"value": "5s ease-out infinite, stroke-dashoffset 100 to 0 by 78%",
-				"purpose": "Mark outer arc and core sample growth ring while a run is live."
-			},
-			{
-				"name": "ring-turn",
-				"value": "9s linear infinite rotate(360deg)",
-				"purpose": "A venture glyph's dashed outer ring while an agent works on it."
-			},
-			{
-				"name": "node-simmer",
-				"value": "1.8s ease-out, ring 10px at 35% of --ring to rest",
-				"purpose": "A fresh bet or goal node pulses a ring outward."
-			},
-			{
-				"name": "row-simmer",
-				"value": "1.8s ease-out, resin-wash to transparent",
-				"purpose": "A fresh row flashes and fades."
-			},
-			{
-				"name": "working",
-				"value": "1.6s ease-in-out infinite, opacity 1 to 0.35",
-				"purpose": "Live status dots."
-			},
-			{
-				"name": "reveal",
-				"value": "220ms ease-out, 4px slide and fade",
-				"purpose": "Inline rows and forms appearing."
-			},
-			{
-				"name": "state",
-				"value": "120ms",
-				"purpose": "Hover background, colour and border changes."
-			},
-			{
-				"name": "reduced-motion",
-				"value": "@media (prefers-reduced-motion: reduce)",
-				"purpose": "All animations off; live growth rings rest fully drawn."
+				"name": "spring",
+				"value": "cubic-bezier(0.3, 1.5, 0.5, 1)",
+				"purpose": "Lifts, the dock thumb, toasts."
 			}
 		],
 		"breakpoints": [
 			{
-				"name": "compact",
-				"value": "max-width: 1279px"
+				"name": "phone",
+				"value": "760px"
 			},
 			{
-				"name": "minimum",
-				"value": "1024px"
+				"name": "narrow",
+				"value": "1100px"
+			},
+			{
+				"name": "medium",
+				"value": "1240px"
+			},
+			{
+				"name": "wide",
+				"value": "1500px"
 			}
 		]
 	},
 	"components": [
 		{
-			"name": "Primary Button",
-			"kind": "button",
-			"refersTo": "button-primary",
-			"description": "The single resin action in view (Add bet, Save).",
-			"html": "<button class=\"ds-btn ds-btn-primary\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg>Add bet</button>",
-			"css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid #cdd2c9; background: #ffffff; color: #151b18; font: 500 13px/1 'Geist Variable', system-ui, sans-serif; cursor: pointer; transition: background-color 120ms, border-color 120ms; } .ds-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px #f4f5f1, 0 0 0 4px #f0a63a; } .ds-btn-primary { background: #f0a63a; border-color: #f0a63a; color: #1b1306; font-weight: 600; box-shadow: 0 1px 2px rgb(120 70 0 / 0.25); } .ds-btn-primary:hover { background: #f6c071; border-color: #f6c071; } .ds-btn-primary:active { background: #b8720f; border-color: #b8720f; }"
-		},
-		{
-			"name": "Secondary Button",
+			"name": "Button",
 			"kind": "button",
 			"refersTo": "button",
-			"description": "Default paper button for every non-primary action.",
-			"html": "<button class=\"ds-btn-sec\">New thread</button>",
-			"css": ".ds-btn-sec { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid #cdd2c9; background: #ffffff; color: #151b18; font: 500 13px/1 'Geist Variable', system-ui, sans-serif; cursor: pointer; transition: background-color 120ms; } .ds-btn-sec:hover { background: #eceee8; } .ds-btn-sec:focus-visible { outline: none; box-shadow: 0 0 0 2px #f4f5f1, 0 0 0 4px #f0a63a; }"
+			"description": "Quiet default button with a pressable ledge.",
+			"html": "<button class=\"ds-btn\">Review</button>",
+			"css": ".ds-btn{display:inline-flex;align-items:center;height:30px;padding:0 12px;border:0;border-radius:9px;font:600 12.5px/1 -apple-system,system-ui,sans-serif;color:#f2f0f7;background:#211e2a;box-shadow:inset 0 1px 0 rgb(255 248 236 / .05),0 0 0 1px rgb(240 236 255 / .12),0 2px 0 rgb(0 0 0 / .4);transition:transform .12s,background .15s;cursor:pointer}.ds-btn:hover{background:#28252f}.ds-btn:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgb(255 248 236 / .05),0 0 0 1px rgb(240 236 255 / .12)}.ds-btn:focus-visible{outline:2px solid #4aa8ff;outline-offset:2px}"
 		},
 		{
-			"name": "Ghost Button",
+			"name": "Primary button",
 			"kind": "button",
-			"refersTo": "button-ghost",
-			"description": "Borderless low-emphasis action.",
-			"html": "<button class=\"ds-btn-ghost\">Cancel</button>",
-			"css": ".ds-btn-ghost { height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #47504b; font: 500 13px/1 'Geist Variable', system-ui, sans-serif; cursor: pointer; transition: background-color 120ms, color 120ms; } .ds-btn-ghost:hover { background: #eceee8; color: #151b18; } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 2px #f4f5f1, 0 0 0 4px #f0a63a; }"
+			"refersTo": "button-primary",
+			"description": "The one primary action, in the venture hue.",
+			"html": "<button class=\"ds-btn-pri\">Open in Inbox</button>",
+			"css": ".ds-btn-pri{display:inline-flex;align-items:center;height:30px;padding:0 12px;border:0;border-radius:9px;font:600 12.5px/1 -apple-system,system-ui,sans-serif;color:#120f18;background:#4aa8ff;box-shadow:0 2px 0 #24548a;cursor:pointer;transition:transform .12s}.ds-btn-pri:active{transform:translateY(2px);box-shadow:none}.ds-btn-pri:focus-visible{outline:2px solid #cfe6ff;outline-offset:2px}"
 		},
 		{
-			"name": "Text Field",
-			"kind": "input",
-			"refersTo": "input",
-			"description": "Labelled field with resin focus halo and bark error state.",
-			"html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Outcome</span><input class=\"ds-input\" placeholder=\"10 users connect a bank\"><span class=\"ds-field-hint\">What changes if this works.</span></label>",
-			"css": ".ds-field { display: flex; flex-direction: column; gap: 6px; font-family: 'Geist Variable', system-ui, sans-serif; } .ds-field-label { font-size: 12px; font-weight: 600; color: #47504b; } .ds-field-hint { font-size: 12px; color: #5f6963; } .ds-input { min-height: 32px; padding: 6px 10px; border: 1px solid #cdd2c9; border-radius: 8px; background: #ffffff; color: #151b18; font: 400 13px/1.45 inherit; caret-color: #f0a63a; transition: border-color 120ms, box-shadow 120ms; } .ds-input::placeholder { color: #5f6963; } .ds-input:focus { outline: none; border-color: #f0a63a; box-shadow: 0 0 0 3px #fdf1dd; } .ds-input[aria-invalid='true'] { border-color: #b23a24; }"
-		},
-		{
-			"name": "Status Pill",
+			"name": "Status label",
 			"kind": "chip",
-			"refersTo": "status-pill",
-			"description": "Bet status with a round dot in the venture ring hue.",
-			"html": "<span class=\"ds-pill\" style=\"--ring:#2fa58a\"><span class=\"ds-dot\"></span>Active</span> <span class=\"ds-pill is-won\"><span class=\"ds-dot\"></span>Won</span> <span class=\"ds-tag\">bet</span>",
-			"css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border: 1px solid #e2e5de; border-radius: 4px; background: #ffffff; color: #47504b; font: 400 12px/1 'Geist Variable', system-ui, sans-serif; cursor: pointer; } .ds-pill:hover { border-color: #cdd2c9; color: #151b18; } .ds-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ring, #7c6cf0); } .ds-pill.is-won .ds-dot { background: #4f7a45; } .ds-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 10px; background: #eceee8; color: #47504b; font: 500 11px/1 'Geist Variable', system-ui, sans-serif; }"
+			"refersTo": "status-label",
+			"description": "Floating label above a building: tone pip, name, status word.",
+			"html": "<span class=\"ds-lbl\"><i></i>Venture<b>RUNNING</b></span>",
+			"css": ".ds-lbl{--tone:#4aa8ff;display:inline-flex;align-items:center;gap:10px;padding:9px 14px 9px 12px;border-radius:99px;background:rgb(17 15 30 / .92);box-shadow:inset 0 0 0 1px rgb(240 236 255 / .14),0 10px 24px -10px rgb(0 0 0 / .8);font:650 17px/1 -apple-system,system-ui,sans-serif;color:#fff}.ds-lbl i{width:10px;height:10px;border-radius:50%;background:var(--tone);box-shadow:0 0 0 3px color-mix(in oklab,var(--tone) 25%,transparent)}.ds-lbl b{padding-left:11px;border-left:1px solid rgb(240 236 255 / .12);font:700 11px/1 -apple-system,system-ui,sans-serif;letter-spacing:.12em;color:var(--tone)}.ds-lbl:hover{box-shadow:inset 0 0 0 1.5px var(--tone),0 10px 24px -10px rgb(0 0 0 / .8)}"
 		},
 		{
-			"name": "Rail Navigation",
+			"name": "Stat tile",
+			"kind": "card",
+			"refersTo": "stat-tile",
+			"description": "A figure with its label and context.",
+			"html": "<div class=\"ds-stat\"><div class=\"ds-k\">Needs you</div><div class=\"ds-v\">3<small>oldest 2h</small></div></div>",
+			"css": ".ds-stat{background:#18161f;border-radius:16px;padding:15px 16px;box-shadow:0 1px 0 rgb(240 236 255 / .04) inset,0 0 0 1px rgb(240 236 255 / .07),0 14px 30px -18px rgb(0 0 0 / .8);color:#f2f0f7;font-family:-apple-system,system-ui,sans-serif}.ds-k{font-size:12px;font-weight:550;color:#9a97a6}.ds-v{font:800 28px/1 -apple-system,system-ui,sans-serif;letter-spacing:-.045em;margin-top:5px;color:#ffc93c}.ds-v small{font:500 12.5px/1 -apple-system,system-ui,sans-serif;letter-spacing:0;color:#9a97a6;margin-left:6px}"
+		},
+		{
+			"name": "Venture card",
+			"kind": "card",
+			"refersTo": "card",
+			"description": "A venture on the campus: wash, title, quote, progress.",
+			"html": "<article class=\"ds-vc\"><div class=\"ds-n\">Venture</div><p class=\"ds-q\">“Why this venture exists.”</p><span class=\"ds-tr\"><i></i></span></article>",
+			"css": ".ds-vc{--acc:#ff8a2a;position:relative;overflow:hidden;background:#18161f;border-radius:18px;padding:17px;box-shadow:0 1px 0 rgb(240 236 255 / .04) inset,0 0 0 1px rgb(240 236 255 / .07),0 14px 30px -18px rgb(0 0 0 / .8);color:#f2f0f7;transition:transform .4s cubic-bezier(.3,1.5,.5,1);background-image:linear-gradient(180deg,color-mix(in oklab,var(--acc) 11%,transparent),transparent 100px)}.ds-vc:hover{transform:translateY(-3px)}.ds-n{font:700 16.5px/1.1 -apple-system,system-ui,sans-serif;letter-spacing:-.03em}.ds-q{font:italic 15px/1.45 ui-serif,Georgia,serif;color:#c5c2cf;margin:14px 0}.ds-tr{display:block;height:8px;border-radius:99px;background:rgb(255 248 236 / .06)}.ds-tr i{display:block;width:60%;height:100%;border-radius:99px;background:var(--acc)}"
+		},
+		{
+			"name": "Dock",
 			"kind": "nav",
-			"refersTo": "rail",
-			"description": "Pith rail with the growth-ring mark, wordmark, rows and venture glyphs.",
-			"html": "<nav class=\"ds-rail\"><div class=\"ds-rail-brand\"><svg class=\"ds-mark is-live\" width=\"30\" height=\"30\" viewBox=\"0 0 64 64\"><circle cx=\"24.5\" cy=\"39.5\" r=\"5\" fill=\"#f0a63a\"/><circle cx=\"26.6\" cy=\"37.2\" r=\"11\" class=\"r\" opacity=\".55\"/><circle cx=\"29.2\" cy=\"34.6\" r=\"18.6\" class=\"r\" opacity=\".85\"/><path class=\"o\" pathLength=\"100\" d=\"M56.37 19.04A27.6 27.6 0 1 1 43.23 6.79\"/></svg><span class=\"ds-wordmark\">braise</span></div><a class=\"ds-rail-item\" aria-current=\"page\">Holding</a><a class=\"ds-rail-item\">Runs<span class=\"ds-count\">2</span></a><a class=\"ds-rail-item\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 20 20\" class=\"ds-vr is-live\" style=\"color:#e0566b\"><circle cx=\"8.6\" cy=\"11.4\" r=\"2.2\" fill=\"currentColor\"/><circle cx=\"9.3\" cy=\"10.7\" r=\"5\" opacity=\".6\"/><circle cx=\"10\" cy=\"10\" r=\"8.2\" class=\"vo\"/></svg>Ledgerly</a></nav>",
-			"css": ".ds-rail { width: 232px; padding: 16px 8px 12px; display: flex; flex-direction: column; gap: 4px; background: #131a16; color: #e8ede5; font: 400 13px/1.5 'Geist Variable', system-ui, sans-serif; } .ds-rail-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; } .ds-mark { fill: none; stroke-width: 3.4; } .ds-mark .r { stroke: currentColor; } .ds-mark .o { stroke: #f0a63a; stroke-width: 4; stroke-linecap: round; } .ds-mark.is-live .o { stroke-dasharray: 100; animation: ds-grow 5s cubic-bezier(0.16,1,0.3,1) infinite; } @keyframes ds-grow { 0% { stroke-dashoffset: 100; } 78%, 100% { stroke-dashoffset: 0; } } .ds-wordmark { font: 640 21px/1 'Bricolage Grotesque Variable', sans-serif; font-variation-settings: 'opsz' 48; letter-spacing: -0.03em; } .ds-rail-item { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; border-radius: 8px; color: #a9b5ad; cursor: pointer; transition: background-color 120ms, color 120ms; } .ds-rail-item:hover { background: #1b241f; color: #e8ede5; } .ds-rail-item[aria-current='page'] { background: #1d2721; color: #e8ede5; } .ds-count { margin-left: auto; font-size: 11px; color: #7d8a81; } .ds-vr { fill: none; stroke: currentColor; stroke-width: 1.6; } .ds-vr.is-live .vo { stroke-dasharray: 3 2.2; transform-origin: 50% 50%; animation: ds-turn 9s linear infinite; } @keyframes ds-turn { to { transform: rotate(360deg); } } @media (prefers-reduced-motion: reduce) { .ds-mark.is-live .o, .ds-vr.is-live .vo { animation: none; } }"
-		},
-		{
-			"name": "Core Sample",
-			"kind": "custom",
-			"refersTo": "cross-section",
-			"description": "Holding tile: a venture's strategy versions as rings, ghosts faint, resin growth ring while live.",
-			"html": "<a class=\"ds-xs\"><svg class=\"ds-core is-live\" width=\"76\" height=\"76\" viewBox=\"0 0 100 100\" style=\"color:#7c6cf0\"><circle cx=\"39\" cy=\"60\" r=\"7\" fill=\"currentColor\"/><circle cx=\"42.67\" cy=\"56.67\" r=\"17.33\" opacity=\"1\"/><circle cx=\"46.33\" cy=\"53.33\" r=\"27.67\" class=\"ghost\"/><circle cx=\"50\" cy=\"50\" r=\"38\" class=\"ghost\"/><circle cx=\"50\" cy=\"50\" r=\"45\" class=\"grow\" pathLength=\"100\"/></svg><span class=\"ds-xs-name\">Ledgerly</span><span class=\"ds-xs-meta\">Strategy v1 · Claude is working</span></a>",
-			"css": ".ds-xs { display: grid; grid-template-columns: auto minmax(0,1fr); grid-template-rows: auto auto; column-gap: 16px; row-gap: 2px; align-items: center; width: 300px; padding: 12px 16px 12px 12px; border-radius: 14px; color: #151b18; transition: background-color 160ms cubic-bezier(0.16,1,0.3,1); cursor: pointer; } .ds-xs:hover { background: #ffffff; } .ds-core { grid-row: span 2; fill: none; stroke: currentColor; stroke-width: 2; } .ds-core .ghost { stroke: #cdd2c9; stroke-dasharray: 2 3; } .ds-core .grow { stroke: #f0a63a; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; transform: rotate(-90deg); transform-origin: 50% 50%; } .ds-core.is-live .grow { animation: ds-cgrow 5s cubic-bezier(0.16,1,0.3,1) infinite; } @keyframes ds-cgrow { 0% { stroke-dashoffset: 100; } 78%, 100% { stroke-dashoffset: 0; } } .ds-xs-name { align-self: end; font: 640 18px/1.2 'Bricolage Grotesque Variable', sans-serif; font-variation-settings: 'opsz' 48; letter-spacing: -0.02em; } .ds-xs-meta { align-self: start; font: 400 12px/1.5 'Geist Variable', system-ui, sans-serif; color: #5f6963; } @media (prefers-reduced-motion: reduce) { .ds-core.is-live .grow { animation: none; stroke-dashoffset: 0; } }"
-		},
-		{
-			"name": "Trunk Bet Node",
-			"kind": "custom",
-			"refersTo": "progress",
-			"description": "A bet on the hairline trunk: ring-hue node with ground gap, title and goal progress bar.",
-			"html": "<div class=\"ds-trunk\" style=\"--ring:#3b8fe0\"><div class=\"ds-bet\"><span class=\"ds-node\"></span><span class=\"ds-bet-title\">Bank sync converts trial users</span><span class=\"ds-progress\"><span style=\"width:60%\"></span></span></div><div class=\"ds-bet is-won\"><span class=\"ds-node\"></span><span class=\"ds-bet-title\">Landing page explains the ledger</span></div></div>",
-			"css": ".ds-trunk { position: relative; padding-left: 28px; background: #f4f5f1; font: 400 13px/1.5 'Geist Variable', system-ui, sans-serif; color: #151b18; } .ds-trunk::before { content: ''; position: absolute; left: 9px; top: 18px; bottom: 18px; width: 1px; background: #cdd2c9; } .ds-bet { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #e2e5de; } .ds-bet:last-child { border-bottom: 0; } .ds-node { position: absolute; left: -23px; width: 9px; height: 9px; border-radius: 50%; background: var(--ring); box-shadow: 0 0 0 3px #f4f5f1, 0 0 0 4px var(--ring); } .ds-bet.is-won .ds-node { background: #4f7a45; } .ds-bet-title { font-weight: 500; } .ds-progress { display: inline-block; width: 40px; height: 3px; border-radius: 2px; background: #e2e5de; overflow: hidden; } .ds-progress span { display: block; height: 100%; border-radius: 2px; background: var(--ring); transition: width 600ms cubic-bezier(0.16,1,0.3,1); }"
+			"refersTo": "dock-slot",
+			"description": "Flat slots with a sliding thumb and an amber inbox count.",
+			"html": "<nav class=\"ds-dock\"><a class=\"ds-slot ds-cur\">Overview</a><a class=\"ds-slot\">Work</a><a class=\"ds-slot\">Inbox<b>3</b></a></nav>",
+			"css": ".ds-dock{display:flex;gap:2px;background:#0c0a14;padding:8px;font-family:-apple-system,system-ui,sans-serif}.ds-slot{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 13px;border-radius:10px;font-size:13px;font-weight:550;color:#9a97a6;cursor:pointer}.ds-slot:hover{color:#f2f0f7}.ds-cur{color:#f2f0f7;background:#18161f;box-shadow:0 0 0 1px rgb(240 236 255 / .07)}.ds-slot b{min-width:19px;height:19px;padding:0 5px;border-radius:99px;display:grid;place-items:center;font:700 11px/1 ui-monospace,monospace;color:#120f18;background:#ffc93c}"
 		}
 	],
 	"narrative": {
-		"northStar": "The Growth Rings",
-		"overview": "**Creative North Star: \"The Growth Rings\"**\n\nEvery venture is a living cross-section. Each strategy revision lays down a ring, and agents at work grow the outer ring while you watch. The console is a calm instrument for one owner: a dark pith rail on the left that holds the identity and the venture list, and a pale sage-white work area where strategy, bets and goals read as plain, dense, hairline-ruled text. Colour is earned. Resin amber means \"act here\" or \"something is alive right now\"; each venture's own ring hue identifies it everywhere it appears; everything else is sage, ink and line.\n\nDensity is desktop-console dense (13px body, 28px rail rows, 30px buttons, 40px table rows) with generous section gaps (32px) so the hierarchy comes from weight, ink and space rather than boxes. Bricolage Grotesque carries the identity at the few places a name is spoken (wordmark, page and venture titles); Geist does all the work; Geist Mono appears only where the content is data.\n\nThe world replaces the charcoal-and-cream terminal kit it grew out of and refuses the flat grey productivity-app clone: no square pixel markers, no all-system type, no grey-on-grey with a single blue accent.",
+		"northStar": "The Valley at Night",
+		"overview": "The holding is a city block after dark. Each venture is a building with its lights on, agents\nare working the night shift, and anything that waits for the owner glows amber until they deal\nwith it. The app around the city is the same night: deep violet-black surfaces, saturated\nventure colour, cards that lift off the ground, and state that pulses and glows. It is an\noperator's console with a sense of occasion, not a marketing page. Density and scanability\nstill win on every working screen.\n\nThe approved comp is `valley-mock.html` at the repo root (owner, 2026-11-27, after the\nassessment in `docs/valley-assessment.md`). It replaces v6 (`ui-prototype-6.html`, no longer\nin the repo) app-wide. When this file and the comp disagree, the comp's computed result is\nthe reference, except where the owner's decisions below override it: running is the venture\nhue (not the comp's blue), the Inbox stays the only place to approve (no one-click approve or\nconfetti), and the venture states are needs you, running, queued and quiet (the comp's\nshipped and crashed states are dropped). The visual reference for the city is the owner's\nbanner image `the-holding-banner.png`.\n\n`src/styles.css` moves to this system in phases (the plan is in `docs/valley-assessment.md`\n§6). Until a phase lands, the screens it hasn't reached still show v6, and that is expected.",
 		"keyCharacteristics": [
-			"Pith green-black rail against a cool sage-white ground, white raised surfaces.",
-			"Resin amber reserved for the primary action and live state.",
-			"One full-strength ring hue per venture, carried by `--ring` on every venture-scoped surface.",
-			"Growth-ring geometry (off-centre pith, concentric rings) as the signature, in the mark, the venture glyph and the core sample.",
-			"Motion is ring motion: outer rings draw, glyph rings turn, nodes pulse a ring outward. All of it stops under reduced motion.",
-			"Hairline rules and tonal sinks instead of shadows and cards."
+			"Deep violet-black night with a purple sky glow at the top of the two Overviews.",
+			"Six saturated venture hues, always derived from the slug.",
+			"An app-icon tile per venture: a dark glass tile, a hue wash, a gradient line glyph.",
+			"Lifted cards with soft drop shadows and a hover rise.",
+			"State carried by tone everywhere: venture hue running, amber needs you, hollow grey queued.",
+			"The system type stack only. Big, tight headlines on the Overviews; calm chrome elsewhere."
 		],
 		"rules": [
 			{
-				"name": "The Resin Is Alive Rule",
-				"body": "Resin appears only on the single primary action in view and on things that are live this second (a running agent, a growing ring, the focus ring). A static decoration in resin is a bug.",
+				"name": "The Hue Means Venture Rule",
+				"body": "A venture hue is that venture's identity, and running is shown in it. Never pick a hue by hand and never use one to mean a status.",
 				"section": "colors"
 			},
 			{
-				"name": "The One Hue Per Venture Rule",
-				"body": "A venture's ring hue comes from `ringColor(id)` and nothing else. Never pick a ring hue by hand, never use one for status, never put two ventures' hues on one venture-scoped surface.",
+				"name": "The Amber Means You Rule",
+				"body": "`beacon` is only for things waiting on the owner.",
 				"section": "colors"
 			},
 			{
-				"name": "The Names Only Rule",
-				"body": "Bricolage is for names: the wordmark, page titles and venture titles. Section heads, buttons, labels and body stay in Geist.",
+				"name": "The Night Has No Warmth Rule",
+				"body": "Every surface, line and shadow is in the violet-black family; warm-white alphas from v6 go.",
+				"section": "colors"
+			},
+			{
+				"name": "The One Hero Rule",
+				"body": "`hero` and `hero-sub` exist only on the Holding and venture Overviews. Working pages use `display`.",
 				"section": "typography"
 			},
 			{
-				"name": "The Data Is Mono Rule",
-				"body": "Geist Mono marks content that is data (ids, numbers, durations). It is never used for labels, headings or decoration. Plain numbers in prose use Geist with tabular numerals.",
-				"section": "typography"
-			},
-			{
-				"name": "The Hairline Not Card Rule",
-				"body": "Group with a 1px `line` rule or a tonal sink. Do not wrap sections in bordered, shadowed cards.",
+				"name": "The Glow Means Live Rule",
+				"body": "A glow or pulse marks live state or waiting state. Static facts never glow.",
 				"section": "elevation"
 			}
 		],
 		"dos": [
-			"**Do** set `--ring` to `ringColor(venture.id)` on every venture-scoped container and let glyphs, nodes, dots and progress read it.",
-			"**Do** keep resin to the one primary action in view and to live state; pair resin fills with on-resin text.",
-			"**Do** draw every marker round, and draw rings off-centre (pith low-left, rings shifting up-right).",
-			"**Do** express liveness as ring motion: the mark's outer arc grows, venture glyph rings turn, the core sample's resin ring grows, fresh nodes pulse a ring.",
-			"**Do** list every animated selector in the `prefers-reduced-motion` block; under reduce, live rings rest fully drawn and simmer pulses do not play.",
-			"**Do** group with hairline rules and tonal sinks; keep the work area flat."
+			"**Do** set `--acc` with `accent(slug)` on every venture-scoped container.",
+			"**Do** derive a venture's hue, glyph and building from its slug; never store or hand-pick them.",
+			"**Do** keep `hueOf`'s hash and hue order fixed, so a venture's colour never moves.",
+			"**Do** show state through `data-tone` (`live`, `needs`, `wait` for ventures; plus `ok` and `bad` for runs, threads and spaces).",
+			"**Do** put every `animation` and `transition` in the `@media (prefers-reduced-motion: no-preference)` blocks in `styles.css`.",
+			"**Do** prefix Overview-only classes with `vl-` under a `.valley` root; restyle shared rules (`.btn`, `.cast`, `.pip`, `.vc`) in place rather than adding a second rule.",
+			"**Do** give each row one title and one grey meta line."
 		],
 		"donts": [
-			"**Don't** use square pixel markers, charcoal-and-cream surfaces or an all-system type stack; that is the replaced world.",
-			"**Don't** set Bricolage on section heads, buttons, labels or body copy, and don't use Geist Mono for anything that is not data.",
-			"**Don't** use a venture ring hue to signal status, or resin as decoration.",
-			"**Don't** wrap sections in shadowed cards; the only shadows are focus, halo, the primary lift and node gap rings.",
-			"**Don't** pick ring hues by hand; they come from the venture id."
+			"**Don't** add a top bar or breadcrumbs.",
+			"**Don't** add one-click approve, grant or answer buttons outside the Inbox.",
+			"**Don't** use a fixed colour (the comp's blue) for running.",
+			"**Don't** reintroduce shipped or crashed as venture states.",
+			"**Don't** load web fonts, an icon library or a 3D engine.",
+			"**Don't** hard-code the comp's example ventures (Nimbus, Kettle, Loopwell, Orbit Snacks, Grizzly) or v6's (Larder, Tidewater, Fieldnotes, Quorum).",
+			"**Don't** bring back v6's warm near-black or the Growth Rings look (pith rail, sage ground, resin, ring glyphs, Bricolage and Geist)."
 		]
 	}
 }
