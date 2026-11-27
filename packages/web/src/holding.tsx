@@ -1,74 +1,66 @@
-import type { Cockpit, HoldingRow } from "@braise/core";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { CreateVenture } from "./create-venture.tsx";
 import { describeError } from "./errors.ts";
-import { kindLabel } from "./labels.ts";
+import { NeedsYou } from "./inbox.tsx";
 import { queries } from "./live.ts";
-import { AppIcon, accent, Cast, Icon } from "./marks.tsx";
-import { Hero, Sec, Skeleton } from "./parts.tsx";
+import { HoldingIcon, IconTile } from "./marks.tsx";
+import { Sec, Skeleton } from "./parts.tsx";
 import { ago } from "./time.ts";
-import { useWorking, workingLabel } from "./working.tsx";
+import { BreakGround, VentureCard } from "./valley/campus.tsx";
+import { doneThisWeek, workCounts } from "./valley/figures.ts";
+import { Attention, Kicker, Legend, Sky } from "./valley/hero.tsx";
+import { OnShift } from "./valley/on-shift.tsx";
+import { useVentureTones, useWorking } from "./working.tsx";
 
-type SortKey = "name" | "strategyVersion" | "openBets" | "openAssumptions" | "workDone" | "lastActivityAt";
-
-const columns: { key: SortKey; label: string; numeric: boolean }[] = [
-	{ key: "name", label: "Venture", numeric: false },
-	{ key: "strategyVersion", label: "Strategy", numeric: true },
-	{ key: "openBets", label: "Open bets", numeric: true },
-	{ key: "openAssumptions", label: "Open assumptions", numeric: true },
-	{ key: "workDone", label: "Work done", numeric: true },
-	{ key: "lastActivityAt", label: "Last activity", numeric: true },
-];
-
-const weekMs = 7 * 24 * 60 * 60 * 1000;
-
-interface LedgerRow extends HoldingRow {
-	what: string | null;
-	work: { done: number; total: number } | null;
-	workDone: number;
+function Stat({
+	icon,
+	label,
+	value,
+	note,
+	need = false,
+}: {
+	icon: React.ReactNode;
+	label: string;
+	value: number;
+	note: string;
+	need?: boolean;
+}) {
+	return (
+		<div className={need ? "vl-stat vl-need" : "vl-stat"}>
+			{icon}
+			<div>
+				<div className="vl-stat-k">{label}</div>
+				<div className="vl-stat-v">
+					{value}
+					<small>{note}</small>
+				</div>
+			</div>
+		</div>
+	);
 }
 
-function workOf(cockpit: Cockpit | undefined) {
-	if (cockpit === undefined) return null;
+function shiftLine(count: number) {
+	if (count === 0) return "Nobody is on shift.";
 
-	const all = Object.values(cockpit.workProgress);
-
-	return {
-		done: all.reduce((sum, progress) => sum + progress.done, 0),
-		total: all.reduce((sum, progress) => sum + progress.total, 0),
-	};
-}
-
-function compare(a: LedgerRow, b: LedgerRow, key: SortKey) {
-	const left = a[key];
-	const right = b[key];
-
-	return typeof left === "number" && typeof right === "number"
-		? left - right
-		: String(left).localeCompare(String(right));
+	return count === 1 ? "1 venture on shift." : `${count} ventures on shift.`;
 }
 
 export function HoldingPage() {
 	const ventures = useQuery(queries.ventures());
+	const inbox = useQuery(queries.inbox());
+	const agents = useQuery(queries.agents());
+	const work = useQuery(queries.holdingWork());
 	const working = useWorking();
-	const navigate = useNavigate();
+	const toneOf = useVentureTones();
 
 	const cockpits = useQueries({
 		queries: (ventures.data?.ventures ?? []).map((venture) => queries.cockpit(venture.slug)),
 	});
 
-	const [sort, setSort] = useState<{ key: SortKey; descending: boolean }>({
-		key: "lastActivityAt",
-		descending: true,
-	});
-
 	if (ventures.isPending) {
 		return (
 			<div className="page">
-				<Hero cap="Holding" title="Your ventures" />
-				<Skeleton label="Loading ventures…" widths={[72, 64, 80, 56]} />
+				<Skeleton label="Loading the Valley…" widths={[72, 64, 80, 56]} />
 			</div>
 		);
 	}
@@ -77,128 +69,83 @@ export function HoldingPage() {
 
 	if (ventures.data.ventures.length === 0) return <CreateVenture firstRun />;
 
-	const ledger = ventures.data.ventures.map((venture, index) => {
-		const cockpit = cockpits[index]?.data;
-		const work = workOf(cockpit);
-
-		return { ...venture, what: cockpit?.strategy.what ?? null, work, workDone: work?.done ?? 0 } satisfies LedgerRow;
-	});
-
-	const rows = ledger.toSorted((a, b) => {
-		const order = compare(a, b, sort.key);
-
-		return sort.descending ? -order : order;
-	});
-
 	const now = Date.now();
-	const liveIn = (slug: string) => working.find((item) => item.run.ventureSlug === slug);
-	const byActivity = ledger.toSorted((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
+	const rows = ventures.data.ventures.toSorted((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
+	const pending = inbox.data?.pending ?? [];
+	const items = work.data?.workItems ?? [];
+	const onShift = new Set(working.map((item) => item.run.ventureSlug).filter((slug) => slug !== null)).size;
+
+	const oldestNeed = pending
+		.map((item) => (item.kind === "draft" ? item.latestChangeAt : item.createdAt))
+		.toSorted()
+		.at(0);
 
 	return (
-		<div className="page">
-			<Hero
-				cap={`Holding · ${ledger.length === 1 ? "1 venture" : `${ledger.length} ventures`}`}
-				title="Your ventures"
-			/>
-			<ul className="vcs">
-				{byActivity.map((row) => {
-					const live = liveIn(row.slug);
-					const quiet = now - Date.parse(row.lastActivityAt) > weekMs;
-
-					return (
-						<li key={row.id}>
-							<Link to="/v/$slug" params={{ slug: row.slug }} className="vc" style={accent(row.slug)}>
-								<div className="vc-top">
-									<AppIcon slug={row.slug} size={52} />
-									<span className="cap">{kindLabel[row.kind]}</span>
-								</div>
-								<h3>{row.name}</h3>
-								<p>{row.what}</p>
-								<div className="vc-foot">
-									{live === undefined ? (
-										<span className="cap">
-											{quiet
-												? `Quiet for ${ago(row.lastActivityAt, now).replace(/ ago$/u, "")}`
-												: `Active ${ago(row.lastActivityAt, now)}`}
-										</span>
-									) : (
-										<Cast label={workingLabel(live)} since={live.run.startedAt ?? live.run.createdAt} />
-									)}
-								</div>
-							</Link>
-						</li>
-					);
-				})}
-				<li>
-					<Link to="/new" className="vc slot-empty">
-						<span className="plus">
-							<Icon name="plus" />
-						</span>
-						<span className="cap">New venture</span>
-					</Link>
-				</li>
-			</ul>
-
-			<Sec title="Ledger" />
-			<table className="tbl">
-				<thead>
-					<tr>
-						{columns.map((column) => {
-							const active = sort.key === column.key;
-
-							return (
-								<th
-									key={column.key}
-									className={column.numeric ? "r" : undefined}
-									aria-sort={active ? (sort.descending ? "descending" : "ascending") : "none"}
-								>
-									<button
-										type="button"
-										onClick={() =>
-											setSort({ key: column.key, descending: active ? !sort.descending : column.numeric })
-										}
-									>
-										{column.label}
-										{active ? <Icon name={sort.descending ? "down" : "up"} /> : null}
-									</button>
-								</th>
-							);
-						})}
-					</tr>
-				</thead>
-				<tbody>
-					{rows.map((row) => (
-						<tr
-							key={row.id}
-							style={accent(row.slug)}
-							onClick={() => void navigate({ to: "/v/$slug", params: { slug: row.slug } })}
-						>
-							<td>
-								<Link to="/v/$slug" params={{ slug: row.slug }} className="vcell">
-									<AppIcon slug={row.slug} size={16} />
-									{row.name}
-									{liveIn(row.slug) === undefined ? null : <span className="tag live">Working</span>}
-								</Link>
-							</td>
-							<td className="r">v{row.strategyVersion}</td>
-							<td className="r">{row.openBets}</td>
-							<td className="r">
-								{row.openAssumptions > 0 ? row.openAssumptions : <span className="dim">0</span>}
-							</td>
-							<td className="r">
-								{row.work === null || row.work.total === 0 ? (
-									<span className="dim">–</span>
-								) : (
-									`${row.work.done}/${row.work.total}`
-								)}
-							</td>
-							<td className="r mute" title={row.lastActivityAt}>
-								{ago(row.lastActivityAt, now)}
-							</td>
-						</tr>
-					))}
-				</tbody>
-			</table>
+		<div className="valley">
+			<section className="vl-hero">
+				<Sky />
+				<div className="vl-hud">
+					<Kicker>The Holding</Kicker>
+					<h1 className="vl-h1">The Valley never sleeps.</h1>
+					<p className="vl-h2">{shiftLine(onShift)}</p>
+					<Attention count={pending.length} />
+				</div>
+				<Legend />
+			</section>
+			<section className="vl-sheet">
+				<div className="vl-page">
+					<div className="vl-stats">
+						<Stat icon={<HoldingIcon size={46} />} label="Ventures" value={rows.length} note="on the campus" />
+						<Stat
+							icon={<IconTile name="agents" hue="var(--holding)" light="var(--holding-light)" size={46} />}
+							label="On shift"
+							value={working.length}
+							note={`of ${agents.data?.agents.length ?? 0} agents`}
+						/>
+						<Stat
+							icon={<IconTile name="inbox" hue="var(--beacon)" light="var(--beacon-light)" size={46} />}
+							label="Needs you"
+							value={pending.length}
+							note={
+								oldestNeed === undefined ? "all clear" : `oldest ${ago(oldestNeed, now).replace(/ ago$/u, "")}`
+							}
+							need={pending.length > 0}
+						/>
+						<Stat
+							icon={<IconTile name="work" hue="var(--ok)" light="var(--ok-light)" size={46} />}
+							label="Work done"
+							value={doneThisWeek(items, now)}
+							note="this week"
+						/>
+					</div>
+					<div className="vl-cols">
+						<section aria-labelledby="campus-heading">
+							<Sec title="The campus" id="campus-heading" count={rows.length} />
+							<div className="vl-campus">
+								{rows.map((row) => (
+									<VentureCard
+										key={row.id}
+										row={row}
+										cockpit={cockpits[ventures.data.ventures.indexOf(row)]?.data}
+										work={workCounts(items, row.id)}
+										tone={toneOf(row)}
+										working={working.find((item) => item.run.ventureSlug === row.slug)}
+										now={now}
+									/>
+								))}
+								<BreakGround />
+							</div>
+						</section>
+						<aside className="vl-aside">
+							<NeedsYou />
+							<section aria-labelledby="shift-heading">
+								<Sec title="On shift" id="shift-heading" count={working.length} />
+								<OnShift working={working} />
+							</section>
+						</aside>
+					</div>
+				</div>
+			</section>
 		</div>
 	);
 }
