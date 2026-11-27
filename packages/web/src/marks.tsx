@@ -126,6 +126,21 @@ export function hueLightOf(slug: string) {
 
 export type VentureTone = "needs" | "live" | "wait";
 
+/** A glass tile with one of the navigation glyphs in a given colour, for figures such as the Holding's stats. */
+export function IconTile({
+	name,
+	hue,
+	light,
+	size = 40,
+}: {
+	name: keyof typeof navPaths;
+	hue: string;
+	light: string;
+	size?: number;
+}) {
+	return <Tile glyph={navPaths[name]} hue={hue} light={light} size={size} tone={null} />;
+}
+
 function Tile({
 	glyph,
 	hue,

@@ -1,6 +1,6 @@
 import type { Cockpit, DraftHint, HoldingWork, StreamHint, ThreadHint, VentureWork, WorkItem } from "@braise/core";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { createContext, useEffect, useState } from "react";
 import { api } from "./api.ts";
 
 export const keys = {
@@ -219,6 +219,9 @@ export function updateCockpit(client: QueryClient, slug: string, seq: number, up
 }
 
 export type StreamState = "connecting" | "live" | "down";
+
+/** Whether the live update stream is connected, for pages that show it. */
+export const StreamContext = createContext<StreamState>("connecting");
 
 const silenceLimitMs = 35_000;
 

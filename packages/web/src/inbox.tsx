@@ -1266,10 +1266,13 @@ function FieldInput({
 	);
 }
 
-export function NeedsYou({ ventureId }: { ventureId: string }) {
+export function NeedsYou({ ventureId }: { ventureId?: string }) {
 	const inbox = useQuery(queries.inbox());
-	const items = (inbox.data?.pending ?? []).filter((item) => item.venture?.id === ventureId);
+	const pending = inbox.data?.pending ?? [];
+	const items = ventureId === undefined ? pending : pending.filter((item) => item.venture?.id === ventureId);
 	const now = Date.now();
+	const holding = ventureId === undefined;
+	const where = (venture: { name: string } | null) => (holding && venture !== null ? `${venture.name} · ` : "");
 
 	return (
 		<section aria-labelledby="needs-you-heading">
@@ -1284,13 +1287,16 @@ export function NeedsYou({ ventureId }: { ventureId: string }) {
 					<Link key={item.id} to="/inbox" search={{ draft: item.id }} className="quest">
 						<Need />
 						<b>{draftTitle(item)}</b>
-						<span>The operator drafted these · {ago(item.latestChangeAt, now)}</span>
+						<span>
+							{where(item.venture)}The operator drafted these · {ago(item.latestChangeAt, now)}
+						</span>
 					</Link>
 				) : item.kind === "proposal" ? (
 					<Link key={item.id} to="/inbox" search={{ proposal: item.id }} className="quest">
 						<Need />
 						<b>{item.title}</b>
 						<span>
+							{where(item.venture)}
 							{plural(item.changeCount, "change")} · {actorName(item.createdBy)} · {ago(item.createdAt, now)}
 							{item.staleCount > 0 ? " · stale" : ""}
 						</span>
@@ -1300,6 +1306,7 @@ export function NeedsYou({ ventureId }: { ventureId: string }) {
 						<Need />
 						<b>{questionTitle(item)}</b>
 						<span>
+							{where(item.venture)}
 							{itemMeta(item)} · {ago(item.createdAt, now)}
 						</span>
 					</Link>
@@ -1308,7 +1315,7 @@ export function NeedsYou({ ventureId }: { ventureId: string }) {
 						<Need />
 						<b>{accessTitle(item)}</b>
 						<span>
-							Access request · {item.summary} · {ago(item.createdAt, now)}
+							{where(item.venture)}Access request · {item.summary} · {ago(item.createdAt, now)}
 						</span>
 					</Link>
 				),

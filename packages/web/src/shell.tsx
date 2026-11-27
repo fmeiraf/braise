@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DraftBar, DraftRoomProvider } from "./draft.tsx";
-import { queries, rememberVenture, useHintStream } from "./live.ts";
+import { queries, rememberVenture, StreamContext, useHintStream } from "./live.ts";
 import { AppIcon, accent, Drone, Elapsed, HoldingIcon, hueOf, Icon, type IconName, isSquare, You } from "./marks.tsx";
 import { Select } from "./menu.tsx";
 import { OperatorPanel } from "./operator.tsx";
@@ -232,7 +232,9 @@ export function Shell() {
 			</nav>
 
 			<main key={pathname} className={fixedViews.has(view) ? "main fixed enter" : "main enter"}>
-				<Outlet />
+				<StreamContext value={stream}>
+					<Outlet />
+				</StreamContext>
 			</main>
 
 			{operatorOpen ? (
