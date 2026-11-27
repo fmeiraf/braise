@@ -103,12 +103,12 @@ async function threadLines(threadId: string) {
 }
 
 describe("agent profiles", () => {
-	it("seeds Claude with every capability and GPT with none", async () => {
+	it("seeds Claude with every capability but code, and GPT with none", async () => {
 		const [claude, gpt] = await agents();
 
 		expect(claude).toMatchObject({ id: "claude", runtime: "claude-agent-sdk", model: "claude-opus-5-5" });
 
-		expect(claude?.capabilities.every((state) => state.granted)).toBe(true);
+		expect(claude?.capabilities.filter((state) => !state.granted).map((state) => state.capability)).toEqual(["code"]);
 
 		expect(gpt).toMatchObject({ id: "gpt", actor: "agent:gpt", runtime: "pi", model: "gpt-6.2-sol" });
 

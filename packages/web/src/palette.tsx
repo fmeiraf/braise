@@ -66,7 +66,10 @@ export function Palette({ scope, close }: { scope: string | null; close: () => v
 			glyph: <Icon name="agents" />,
 			go: () => void navigate({ to: "/agents" }),
 		},
-		...(["work", "threads", "activity"] as const).map((view) => ({
+		...(scope === null
+			? (["work", "threads", "activity"] as const)
+			: (["strategy", "work", "threads", "activity", "settings"] as const)
+		).map((view) => ({
 			key: view,
 			label: view.charAt(0).toUpperCase() + view.slice(1),
 			sub: scopeName,

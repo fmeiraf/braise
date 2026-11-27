@@ -18,6 +18,7 @@ import {
 	getVentureWork,
 	listVentures,
 } from "./queries.ts";
+import { registerCodeRoutes } from "./repo-routes.ts";
 import { getCapacity, getSpace, listSpaces } from "./space-queries.ts";
 import { getActiveRuns, getLinkTargets, getThread, listThreads } from "./thread-queries.ts";
 
@@ -208,6 +209,8 @@ export function createApp({ db, hub, services }: { db: Database; hub: HintHubSha
 		return c.json(await getProposal(db, id.data));
 	});
 
+	registerCodeRoutes(app, { db, services });
+
 	app.get("/runs/active", async (c) => c.json({ runs: await getActiveRuns(db) }));
 
 	app.get("/link-targets", async (c) => {
@@ -246,6 +249,9 @@ export function createApp({ db, hub, services }: { db: Database; hub: HintHubSha
 			if (message.type === "access") return frame("access", {});
 
 			if (message.type === "capacity") return frame("capacity", {});
+
+			if (message.type === "code")
+				return frame("code", { ventureId: message.ventureId, threadId: message.threadId });
 
 			if (message.type === "reset") return frame("reset", {});
 

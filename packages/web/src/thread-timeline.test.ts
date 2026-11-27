@@ -264,3 +264,54 @@ describe("describeCall for spaces", () => {
 		});
 	});
 });
+
+describe("describeCall for coding tools", () => {
+	const call = (name: string, input: unknown, output: string | null, isError = false) => ({
+		id: name,
+		name,
+		input,
+		result: output === null ? null : { output, isError },
+	});
+
+	it("names file and command steps by their path or command", () => {
+		expect(describeCall(call("edit", { file_path: "app/README.md" }, '{"replaced":1}'))).toEqual({
+			action: "Edited",
+			detail: "app/README.md",
+		});
+
+		expect(describeCall(call("write", { file_path: "app/new.ts" }, '{"created":true}'))).toEqual({
+			action: "Created",
+			detail: "app/new.ts",
+		});
+
+		expect(describeCall(call("bash", { command: "cd app && npm test\necho done" }, "ok\n\nExit code 0."))).toEqual({
+			action: "Ran",
+			detail: "cd app && npm test",
+			exit: null,
+		});
+	});
+
+	it("shows a failed command's exit code or timeout", () => {
+		expect(describeCall(call("bash", { command: "npm test" }, "1 failing\n\nExit code 1.", true))).toMatchObject({
+			exit: "exit 1",
+		});
+
+		expect(
+			describeCall(call("bash", { command: "npm start" }, "Timed out after 120s and was killed.", true)),
+		).toMatchObject({ exit: "timed out" });
+	});
+
+	it("names checkouts and pull requests", () => {
+		expect(describeCall(call("checkout_repo", { repo: "owner/app" }, '{"branch":"braise/x-abc123"}'))).toEqual({
+			action: "Checked out owner/app",
+			detail: "braise/x-abc123",
+		});
+
+		expect(describeCall(call("open_pull_request", { repo: "owner/app", title: "Add docs" }, '{"number":7}'))).toEqual(
+			{
+				action: "Opened pull request #7",
+				detail: "Add docs",
+			},
+		);
+	});
+});

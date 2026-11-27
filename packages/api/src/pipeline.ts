@@ -17,6 +17,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import type { z } from "zod";
 import { accessChannel, capacityChannel, notifyChannel, threadChannel } from "./channels.ts";
+import type { CodeHost, CodeJob } from "./code/host.ts";
 import type { Database, Transaction } from "./db/client.ts";
 import { agentGrants, agentProfiles, commands, events, runs, spaces, ventures } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
@@ -30,6 +31,8 @@ export interface RunJob {
 export interface Services {
 	enqueueRun(job: RunJob): Promise<void>;
 	scheduleLift(pause: { id: string; until: Date }): Promise<void>;
+	enqueueCode(job: CodeJob): Promise<void>;
+	code: CodeHost;
 }
 
 export type VentureRow = typeof ventures.$inferSelect;
@@ -48,6 +51,8 @@ export interface HandlerContext {
 	venture: VentureRow | null;
 	queueRun(job: RunJob): void;
 	scheduleLift(pause: { id: string; until: Date }): void;
+	queueCode(job: CodeJob): void;
+	code: CodeHost;
 }
 
 export interface VentureOutcome {
@@ -310,6 +315,7 @@ async function run<Name extends CommandName>(
 	const targetVentureId = ventureIdOf(payload);
 	const queuedRuns: RunJob[] = [];
 	const lifts: { id: string; until: Date }[] = [];
+	const codeJobs: CodeJob[] = [];
 
 	const response = await db.transaction(async (tx) => {
 		const commandId = uuidv7();
@@ -358,6 +364,8 @@ async function run<Name extends CommandName>(
 				venture,
 				queueRun: (job) => queuedRuns.push(job),
 				scheduleLift: (pause) => lifts.push(pause),
+				queueCode: (job) => codeJobs.push(job),
+				code: services.code,
 			},
 			payload,
 		);
@@ -384,6 +392,8 @@ async function run<Name extends CommandName>(
 	for (const job of queuedRuns) await services.enqueueRun(job);
 
 	for (const pause of lifts) await services.scheduleLift(pause);
+
+	for (const job of codeJobs) await services.enqueueCode(job);
 
 	return response;
 }

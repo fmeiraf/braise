@@ -233,6 +233,25 @@ function outcomeOf(
 	return { status: finished.status, usage, error: runError(finished.error) } satisfies Outcome;
 }
 
+const recordCheckpoints = Effect.fn("recordCheckpoints")(function* (
+	run: RunRow,
+	append: (type: string, payload: Record<string, unknown>) => Effect.Effect<void, unknown>,
+) {
+	const services = yield* RunQueue;
+
+	const recorded = yield* query(() => services.code.checkpoint(run.threadId)).pipe(
+		Effect.catch((error) =>
+			Effect.sync(() => {
+				console.error(`agent: recording run ${run.id}'s checkpoints failed`, error);
+
+				return [];
+			}),
+		),
+	);
+
+	if (recorded.length > 0) yield* append("checkpoint", { checkouts: recorded });
+});
+
 export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 	return Layer.effectDiscard(
 		Effect.gen(function* () {
@@ -430,6 +449,8 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 					if (stop.reason !== null && partial !== null && partial.text.trim() !== "") {
 						yield* append("message", { block: partial.block, text: partial.text, partial: true });
 					}
+
+					yield* recordCheckpoints(run, append);
 
 					yield* finishRun(run.id, outcome);
 				}).pipe(

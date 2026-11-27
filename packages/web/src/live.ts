@@ -24,6 +24,10 @@ export const keys = {
 	inbox: ["inbox"] as const,
 	agents: ["agents"] as const,
 	proposal: (id: string) => ["proposal", id] as const,
+	github: ["github"] as const,
+	reachableRepos: ["github", "repos"] as const,
+	repos: (slug: string) => ["venture", slug, "repos"] as const,
+	threadCode: (id: string) => ["threads", "code", id] as const,
 };
 
 export const queries = {
@@ -44,6 +48,10 @@ export const queries = {
 	inbox: () => queryOptions({ queryKey: keys.inbox, queryFn: api.inbox }),
 	agents: () => queryOptions({ queryKey: keys.agents, queryFn: api.agents }),
 	proposal: (id: string) => queryOptions({ queryKey: keys.proposal(id), queryFn: () => api.proposal(id) }),
+	github: () => queryOptions({ queryKey: keys.github, queryFn: api.github }),
+	reachableRepos: () => queryOptions({ queryKey: keys.reachableRepos, queryFn: api.reachableRepos }),
+	repos: (slug: string) => queryOptions({ queryKey: keys.repos(slug), queryFn: () => api.repos(slug) }),
+	threadCode: (id: string) => queryOptions({ queryKey: keys.threadCode(id), queryFn: () => api.threadCode(id) }),
 };
 
 export function applyAccessHint(client: QueryClient) {
@@ -96,6 +104,14 @@ export function onFreshHint(listener: (ventureId: string) => void) {
 	return () => {
 		freshListeners.delete(listener);
 	};
+}
+
+export function applyCodeHint(client: QueryClient, hint: { ventureId: string; threadId: string | null }) {
+	const slug = slugById.get(hint.ventureId);
+
+	if (slug !== undefined) void client.invalidateQueries({ queryKey: keys.repos(slug) });
+
+	if (hint.threadId !== null) void client.invalidateQueries({ queryKey: keys.threadCode(hint.threadId) });
 }
 
 export function applyHint(client: QueryClient, hint: StreamHint) {
@@ -241,6 +257,12 @@ export function useHintStream(client: QueryClient) {
 				heard();
 
 				applyCapacityHint(client);
+			});
+
+			next.addEventListener("code", (event) => {
+				heard();
+
+				applyCodeHint(client, JSON.parse(event.data as string) as { ventureId: string; threadId: string | null });
 			});
 
 			next.addEventListener("reset", () => {

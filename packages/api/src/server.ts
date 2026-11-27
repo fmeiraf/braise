@@ -8,12 +8,16 @@ import { AgentReader } from "./agent/reader.ts";
 import type { AgentRuntime } from "./agent/runtime.ts";
 import { agentWorkerLayer } from "./agent/worker.ts";
 import { createApp } from "./app.ts";
+import { type CodeConfig, readCodeConfig } from "./code/config.ts";
+import { Code } from "./code/service.ts";
+import { codeWorkerLayer } from "./code/worker.ts";
 import { Database } from "./db/effect.ts";
 import { readEnv } from "./env.ts";
 import { HintHub } from "./hints.ts";
 
-export function infrastructureLayer(connectionString: string, options: { max?: number } = {}) {
+export function infrastructureLayer(connectionString: string, options: { max?: number; code?: CodeConfig } = {}) {
 	return Layer.mergeAll(RunQueue.layer, AgentReader.layer(connectionString)).pipe(
+		Layer.provideMerge(Code.layer(options.code ?? readCodeConfig())),
 		Layer.provideMerge(
 			Layer.mergeAll(
 				Database.layer(connectionString, options),
@@ -46,7 +50,7 @@ function httpLayer(port: number) {
 }
 
 export function serverLayer(env: { DATABASE_URL: string; PORT: number }, runtimes: AgentRuntime[]) {
-	return Layer.mergeAll(agentWorkerLayer(runtimes), httpLayer(env.PORT)).pipe(
+	return Layer.mergeAll(agentWorkerLayer(runtimes), codeWorkerLayer, httpLayer(env.PORT)).pipe(
 		Layer.provide(infrastructureLayer(env.DATABASE_URL)),
 	);
 }

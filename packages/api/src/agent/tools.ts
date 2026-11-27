@@ -20,6 +20,8 @@ import {
 import { desc, eq } from "drizzle-orm";
 import type pg from "pg";
 import { z } from "zod";
+import type { CodeHost } from "../code/host.ts";
+import { codingTools } from "../code/tools.ts";
 import type { Database } from "../db/client.ts";
 import { bets, objectives, runs, workItems } from "../db/schema.ts";
 import { AppError } from "../errors.ts";
@@ -42,6 +44,7 @@ export interface ToolScope {
 	threadId: string;
 	chatOf?: { spaceId: string; ventureId: string | null } | null;
 	onInputRequested?: () => void;
+	coding?: { code: CodeHost; ventureId: string; threadTitle: string; signal: AbortSignal } | null;
 }
 
 function defineTool<Shape extends z.ZodRawShape>(tool: {
@@ -456,7 +459,22 @@ export function braiseTools(scope: ToolScope) {
 					}),
 				];
 
+	const coding =
+		scope.coding === null || scope.coding === undefined
+			? []
+			: codingTools({
+					db: scope.db,
+					code: scope.coding.code,
+					threadId: scope.threadId,
+					threadTitle: scope.coding.threadTitle,
+					ventureId: scope.coding.ventureId,
+					signal: scope.coding.signal,
+					command: (name, payload) => command(name, payload),
+					fail: failure,
+				});
+
 	return [
+		...coding,
 		defineTool({
 			name: "ask_owner",
 			description:

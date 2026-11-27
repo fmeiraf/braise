@@ -517,12 +517,14 @@ export const threadHandlers = {
 
 		return threadOutcome(thread, thread.lastSeq, { thread: updated });
 	},
-	"thread.archive": async ({ tx }, payload) => {
+	"thread.archive": async ({ tx, queueCode }, payload) => {
 		const thread = await lockThread(tx, payload.threadId);
 
 		assertLive(thread);
 
 		await assertNoActiveRun(tx, thread.id);
+
+		queueCode({ type: "cleanup", threadId: thread.id });
 
 		const [updated] = await tx
 			.update(threads)

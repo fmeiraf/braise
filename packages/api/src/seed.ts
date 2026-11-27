@@ -1,21 +1,29 @@
 import type { CommandResponse } from "@braise/core";
+import { readCodeConfig } from "./code/config.ts";
+import { createCodeHost } from "./code/host.ts";
 import type { Database } from "./db/client.ts";
 import { handlers } from "./handlers.ts";
 import { executeCommand, type Services } from "./pipeline.ts";
 
 const actor = "owner";
 
-const seedServices = {
-	enqueueRun() {
-		return Promise.reject(new Error("The seed does not start agent runs"));
-	},
-	scheduleLift() {
-		return Promise.reject(new Error("The seed does not pause runtimes"));
-	},
-} satisfies Services;
+function seedServices(db: Database) {
+	return {
+		enqueueRun() {
+			return Promise.reject(new Error("The seed does not start agent runs"));
+		},
+		scheduleLift() {
+			return Promise.reject(new Error("The seed does not pause runtimes"));
+		},
+		enqueueCode() {
+			return Promise.reject(new Error("The seed does not touch repos"));
+		},
+		code: createCodeHost(readCodeConfig(), db),
+	} satisfies Services;
+}
 
 function send(db: Database, name: string, key: string, payload: Record<string, unknown>, reason?: string) {
-	return executeCommand(db, handlers, seedServices, {
+	return executeCommand(db, handlers, seedServices(db), {
 		name,
 		body: { payload, idempotencyKey: `seed:example:${key}`, reason },
 		actor,

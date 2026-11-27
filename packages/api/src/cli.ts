@@ -3,6 +3,8 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { recordLimit } from "./agent/limits.ts";
 import { isRuntimeName, runQueueServices, startBoss } from "./agent/queue.ts";
+import { readCodeConfig } from "./code/config.ts";
+import { createCodeHost } from "./code/host.ts";
 import { createDatabase, migrateDatabase } from "./db/client.ts";
 import { assertLocalDatabase, resetDatabase } from "./db/reset.ts";
 import { readEnv } from "./env.ts";
@@ -85,7 +87,7 @@ async function main(args: string[]) {
 				const boss = await startBoss(readEnv().DATABASE_URL);
 
 				try {
-					const { paused } = await recordLimit(db, runQueueServices(boss), {
+					const { paused } = await recordLimit(db, runQueueServices(boss, createCodeHost(readCodeConfig(), db)), {
 						runtime,
 						runId: null,
 						reading: { window, status: utilization >= 1 ? "rejected" : "allowed", utilization, resetsAt },

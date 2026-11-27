@@ -52,7 +52,7 @@ export const proposableCommands = [
 export const legacyProposableCommands = ["bet.set_status", "goal.create", "goal.update"] as const;
 
 export const proposalStatuses = ["pending", "approved", "rejected"] as const;
-export const capabilities = ["work", "links", "propose", "delegate"] as const;
+export const capabilities = ["work", "links", "propose", "delegate", "code"] as const;
 export const accessRequestStatuses = ["pending", "approved", "denied"] as const;
 export const defaultAgentProfileId = "claude";
 export const maxProposalChanges = 10;
@@ -66,6 +66,10 @@ export const inputRequestStatuses = ["pending", "answered"] as const;
 export const runtimeNames = ["claude-agent-sdk", "pi"] as const;
 export const limitStatuses = ["allowed", "warning", "rejected"] as const;
 export const pauseReasons = ["limit", "owner"] as const;
+export const repoStatuses = ["cloning", "ready", "failed", "no_access"] as const;
+export const pullRequestStates = ["open", "closed", "merged"] as const;
+export const maxAllowedDomains = 20;
+export const pullRequestTitleLength = 200;
 
 export const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
@@ -84,6 +88,14 @@ const note = z.string().trim().min(1).max(2_000);
 const profileId = z.string().regex(slugPattern).max(40);
 
 const capability = z.enum(capabilities);
+
+const githubId = z.number().int().positive();
+
+const domain = z
+	.string()
+	.trim()
+	.toLowerCase()
+	.regex(/^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+$/u, "A host name such as registry.example.com or *.example.com");
 
 const amount = z.number();
 
@@ -355,6 +367,46 @@ export const commandSchemas = {
 	"space.add_thread": z.strictObject({ spaceId: id, threadId: id }),
 	"space.remove_thread": z.strictObject({ spaceId: id, threadId: id }),
 	"input.request": z.strictObject({ question: text.max(4_000) }),
+	"github.connect": z.strictObject({
+		appId: githubId,
+		slug: z.string().trim().min(1).max(100),
+		ownerLogin: z.string().trim().min(1).max(100),
+		htmlUrl: z.url(),
+	}),
+	"venture.add_repo": z.strictObject({
+		...ventureScoped,
+		githubRepoId: githubId,
+		installationId: githubId,
+		fullName: z
+			.string()
+			.trim()
+			.regex(/^[\w.-]+\/[\w.-]+$/u),
+		defaultBranch: z.string().trim().min(1).max(255),
+	}),
+	"venture.update_repo": z.strictObject({
+		...ventureScoped,
+		repoId: id,
+		allowedDomains: z.array(domain).max(maxAllowedDomains),
+	}),
+	"venture.remove_repo": z.strictObject({ ...ventureScoped, repoId: id }),
+	"repo.fetch": z.strictObject({ repoId: id }),
+	"repo.push": z.strictObject({ ...ventureScoped, threadId: id, repoId: id }),
+	"pr.open": z.strictObject({
+		...ventureScoped,
+		threadId: id,
+		repoId: id,
+		title: text.max(pullRequestTitleLength),
+		body: longText.max(20_000).default(""),
+		draft: z.boolean().default(false),
+	}),
+	"pr.update": z
+		.strictObject({
+			...ventureScoped,
+			pullRequestId: id,
+			title: text.max(pullRequestTitleLength).optional(),
+			body: longText.max(20_000).optional(),
+		})
+		.refine((value) => someField(value, ["title", "body"]), { message: "Change at least one field" }),
 	"runtime.pause": z.strictObject({ runtime: z.enum(runtimeNames) }),
 	"runtime.resume": z.strictObject({ runtime: z.enum(runtimeNames) }),
 	"proposal.create": z.strictObject({
@@ -424,6 +476,8 @@ export const accessCommands = new Set<CommandName>([
 	"grant.revoke",
 	"runtime.pause",
 	"runtime.resume",
+	"github.connect",
+	"repo.fetch",
 ]);
 
 export const openAgentCommands = new Set<CommandName>(["access.request", "input.request"]);

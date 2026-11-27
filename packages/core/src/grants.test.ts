@@ -51,3 +51,23 @@ describe("attemptSummary", () => {
 		expect(attemptSummary("work.move", { index: 0 })).toBe("move work item");
 	});
 });
+
+describe("the code capability", () => {
+	it("covers pushing and pull requests, not repo management", () => {
+		expect(capabilityOf("repo.push")).toBe("code");
+
+		expect(capabilityOf("pr.open")).toBe("code");
+
+		expect(capabilityOf("pr.update")).toBe("code");
+
+		expect(capabilityOf("venture.add_repo")).toBeNull();
+
+		expect(capabilityOf("venture.remove_repo")).toBeNull();
+	});
+
+	it("summarises an attempt to open a pull request", () => {
+		expect(attemptSummary("pr.open", { title: "Add CONTRIBUTING.md" })).toBe(
+			"open a pull request “Add CONTRIBUTING.md”",
+		);
+	});
+});

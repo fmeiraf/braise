@@ -261,6 +261,34 @@ export function labelEvent(event: Pick<DomainEvent, "type" | "payload">) {
 			} satisfies EventLabel;
 		case "proposal.rejected":
 			return { action: "rejected a proposal", subject: text(payload, "title"), detail: null } satisfies EventLabel;
+		case "repo.added":
+			return { action: "added a repo", subject: text(payload, "fullName"), detail: null } satisfies EventLabel;
+		case "repo.updated":
+			return {
+				action: "changed a repo's sandbox domains",
+				subject: text(payload, "fullName"),
+				detail: null,
+			} satisfies EventLabel;
+		case "repo.removed":
+			return { action: "removed a repo", subject: text(payload, "fullName"), detail: null } satisfies EventLabel;
+		case "repo.pushed":
+			return {
+				action: "pushed",
+				subject: text(payload, "branch"),
+				detail: text(payload, "fullName"),
+			} satisfies EventLabel;
+		case "pr.opened":
+			return {
+				action: "opened a pull request",
+				subject: text(payload, "title"),
+				detail: text(payload, "url"),
+			} satisfies EventLabel;
+		case "pr.updated":
+			return {
+				action: "edited a pull request",
+				subject: text(payload, "title"),
+				detail: text(payload, "url"),
+			} satisfies EventLabel;
 		default:
 			return { action: event.type, subject: null, detail: null } satisfies EventLabel;
 	}
@@ -273,6 +301,7 @@ export const capabilityPhrases = {
 	links: "link and unlink its threads",
 	propose: "propose changes to strategy, objectives, assumptions and bets",
 	delegate: "start, message and retry threads in a space it orchestrates, and change who is in it",
+	code: "push its thread's branch to the venture's GitHub repos and open or edit pull requests as the braise App",
 } as const satisfies Record<Capability, string>;
 
 /** Numbers a venture's bets in the order they were made: B1, B2, … */

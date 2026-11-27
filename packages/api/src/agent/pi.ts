@@ -227,8 +227,8 @@ function toPiTool(tool: AgentTool) {
 		label: tool.name,
 		description: tool.description,
 		parameters: z.toJSONSchema(z.object(tool.input), { io: "input" }),
-		async execute(_toolCallId, args) {
-			const output = await tool.execute(args);
+		async execute(_toolCallId, args, signal) {
+			const output = await tool.execute(args, signal);
 
 			return { content: [{ type: "text", text: output.text }], details: undefined, isError: output.isError };
 		},

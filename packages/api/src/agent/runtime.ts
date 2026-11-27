@@ -11,7 +11,7 @@ export interface AgentTool {
 	name: string;
 	description: string;
 	input: z.ZodRawShape;
-	execute(args: unknown): Promise<ToolOutput>;
+	execute(args: unknown, signal?: AbortSignal): Promise<ToolOutput>;
 }
 
 export type RunSignal =

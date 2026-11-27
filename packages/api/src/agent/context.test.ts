@@ -21,9 +21,52 @@ const base = {
 	transcript: [],
 	message: "What should we do next?",
 	pendingProposals: [],
+	code: null,
+} satisfies RunContext;
+
+const withCode = {
+	...base,
+	code: {
+		repos: [{ id: "repo-1", fullName: "owner/bakery", defaultBranch: "main", status: "ready", error: null }],
+		checkouts: [
+			{
+				dir: "bakery",
+				fullName: "owner/bakery",
+				branch: "braise/launch-plan-abc123",
+				baseSha: "a".repeat(40),
+				checkpointSha: "b".repeat(40),
+			},
+		],
+		pullRequests: [
+			{
+				number: 7,
+				fullName: "owner/bakery",
+				url: "https://github.com/owner/bakery/pull/7",
+				state: "open",
+				title: "Add menu",
+			},
+		],
+	},
 } satisfies RunContext;
 
 describe("renderSystemPrompt", () => {
+	it("says a thread without repos has no code tools", () => {
+		expect(renderSystemPrompt(base)).toContain("this thread has no code repos");
+	});
+
+	it("lists the venture's repos, the thread's checkouts and pull requests, and marks code as not granted", () => {
+		const prompt = renderSystemPrompt(withCode);
+
+		expect(prompt).toContain("- owner/bakery (id repo-1, default branch main, ready)");
+
+		expect(prompt).toContain(
+			"- bakery/: owner/bakery on braise/launch-plan-abc123, from aaaaaaaaaaaa, last run ended at bbbbbbbbbbbb",
+		);
+
+		expect(prompt).toContain('- owner/bakery#7 "Add menu" (open) https://github.com/owner/bakery/pull/7');
+		expect(prompt).toContain("Push branches and open PRs (not granted)");
+	});
+
 	it("describes a Holding thread with its ventures and no links", () => {
 		const prompt = renderSystemPrompt(base);
 

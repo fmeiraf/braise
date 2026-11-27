@@ -28,6 +28,8 @@ const paths = {
 	key: "M2.5 8l3-3 3 3-3 3z M8.5 8h5 M11.5 8v2.5",
 	target: "M8 1.5v4 M8 10.5v4 M1.5 8h4 M10.5 8h4",
 	panel: "M2.5 3.5h11v9h-11z M6.5 3.5v9",
+	strategy: "M2 13.5h3.5v-3.5h3.5v-3.5h3.5v-4 M10.5 2.5h2v2",
+	settings: "M2.5 4.5h11 M2.5 11.5h11 M5.5 2.5v4 M10.5 9.5v4",
 } as const;
 
 export type IconName = keyof typeof paths;

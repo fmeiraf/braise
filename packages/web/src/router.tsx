@@ -2,11 +2,12 @@ import { createRootRoute, createRoute, createRouter } from "@tanstack/react-rout
 import { z } from "zod";
 import { HoldingActivityPage, VentureActivityPage } from "./activity.tsx";
 import { AgentsPage } from "./agents.tsx";
-import { CockpitPage } from "./cockpit.tsx";
+import { CockpitPage, StrategyPage } from "./cockpit.tsx";
 import { CreateVenture } from "./create-venture.tsx";
 import { HistoryPage } from "./history.tsx";
 import { HoldingPage, PageError } from "./holding.tsx";
 import { InboxPage } from "./inbox.tsx";
+import { SettingsPage } from "./settings.tsx";
 import { Shell } from "./shell.tsx";
 import { HoldingThreadsPage, VentureThreadsPage } from "./threads.tsx";
 import { HoldingWorkPage, VentureWorkPage } from "./work.tsx";
@@ -85,6 +86,14 @@ const historyRoute = createRoute({
 	component: HistoryPage,
 });
 
+const strategyRoute = createRoute({ getParentRoute: () => ventureRoute, path: "/strategy", component: StrategyPage });
+
+const settingsRoute = createRoute({
+	getParentRoute: () => ventureRoute,
+	path: "/settings",
+	component: SettingsPage,
+});
+
 const ventureActivityRoute = createRoute({
 	getParentRoute: () => ventureRoute,
 	path: "/activity",
@@ -113,7 +122,15 @@ const routeTree = rootRoute.addChildren([
 	holdingThreadsRoute,
 	inboxRoute,
 	agentsRoute,
-	ventureRoute.addChildren([cockpitRoute, historyRoute, ventureWorkRoute, ventureThreadsRoute, ventureActivityRoute]),
+	ventureRoute.addChildren([
+		cockpitRoute,
+		strategyRoute,
+		settingsRoute,
+		historyRoute,
+		ventureWorkRoute,
+		ventureThreadsRoute,
+		ventureActivityRoute,
+	]),
 ]);
 
 export const router = createRouter({

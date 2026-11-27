@@ -1,6 +1,8 @@
 import type { RuntimeName } from "@braise/core";
 import { Context, Effect, Layer } from "effect";
 import { PgBoss } from "pg-boss";
+import { type CodeHost, codeQueue } from "../code/host.ts";
+import { Code } from "../code/service.ts";
 import type { Services } from "../pipeline.ts";
 
 export type { RunJob } from "../pipeline.ts";
@@ -67,11 +69,17 @@ export async function startBoss(connectionString: string) {
 
 	await boss.createQueue(liftQueue, { retryLimit: 3 });
 
+	await boss.createQueue(codeQueue, { retryLimit: 0, expireInSeconds: runExpirySeconds });
+
 	return boss;
 }
 
-export function runQueueServices(boss: PgBoss) {
+export function runQueueServices(boss: PgBoss, code: CodeHost) {
 	return {
+		code,
+		async enqueueCode(job) {
+			await boss.send(codeQueue, job);
+		},
 		async enqueueRun(job) {
 			await boss.send(
 				queueOf(job.runtime),
@@ -107,7 +115,7 @@ export class RunQueue extends Context.Service<RunQueue, Services>()("braise/RunQ
 	static readonly layer = Layer.effect(
 		this,
 		Effect.gen(function* () {
-			return runQueueServices(yield* Boss);
+			return runQueueServices(yield* Boss, yield* Code);
 		}),
 	);
 }

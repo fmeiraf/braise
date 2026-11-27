@@ -1,8 +1,12 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Effect, Exit, Fiber, ManagedRuntime, Scope, Stream } from "effect";
 import pg from "pg";
 import { Boss, RunQueue } from "../src/agent/queue.ts";
 import { AgentReader } from "../src/agent/reader.ts";
 import { createApp } from "../src/app.ts";
+import { type CodeConfig, readCodeConfig } from "../src/code/config.ts";
 import { createDatabase } from "../src/db/client.ts";
 import { Database } from "../src/db/effect.ts";
 import { assertLocalDatabase, resetDatabase } from "../src/db/reset.ts";
@@ -62,8 +66,16 @@ export async function setup() {
 	await pool.end();
 }
 
-export async function openTestDatabase(url = testUrl()) {
-	const runtime = ManagedRuntime.make(infrastructureLayer(url, { max: 20 }));
+/** Code settings for a test: a fresh braise home in the temp folder, never the owner's ~/.braise. */
+export function testCodeConfig(overrides: Partial<CodeConfig> = {}) {
+	return {
+		...readCodeConfig({ ...process.env, BRAISE_HOME: mkdtempSync(join(tmpdir(), "braise-home-")) }),
+		...overrides,
+	} satisfies CodeConfig;
+}
+
+export async function openTestDatabase(url = testUrl(), code: CodeConfig = testCodeConfig()) {
+	const runtime = ManagedRuntime.make(infrastructureLayer(url, { max: 20, code }));
 
 	const { db, hub, boss, services, reader } = await runtime.runPromise(
 		Effect.gen(function* () {

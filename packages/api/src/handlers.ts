@@ -28,6 +28,7 @@ import {
 import { AppError } from "./errors.ts";
 import type { HandlerContext, Handlers, VentureRow } from "./pipeline.ts";
 import { proposalHandlers } from "./proposal-handlers.ts";
+import { repoHandlers } from "./repo-handlers.ts";
 import { spaceHandlers } from "./space-handlers.ts";
 import { threadHandlers } from "./thread-handlers.ts";
 
@@ -1297,6 +1298,14 @@ const domainHandlers = {
 	| "input.request"
 	| "runtime.pause"
 	| "runtime.resume"
+	| "github.connect"
+	| "venture.add_repo"
+	| "venture.update_repo"
+	| "venture.remove_repo"
+	| "repo.fetch"
+	| "repo.push"
+	| "pr.open"
+	| "pr.update"
 >;
 
 export const handlers = {
@@ -1304,4 +1313,5 @@ export const handlers = {
 	...proposalHandlers(domainHandlers),
 	...accessHandlers,
 	...spaceHandlers,
+	...repoHandlers,
 } satisfies Handlers;

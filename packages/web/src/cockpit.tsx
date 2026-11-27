@@ -1,7 +1,7 @@
 import type { Cockpit, StrategyVersion } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import { type FormEvent, type KeyboardEvent, useState } from "react";
+import { type FormEvent, type KeyboardEvent, type ReactNode, useState } from "react";
 import { api } from "./api.ts";
 import { describeError } from "./errors.ts";
 import { EventItem } from "./feed.tsx";
@@ -11,9 +11,11 @@ import { PageError } from "./holding.tsx";
 import { NeedsYou } from "./inbox.tsx";
 import { betNumbers, kindLabel } from "./labels.ts";
 import { keys, queries, rememberVenture, updateCockpit } from "./live.ts";
-import { accent, Cast, Crest, Icon } from "./marks.tsx";
+import { timeLeft } from "./loop-view.ts";
+import { accent, Cast, Crest, Icon, type IconName } from "./marks.tsx";
 import { AddObjectiveForm, ClosedObjectives, Hunches, Learnings, ObjectiveCard } from "./objectives.tsx";
-import { Sec, Skeleton } from "./parts.tsx";
+import { Hero, Sec, Skeleton } from "./parts.tsx";
+import { Integrations } from "./repos.tsx";
 import { ago } from "./time.ts";
 import { toast } from "./toast.ts";
 import { useCommand } from "./use-command.ts";
@@ -32,8 +34,7 @@ const kernelFields = [
 
 type KernelKey = (typeof kernelFields)[number]["key"];
 
-export function CockpitPage() {
-	const { slug } = useParams({ from: "/v/$slug/" });
+function useCockpitPage(slug: string, render: (cockpit: Cockpit) => ReactNode) {
 	const cockpit = useQuery(queries.cockpit(slug));
 
 	if (cockpit.isPending) {
@@ -48,17 +49,211 @@ export function CockpitPage() {
 
 	rememberVenture(cockpit.data.venture.id, slug, cockpit.data.venture.lastSeq);
 
-	return <CockpitView slug={slug} cockpit={cockpit.data} />;
+	return render(cockpit.data);
 }
 
-function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
-	const { venture, strategy, objectives, assumptions, bets, workProgress } = cockpit;
+export function CockpitPage() {
+	const { slug } = useParams({ from: "/v/$slug/" });
+
+	return useCockpitPage(slug, (cockpit) => <OverviewView slug={slug} cockpit={cockpit} />);
+}
+
+export function StrategyPage() {
+	const { slug } = useParams({ from: "/v/$slug/strategy" });
+
+	return useCockpitPage(slug, (cockpit) => <StrategyView slug={slug} cockpit={cockpit} />);
+}
+
+function Topic({
+	to,
+	slug,
+	icon,
+	title,
+	summary,
+	figure,
+	note,
+}: {
+	to: "/v/$slug/strategy" | "/v/$slug/work" | "/v/$slug/threads";
+	slug: string;
+	icon: IconName;
+	title: string;
+	summary: ReactNode;
+	figure: ReactNode;
+	note?: string;
+}) {
+	return (
+		<li>
+			<Link to={to} params={{ slug }} className="topic">
+				<Icon name={icon} />
+				<span className="topic-main">
+					<b>{title}</b>
+					<span className="topic-sum">{summary}</span>
+				</span>
+				<span className="topic-fig">
+					<strong>{figure}</strong>
+					{note === undefined ? null : <span className="cap">{note}</span>}
+				</span>
+				<Icon name="chevr" className="topic-go" />
+			</Link>
+		</li>
+	);
+}
+
+function Topics({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
+	const now = Date.now();
+	const { venture, strategy, objectives, bets, workProgress } = cockpit;
+	const threads = useQuery(queries.threads({ ventureId: venture.id }));
+
+	const active = objectives.filter((objective) => objective.status === "active");
+	const climbing = active.filter((objective) => objective.kind !== "build").length;
+
+	const nextDue = active
+		.map((objective) => objective.byDate)
+		.filter((date) => date !== null)
+		.toSorted()[0];
+
+	const openBets = bets
+		.filter((bet) => bet.status === "open")
+		.toSorted((a, b) => a.deadline.localeCompare(b.deadline));
+
+	const nextBet = openBets[0];
+	const work = Object.values(workProgress);
+	const done = work.reduce((sum, progress) => sum + progress.done, 0);
+	const total = work.reduce((sum, progress) => sum + progress.total, 0);
+	const threadRows = (threads.data?.threads ?? []).filter((thread) => thread.archivedAt === null);
+	const running = threadRows.filter((thread) => thread.activeRun?.status === "running").length;
+	const lastThread = threadRows[0];
+	const revisedAt = strategy.activatedAt ?? strategy.createdAt;
+
+	return (
+		<ul className="topics">
+			<Topic
+				to="/v/$slug/strategy"
+				slug={slug}
+				icon="strategy"
+				title="Strategy"
+				summary={strategy.why}
+				figure={`v${strategy.version}`}
+				note={`revised ${ago(revisedAt, now)}`}
+			/>
+			<Topic
+				to="/v/$slug/strategy"
+				slug={slug}
+				icon="target"
+				title="Objectives"
+				summary={
+					active.length === 0
+						? "None yet: say where this venture is going"
+						: `${climbing} to climb, ${active.length - climbing} to build${nextDue === undefined ? "" : ` · next due ${timeLeft(nextDue, now).replace(" left", "")}`}`
+				}
+				figure={active.length}
+				note="active"
+			/>
+			<Topic
+				to="/v/$slug/strategy"
+				slug={slug}
+				icon="bolt"
+				title="Bets"
+				summary={nextBet === undefined ? "No open bet" : nextBet.action}
+				figure={openBets.length}
+				note={nextBet === undefined ? "open" : timeLeft(nextBet.deadline, now)}
+			/>
+			<Topic
+				to="/v/$slug/work"
+				slug={slug}
+				icon="work"
+				title="Work"
+				summary={
+					total === 0 ? (
+						"Nothing planned yet"
+					) : (
+						<span className="topic-bar" aria-hidden="true">
+							<i style={{ width: `${Math.round((done / total) * 100)}%` }} />
+						</span>
+					)
+				}
+				figure={
+					<>
+						{done}
+						<small>/{total}</small>
+					</>
+				}
+				note="done"
+			/>
+			<Topic
+				to="/v/$slug/threads"
+				slug={slug}
+				icon="threads"
+				title="Threads"
+				summary={lastThread === undefined ? "No conversation yet" : `Latest: ${lastThread.title}`}
+				figure={threadRows.length}
+				note={running > 0 ? `${running} running now` : "threads"}
+			/>
+		</ul>
+	);
+}
+
+function VentureSheet({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
+	const { venture, strategy } = cockpit;
+	const live = useWorking().find((item) => item.run.ventureSlug === slug);
+
+	return (
+		<header className="sheet home-sheet">
+			<div className="sheet-crest">
+				<Crest seed={slug} size={48} live={live !== undefined} />
+			</div>
+			<div>
+				<h1 className="h1">{venture.name}</h1>
+				<div className="sheet-meta">
+					<span className="cap">
+						{kindLabel[venture.kind]} · strategy v{strategy.version}
+					</span>
+					{live === undefined ? null : (
+						<ThreadLink ventureSlug={slug} threadId={live.run.threadId} className="sheet-cast">
+							<Cast label={workingLabel(live)} since={live.run.startedAt ?? live.run.createdAt} />
+						</ThreadLink>
+					)}
+				</div>
+			</div>
+			<Link
+				to="/v/$slug/settings"
+				params={{ slug }}
+				className="btn ghost sm"
+				data-tip="Settings|GitHub, repos and archiving"
+			>
+				<Icon name="settings" />
+				<span className="sheet-set">Settings</span>
+			</Link>
+		</header>
+	);
+}
+
+function OverviewView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
+	return (
+		<div className="page" style={accent(slug)}>
+			<VentureSheet slug={slug} cockpit={cockpit} />
+			<Integrations slug={slug} />
+			<div className="cols home">
+				<section aria-labelledby="topics-heading">
+					<Sec title="At a glance" id="topics-heading" />
+					<Topics slug={slug} cockpit={cockpit} />
+				</section>
+				<aside className="ov-aside">
+					<NeedsYou ventureId={cockpit.venture.id} />
+					<RecentActivity slug={slug} ventureId={cockpit.venture.id} lastSeq={cockpit.venture.lastSeq} />
+				</aside>
+			</div>
+		</div>
+	);
+}
+
+function StrategyView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
+	const { venture, strategy, objectives, assumptions, bets } = cockpit;
 	const freshObjectives = useFreshIds(venture.id, objectives);
 	const freshAssumptions = useFreshIds(venture.id, assumptions);
 	const freshBets = useFreshIds(venture.id, bets);
 	const fresh = new Set([...freshObjectives, ...freshAssumptions, ...freshBets]);
 	const [adding, setAdding] = useState(false);
-	const live = useWorking().find((item) => item.run.ventureSlug === slug);
 	const numbers = betNumbers(bets);
 	const ref = { id: venture.id, slug };
 	const open = objectives.filter((objective) => objective.status === "active");
@@ -69,50 +264,10 @@ function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 	];
 
 	const closed = objectives.filter((objective) => objective.status !== "active");
-	const openBets = bets.filter((bet) => bet.status === "open").length;
-	const untested = assumptions.filter((item) => item.status === "open" && item.objectiveId !== null).length;
-	const work = Object.values(workProgress);
-	const done = work.reduce((sum, progress) => sum + progress.done, 0);
-	const total = work.reduce((sum, progress) => sum + progress.total, 0);
 
 	return (
 		<div className="page" style={accent(slug)}>
-			<header className="sheet">
-				<div className="sheet-crest">
-					<Crest seed={slug} size={48} live={live !== undefined} />
-				</div>
-				<div>
-					<h1 className="h1">{venture.name}</h1>
-					<div className="sheet-meta">
-						<span className="cap">
-							{kindLabel[venture.kind]} · strategy v{strategy.version}
-						</span>
-						{live === undefined ? null : (
-							<ThreadLink ventureSlug={slug} threadId={live.run.threadId} className="sheet-cast">
-								<Cast label={workingLabel(live)} since={live.run.startedAt ?? live.run.createdAt} />
-							</ThreadLink>
-						)}
-					</div>
-				</div>
-				<div className="stats">
-					<div className="stat">
-						<b>{openBets}</b>
-						<span className="cap">Open bets</span>
-					</div>
-					<div className="stat">
-						<b>{untested}</b>
-						<span className="cap">Open assumptions</span>
-					</div>
-					<div className="stat">
-						<b>
-							{done}
-							<small>/{total}</small>
-						</b>
-						<span className="cap">Work done</span>
-					</div>
-				</div>
-			</header>
-
+			<Hero cap={venture.name} title="Strategy" />
 			<div className="cols">
 				<div>
 					<StrategyPanel slug={slug} ventureId={venture.id} strategy={strategy} startOpen={active.length === 0} />
@@ -148,10 +303,8 @@ function CockpitView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 				</div>
 
 				<aside>
-					<NeedsYou ventureId={venture.id} />
 					<Hunches venture={ref} cockpit={cockpit} />
 					<Learnings cockpit={cockpit} />
-					<RecentActivity slug={slug} ventureId={venture.id} lastSeq={venture.lastSeq} />
 				</aside>
 			</div>
 		</div>
@@ -232,7 +385,7 @@ function StrategyPanel({
 
 	return (
 		<section aria-labelledby="strategy-heading">
-			<Sec title="Strategy" id="strategy-heading">
+			<Sec title="Kernel" id="strategy-heading">
 				<span className="cap sec-note">
 					v{strategy.version} · {strategy.version === 1 ? "created" : "revised"} {ago(revisedAt, Date.now())}
 				</span>
@@ -342,7 +495,7 @@ function StrategyPanel({
 function RecentActivity({ slug, ventureId, lastSeq }: { slug: string; ventureId: string; lastSeq: number }) {
 	const events = useQuery({
 		queryKey: [...keys.events(slug), "recent", lastSeq],
-		queryFn: () => api.events(slug, null, 6),
+		queryFn: () => api.events(slug, null, 5),
 		placeholderData: (previous) => previous,
 	});
 

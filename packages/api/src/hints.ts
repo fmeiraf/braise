@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
 	accessChannel,
 	capacityChannel,
+	codeChannel,
 	deltaChannel,
 	notifyChannel,
 	runControlChannel,
@@ -18,11 +19,14 @@ export type HubMessage =
 	| { type: "control"; runId: string }
 	| { type: "access" }
 	| { type: "capacity"; heldRunId: string | null }
+	| { type: "code"; ventureId: string; threadId: string | null }
 	| { type: "reset" };
 
 const reconnectDelay = "1 second";
 
 const threadHint = z.object({ threadId: z.uuid(), ventureId: z.uuid().nullable() });
+
+const codeHint = z.object({ ventureId: z.uuid(), threadId: z.uuid().nullable() });
 
 const runDelta = z.object({
 	threadId: z.uuid(),
@@ -61,6 +65,11 @@ export function parseHubMessage(channel: string, payload: string) {
 		}
 		case accessChannel:
 			return { type: "access" } satisfies HubMessage;
+		case codeChannel: {
+			const parsed = codeHint.safeParse(parseJson(payload));
+
+			return parsed.success ? ({ type: "code", ...parsed.data } satisfies HubMessage) : null;
+		}
 		case capacityChannel:
 			return {
 				type: "capacity",
@@ -82,7 +91,15 @@ export function parseNotification(payload: string) {
 	return { ventureId, seq: parsedSeq } satisfies StreamHint;
 }
 
-const channels = [notifyChannel, threadChannel, deltaChannel, runControlChannel, accessChannel, capacityChannel];
+const channels = [
+	notifyChannel,
+	threadChannel,
+	deltaChannel,
+	runControlChannel,
+	accessChannel,
+	capacityChannel,
+	codeChannel,
+];
 
 function listen(connectionString: string, pubsub: PubSub.PubSub<HubMessage>, ended: Deferred.Deferred<void>) {
 	return Effect.promise(async () => {

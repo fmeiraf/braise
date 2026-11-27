@@ -555,7 +555,9 @@ export const proposals = pgTable(
 	],
 );
 
-const capabilityCheck = (column: unknown) => sql`${column} IN ('work','links','propose','delegate')`;
+const capabilityCheck = (column: unknown) => sql`${column} IN ('work','links','propose','delegate','code')`;
+
+const capabilityValues = ["work", "links", "propose", "delegate", "code"] as const;
 
 export const accessRequests = pgTable(
 	"access_requests",
@@ -564,7 +566,7 @@ export const accessRequests = pgTable(
 		profileId: text("profile_id")
 			.notNull()
 			.references(() => agentProfiles.id),
-		capability: text("capability", { enum: ["work", "links", "propose", "delegate"] }).notNull(),
+		capability: text("capability", { enum: capabilityValues }).notNull(),
 		threadId: uuid("thread_id")
 			.notNull()
 			.references(() => threads.id),
@@ -597,7 +599,7 @@ export const agentGrants = pgTable(
 		profileId: text("profile_id")
 			.notNull()
 			.references(() => agentProfiles.id),
-		capability: text("capability", { enum: ["work", "links", "propose", "delegate"] }).notNull(),
+		capability: text("capability", { enum: capabilityValues }).notNull(),
 		grantedBy: text("granted_by").notNull(),
 		grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
 		accessRequestId: uuid("access_request_id").references(() => accessRequests.id),
@@ -609,5 +611,93 @@ export const agentGrants = pgTable(
 			.on(table.profileId, table.capability)
 			.where(sql`${table.revokedAt} IS NULL`),
 		check("agent_grants_capability_check", capabilityCheck(table.capability)),
+	],
+);
+
+export const githubApp = pgTable("github_app", {
+	id: bigint("id", { mode: "number" }).primaryKey(),
+	slug: text("slug").notNull(),
+	ownerLogin: text("owner_login").notNull(),
+	htmlUrl: text("html_url").notNull(),
+	createdAt: createdAt(),
+});
+
+export const ventureRepos = pgTable(
+	"venture_repos",
+	{
+		id: uuid("id").primaryKey(),
+		ventureId: uuid("venture_id")
+			.notNull()
+			.references(() => ventures.id),
+		githubRepoId: bigint("github_repo_id", { mode: "number" }).notNull(),
+		installationId: bigint("installation_id", { mode: "number" }).notNull(),
+		fullName: text("full_name").notNull(),
+		defaultBranch: text("default_branch").notNull(),
+		status: text("status", { enum: ["cloning", "ready", "failed", "no_access"] }).notNull(),
+		error: text("error"),
+		mirrorHeadSha: text("mirror_head_sha"),
+		fetchedAt: timestamp("fetched_at", { withTimezone: true }),
+		allowedDomains: text("allowed_domains").array().notNull().default(sql`'{}'::text[]`),
+		addedBy: text("added_by").notNull(),
+		createdAt: createdAt(),
+		updatedAt: updatedAt(),
+		removedAt: timestamp("removed_at", { withTimezone: true }),
+	},
+	(table) => [
+		uniqueIndex("venture_repos_one_live").on(table.githubRepoId).where(sql`${table.removedAt} IS NULL`),
+		index("venture_repos_venture_idx").on(table.ventureId),
+		check("venture_repos_status_check", sql`${table.status} IN ('cloning','ready','failed','no_access')`),
+	],
+);
+
+export const checkouts = pgTable(
+	"checkouts",
+	{
+		id: uuid("id").primaryKey(),
+		threadId: uuid("thread_id")
+			.notNull()
+			.references(() => threads.id),
+		repoId: uuid("repo_id")
+			.notNull()
+			.references(() => ventureRepos.id),
+		dir: text("dir").notNull(),
+		branch: text("branch").notNull(),
+		baseSha: text("base_sha").notNull(),
+		checkpointSha: text("checkpoint_sha"),
+		createdAt: createdAt(),
+		updatedAt: updatedAt(),
+		removedAt: timestamp("removed_at", { withTimezone: true }),
+	},
+	(table) => [
+		uniqueIndex("checkouts_one_live").on(table.threadId, table.repoId).where(sql`${table.removedAt} IS NULL`),
+		index("checkouts_repo_idx").on(table.repoId),
+	],
+);
+
+export const pullRequests = pgTable(
+	"pull_requests",
+	{
+		id: uuid("id").primaryKey(),
+		threadId: uuid("thread_id")
+			.notNull()
+			.references(() => threads.id),
+		repoId: uuid("repo_id")
+			.notNull()
+			.references(() => ventureRepos.id),
+		runId: uuid("run_id").references(() => runs.id),
+		number: integer("number").notNull(),
+		url: text("url").notNull(),
+		title: text("title").notNull(),
+		branch: text("branch").notNull(),
+		state: text("state", { enum: ["open", "closed", "merged"] }).notNull(),
+		headSha: text("head_sha").notNull(),
+		createdBy: text("created_by").notNull(),
+		createdAt: createdAt(),
+		updatedAt: updatedAt(),
+	},
+	(table) => [
+		unique("pull_requests_repo_number_unique").on(table.repoId, table.number),
+		index("pull_requests_thread_idx").on(table.threadId),
+		check("pull_requests_state_check", sql`${table.state} IN ('open','closed','merged')`),
 	],
 );

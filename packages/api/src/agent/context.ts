@@ -22,13 +22,16 @@ import type { Database } from "../db/client.ts";
 import {
 	agentGrants,
 	agentProfiles,
+	checkouts,
 	inputRequests,
 	proposals,
+	pullRequests,
 	runEvents,
 	runs,
 	spaces,
 	strategyVersions,
 	threads,
+	ventureRepos,
 	ventures,
 } from "../db/schema.ts";
 import { AppError } from "../errors.ts";
@@ -105,6 +108,12 @@ export interface DoneCall {
 	output: string;
 }
 
+export interface ContextCode {
+	repos: { id: string; fullName: string; defaultBranch: string; status: string; error: string | null }[];
+	checkouts: { dir: string; fullName: string; branch: string; baseSha: string; checkpointSha: string | null }[];
+	pullRequests: { number: number; fullName: string; url: string; state: string; title: string }[];
+}
+
 export interface RunContext {
 	today: string;
 	agent: { name: string; actor: string; grants: Capability[] };
@@ -126,6 +135,7 @@ export interface RunContext {
 	links: ThreadLink[];
 	transcript: Pick<ThreadMessage, "author" | "body">[];
 	pendingProposals: { id: string; title: string; changeCount: number }[];
+	code: ContextCode | null;
 	message: string;
 }
 
@@ -239,7 +249,11 @@ export function renderSystemPrompt(context: RunContext) {
 
 	const mark = (capability: Capability) => (granted(capability) ? "" : " (not granted)");
 
-	const relevant = capabilities.filter((capability) => capability !== "delegate" || context.space?.role === "chat");
+	const relevant = capabilities.filter(
+		(capability) =>
+			(capability !== "delegate" || context.space?.role === "chat") &&
+			(capability !== "code" || context.code !== null),
+	);
 
 	const grantedLabels = relevant.filter(granted).map((capability) => capabilityLabels[capability]);
 
@@ -265,6 +279,8 @@ export function renderSystemPrompt(context: RunContext) {
 
 	const space = spaceSection(context);
 
+	const code = codeSection(context);
+
 	return `You are ${context.agent.name}, the agent inside braise, the owner's holding for their product ventures. Braise keeps each venture's strategy (why, what, diagnosis, guiding policy) and, under it, a loop: objectives, the assumptions they rest on, bets that test one assumption each, the learning every closed bet leaves, and a work tree (initiative → task → subtask). You talk with the owner in a thread.
 
 How a venture climbs:
@@ -282,9 +298,10 @@ What you can do:
 - Proposals${mark("propose")}: propose changes to strategy, objectives, assumptions and bets with propose_changes. The owner approves, edits or rejects them in the inbox; never claim a proposed change is applied. Group related changes into one proposal with a clear reason, and don't propose again while an earlier proposal for the same change is pending.
 - Every change is recorded under your name and this run.
 - Ask the owner: when you need a decision or a fact only the owner has, call ask_owner with one clear question. Your run ends there, the question waits in the owner's inbox, and the owner's reply in this thread resumes the work. Don't ask what you can look up.
-- You cannot change ventures, archive anything, or touch code repositories; no grant covers these. When asked, say so plainly and suggest what the owner can do.
+- ${codeAbility(context)}
+- You cannot change ventures or their repos, archive anything, or merge pull requests; no grant covers these. When asked, say so plainly and suggest what the owner can do.
 
-${permissions}${space}
+${permissions}${space}${code}
 
 Lines from "braise" in the conversation are system notes, such as the owner's decision on a proposal, an access request, or a report from a thread in a space.
 
@@ -300,6 +317,48 @@ ${links}
 ${pending}
 
 Thread id: ${context.thread.id} ("${context.thread.title}").`;
+}
+
+function codeAbility(context: RunContext) {
+	if (context.code === null) {
+		return "Code: this thread has no code repos (a venture's repos are added by the owner), so there are no code tools here.";
+	}
+
+	const push = context.agent.grants.includes("code") ? "" : " (not granted)";
+
+	return `Code: checkout_repo gives this thread its own checkout of a venture repo on a braise/… branch; read, write, edit and bash work inside the thread's folder, bash in a sandbox with no GitHub access. Commit with git as you go. Push branches and open PRs${push}: push_branch, open_pull_request and update_pull_request; pull_request_status reads checks and review comments. The owner reviews and merges on GitHub.`;
+}
+
+export function codeSection(context: RunContext) {
+	const { code } = context;
+
+	if (code === null) return "";
+
+	const repos = code.repos
+		.map(
+			(repo) =>
+				`- ${repo.fullName} (id ${repo.id}, default branch ${repo.defaultBranch}, ${repo.status}${repo.error === null ? "" : `: ${repo.error}`})`,
+		)
+		.join("\n");
+
+	const held =
+		code.checkouts.length === 0
+			? "This thread has no checkout yet; call checkout_repo when the work needs code."
+			: `This thread's checkouts (folders inside the thread's folder; they persist across runs):\n${code.checkouts
+					.map(
+						(checkout) =>
+							`- ${checkout.dir}/: ${checkout.fullName} on ${checkout.branch}, from ${checkout.baseSha.slice(0, 12)}${checkout.checkpointSha === null ? "" : `, last run ended at ${checkout.checkpointSha.slice(0, 12)}`}`,
+					)
+					.join("\n")}`;
+
+	const prs =
+		code.pullRequests.length === 0
+			? ""
+			: `\nThis thread's pull requests:\n${code.pullRequests
+					.map((pr) => `- ${pr.fullName}#${pr.number} "${pr.title}" (${pr.state}) ${pr.url}`)
+					.join("\n")}`;
+
+	return `\n\nCode repos of this venture:\n${repos}\n${held}${prs}\nWork in small, reviewable commits. Before opening a pull request, run the repo's tests in bash and say in the body how you tested.`;
 }
 
 function memberLine(member: ContextMember) {
@@ -514,6 +573,51 @@ async function loadSpace(db: Database, threadId: string, spaceId: string | null)
 	} satisfies ContextSpace;
 }
 
+async function loadCode(db: Database, ventureId: string, threadId: string) {
+	const repos = await db
+		.select({
+			id: ventureRepos.id,
+			fullName: ventureRepos.fullName,
+			defaultBranch: ventureRepos.defaultBranch,
+			status: ventureRepos.status,
+			error: ventureRepos.error,
+		})
+		.from(ventureRepos)
+		.where(and(eq(ventureRepos.ventureId, ventureId), isNull(ventureRepos.removedAt)))
+		.orderBy(asc(ventureRepos.fullName));
+
+	if (repos.length === 0) return null;
+
+	const [held, prs] = await Promise.all([
+		db
+			.select({
+				dir: checkouts.dir,
+				fullName: ventureRepos.fullName,
+				branch: checkouts.branch,
+				baseSha: checkouts.baseSha,
+				checkpointSha: checkouts.checkpointSha,
+			})
+			.from(checkouts)
+			.innerJoin(ventureRepos, eq(ventureRepos.id, checkouts.repoId))
+			.where(and(eq(checkouts.threadId, threadId), isNull(checkouts.removedAt)))
+			.orderBy(asc(checkouts.createdAt)),
+		db
+			.select({
+				number: pullRequests.number,
+				fullName: ventureRepos.fullName,
+				url: pullRequests.url,
+				state: pullRequests.state,
+				title: pullRequests.title,
+			})
+			.from(pullRequests)
+			.innerJoin(ventureRepos, eq(ventureRepos.id, pullRequests.repoId))
+			.where(eq(pullRequests.threadId, threadId))
+			.orderBy(asc(pullRequests.createdAt)),
+	]);
+
+	return { repos, checkouts: held, pullRequests: prs } satisfies ContextCode;
+}
+
 export async function loadRunContext(
 	db: Database,
 	run: { id: string; threadId: string; messageId: string; actor: string; retryOf: string | null },
@@ -576,6 +680,8 @@ export async function loadRunContext(
 					learnings: cockpit.learnings.slice(0, 30),
 				} satisfies LoopState);
 
+	const code = detail.venture === null ? null : await loadCode(db, detail.venture.id, run.threadId);
+
 	const [ventureRows, strategy, pendingRows, grantRows, profileRows] = await Promise.all([
 		db
 			.select({ id: ventures.id, slug: ventures.slug, name: ventures.name })
@@ -634,5 +740,6 @@ export async function loadRunContext(
 			.map(({ author, body }) => ({ author, body })),
 		message: trigger.body,
 		pendingProposals: pendingRows.map((row) => ({ id: row.id, title: row.title, changeCount: row.changes.length })),
+		code,
 	} satisfies RunContext;
 }

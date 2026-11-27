@@ -132,6 +132,9 @@ Planned (order may change):
    agent; per-runtime concurrency, run instrumentation, subscription-limit readings and
    a pause gate; `needs_input` in the inbox; retries that don't repeat work. Spec:
    `docs/slices/07-spaces.md`.
+8. **Repos, sandboxed checkouts and pull requests:** GitHub repos per venture through a GitHub App,
+   per-thread checkouts from a bare mirror, braise's own coding tools on both runtimes with bash in
+   srt, and push and pull requests under the `code` capability. Spec: `docs/slices/08-repos.md`.
 
 Milestone: braise manages itself as a venture (dogfooding).
 
@@ -541,3 +544,11 @@ Milestone: braise manages itself as a venture (dogfooding).
 - 2026-11-26: The API test files run at most four at a time (`maxWorkers: 4`): each holds
   a pool of up to about 35 connections, and with slice 7's suites ten in parallel exceeded
   the local Postgres's 100.
+- 2026-11-26: Venture pages split (owner, after finding the cockpit overloaded): Overview is the
+  venture's home, a summary of each area (one row each for Strategy, Objectives, Bets, Work and
+  Threads, with Needs you and recent activity beside them) under an Integrations band where
+  GitHub is highlighted until a repo is connected; a new Strategy view holds the kernel and the objective →
+  assumption → bet flow with hunches and learnings; a venture Settings page, opened from a gear
+  on the Overview header and from ⌘K, holds the GitHub connection, repos and archiving. The dock
+  gains Strategy (venture scope only) and the keys become 1–5. Extends the UI topology entry of
+  2026-11-25.

@@ -11,7 +11,9 @@ import { ThreadLink, useWorking } from "./working.tsx";
 
 const weekMs = 7 * 24 * 60 * 60 * 1000;
 
-const scopedViews = ["overview", "work", "threads", "activity"] as const;
+const scopedViews = ["overview", "strategy", "work", "threads", "activity", "settings"] as const;
+
+const holdingViews: readonly string[] = ["overview", "work", "threads", "activity"];
 
 type View = (typeof scopedViews)[number] | "inbox" | "agents" | "new";
 
@@ -23,7 +25,9 @@ function viewOf(pathname: string) {
 		.replace(/\/$/u, "")
 		.slice(1);
 
-	return (tail === "" || tail === "history" ? "overview" : tail) as View;
+	if (tail === "history") return "strategy";
+
+	return (tail === "" ? "overview" : tail) as View;
 }
 
 function scopedPath(view: View, slug: string | null) {
@@ -32,7 +36,13 @@ function scopedPath(view: View, slug: string | null) {
 	return view === "overview" ? prefix || "/" : `${prefix}/${view}`;
 }
 
-const keyViews: Record<string, View> = { "1": "overview", "2": "work", "3": "threads", "4": "activity" };
+const keyViews: Record<string, View> = {
+	"1": "overview",
+	"2": "strategy",
+	"3": "work",
+	"4": "threads",
+	"5": "activity",
+};
 
 export function Shell() {
 	const client = useQueryClient();
@@ -80,7 +90,8 @@ export function Shell() {
 			const key = event.key.toLowerCase();
 			const scoped = keyViews[key];
 
-			if (scoped !== undefined) void navigate({ to: scopedPath(scoped, scope) });
+			if (scoped !== undefined && (scope !== null || holdingViews.includes(scoped)))
+				void navigate({ to: scopedPath(scoped, scope) });
 			else if (key === "i") void navigate({ to: "/inbox" });
 			else if (key === "a") void navigate({ to: "/agents" });
 			else if (key === "h") void navigate({ to: "/" });
@@ -195,7 +206,7 @@ export function Shell() {
 						onChange={(next) =>
 							void navigate({
 								to: scopedPath(
-									scopedViews.includes(view as never) ? view : "overview",
+									(next === "" ? holdingViews : scopedViews).includes(view as never) ? view : "overview",
 									next === "" ? null : next,
 								),
 							})
@@ -207,9 +218,10 @@ export function Shell() {
 					</Select>
 					<i className="dock-sep" />
 					{slot("overview", "1", "Overview")}
-					{slot("work", "2", "Work")}
-					{slot("threads", "3", "Threads")}
-					{slot("activity", "4", "Activity")}
+					{scope === null ? null : slot("strategy", "2", "Strategy")}
+					{slot("work", "3", "Work")}
+					{slot("threads", "4", "Threads")}
+					{slot("activity", "5", "Activity")}
 					<i className="dock-sep" />
 					{slot("inbox", "I", "Inbox", waiting)}
 					{slot("agents", "A", "Agents")}

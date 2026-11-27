@@ -20,7 +20,34 @@ export const writeTools = new Set([
 	"move_work_item",
 	"link_thread",
 	"unlink_thread",
+	"write",
+	"edit",
+	"push_branch",
+	"open_pull_request",
+	"update_pull_request",
 ]);
+
+export const codeTools = new Set(["read", "write", "edit", "bash"]);
+
+const maxCommandShown = 80;
+
+function firstLine(value: unknown) {
+	if (typeof value !== "string") return null;
+
+	const line = value.trim().split("\n", 1)[0] ?? "";
+
+	return line.length > maxCommandShown ? `${line.slice(0, maxCommandShown - 1)}…` : line;
+}
+
+function exitOf(call: ToolCall) {
+	if (call.result === null) return null;
+
+	const code = /Exit code (\d+)\.$/u.exec(call.result.output.trimEnd())?.[1];
+
+	if (code !== undefined) return code === "0" ? null : `exit ${code}`;
+
+	return /Timed out after/u.test(call.result.output) ? "timed out" : null;
+}
 
 export function runSegments(events: RunEvent[]) {
 	const segments: Segment[] = [];
@@ -159,6 +186,10 @@ function field(value: unknown, key: string) {
 	return (value as Record<string, unknown>)[key];
 }
 
+function str(value: unknown) {
+	return typeof value === "string" ? value : null;
+}
+
 function quoted(value: unknown) {
 	return typeof value === "string" ? `“${value}”` : "a work item";
 }
@@ -245,6 +276,39 @@ export function describeCall(call: ToolCall) {
 			return { action: "Removed a thread from the space", detail: null };
 		case "ask_owner":
 			return { action: "Asked you", detail: null };
+		case "checkout_repo":
+			return {
+				action: `Checked out ${str(field(call.input, "repo")) ?? "a repo"}`,
+				detail: str(field(output, "branch")),
+			};
+		case "read":
+			return { action: "Read", detail: firstLine(field(call.input, "file_path")) };
+		case "write":
+			return {
+				action: field(output, "created") === true ? "Created" : "Wrote",
+				detail: firstLine(field(call.input, "file_path")),
+			};
+		case "edit":
+			return { action: "Edited", detail: firstLine(field(call.input, "file_path")) };
+		case "bash":
+			return { action: "Ran", detail: firstLine(field(call.input, "command")), exit: exitOf(call) };
+		case "push_branch":
+			return {
+				action: `Pushed to ${str(field(call.input, "repo")) ?? "GitHub"}`,
+				detail: str(field(output, "branch")),
+			};
+		case "open_pull_request": {
+			const number = field(output, "number");
+
+			return {
+				action: typeof number === "number" ? `Opened pull request #${number}` : "Opened a pull request",
+				detail: str(field(call.input, "title")),
+			};
+		}
+		case "update_pull_request":
+			return { action: "Edited the pull request", detail: str(field(call.input, "repo")) };
+		case "pull_request_status":
+			return { action: "Read the pull request's status", detail: str(field(output, "state")) };
 		default:
 			return { action: `Used ${call.name}`, detail: null };
 	}

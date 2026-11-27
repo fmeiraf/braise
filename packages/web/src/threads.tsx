@@ -51,6 +51,7 @@ import {
 	accessRequestOf,
 	actorName,
 	buildTimeline,
+	codeTools,
 	describeCall,
 	type LiveBlock,
 	type LiveRuns,
@@ -510,6 +511,7 @@ function Conversation({
 				listHidden={listHidden}
 				toggleList={toggleList}
 			/>
+			{detail.data.venture === null ? null : <CodeStrip threadId={threadId} />}
 			<Timeline detail={detail.data} live={live} />
 			{archived ? null : <QuestionStrip detail={detail.data} />}
 			{down ? (
@@ -528,6 +530,73 @@ function Conversation({
 					agentName={detail.data.agent.name}
 					answering={detail.data.inputRequest !== null}
 				/>
+			)}
+		</section>
+	);
+}
+
+const prTones = { open: "needs", merged: "ok", closed: "wait" } as const;
+
+const prWords = { open: "Open · waiting for your review", merged: "Merged", closed: "Closed" } as const;
+
+function shortSha(sha: string | null) {
+	return sha === null ? null : sha.slice(0, 7);
+}
+
+export function CodeStrip({ threadId }: { threadId: string }) {
+	const code = useQuery(queries.threadCode(threadId));
+
+	if (code.data === undefined) return null;
+
+	const { checkouts, pullRequests } = code.data;
+
+	if (checkouts.length === 0 && pullRequests.length === 0) return null;
+
+	const repoIds = [...new Set([...checkouts.map((item) => item.repoId), ...pullRequests.map((item) => item.repoId)])];
+
+	return (
+		<section className="code-strip" aria-label="Code">
+			{repoIds.map((repoId) => {
+				const checkout = checkouts.find((item) => item.repoId === repoId);
+				const pr = pullRequests.findLast((item) => item.repoId === repoId);
+				const name = checkout?.fullName ?? pr?.fullName ?? "";
+
+				return (
+					<div key={repoId} className="code-row">
+						<b>{name}</b>
+						<span className="mono">{checkout?.branch ?? pr?.branch}</span>
+						{checkout === undefined ? (
+							<span className="cap">checkout removed</span>
+						) : (
+							<span className="mono code-shas" data-tip="From the default branch|to where the last run ended">
+								{shortSha(checkout.baseSha)}
+								{checkout.checkpointSha === null || checkout.checkpointSha === checkout.baseSha ? null : (
+									<>
+										{" → "}
+										{shortSha(checkout.checkpointSha)}
+									</>
+								)}
+							</span>
+						)}
+						{pr === undefined ? null : (
+							<a
+								className="code-pr"
+								href={pr.url}
+								target="_blank"
+								rel="noreferrer"
+								data-tone={prTones[pr.state]}
+							>
+								<span className="pip" data-tone={prTones[pr.state]} aria-hidden="true" />
+								<span className="mono">#{pr.number}</span>
+								<span className="code-pr-t">{pr.title}</span>
+								<span className="cap">{prWords[pr.state]}</span>
+							</a>
+						)}
+					</div>
+				);
+			})}
+			{code.data.refreshError === null ? null : (
+				<span className="cap repo-why">Couldn't refresh from GitHub: {code.data.refreshError}</span>
 			)}
 		</section>
 	);
@@ -1127,10 +1196,19 @@ function Composer({
 }
 
 function SystemLine({ message }: { message: ThreadMessage }) {
+	const pr = message.meta?.kind === "pull_request" ? message.meta : null;
+
 	return (
 		<li className="sys">
 			<span>
-				{message.body} ·{" "}
+				{pr === null ? (
+					message.body
+				) : (
+					<a href={pr.url} target="_blank" rel="noreferrer">
+						{message.body}
+					</a>
+				)}{" "}
+				·{" "}
 				<time dateTime={message.createdAt} title={formatDateTime(message.createdAt)}>
 					{clockTime(message.createdAt)}
 				</time>
@@ -1453,22 +1531,52 @@ function prettyOutput(output: string) {
 	return result.ok ? JSON.stringify(result.value, null, 2) : output;
 }
 
+function ToolInput({ call }: { call: ToolCall }) {
+	const input = (call.input ?? {}) as Record<string, unknown>;
+
+	if (call.name === "query" && typeof input.sql === "string") return <pre>{input.sql}</pre>;
+
+	if (call.name === "bash" && typeof input.command === "string") return <pre className="cmd">{input.command}</pre>;
+
+	if (call.name === "edit" && typeof input.old_string === "string" && typeof input.new_string === "string") {
+		return (
+			<>
+				<pre>{String(input.file_path ?? "")}</pre>
+				<pre className="code-del">{input.old_string}</pre>
+				<pre className="code-ins">{input.new_string}</pre>
+			</>
+		);
+	}
+
+	if (call.name === "write" && typeof input.content === "string") {
+		return (
+			<>
+				<pre>{String(input.file_path ?? "")}</pre>
+				<pre className="code-ins">{input.content}</pre>
+			</>
+		);
+	}
+
+	return <pre>{formatJson(call.input)}</pre>;
+}
+
 function ToolRow({ call }: { call: ToolCall }) {
 	const [open, setOpen] = useState(false);
-	const { action, detail } = describeCall(call);
+	const described = describeCall(call);
+	const exit = "exit" in described ? described.exit : null;
 	const failed = call.result?.isError === true;
-	const sql = call.name === "query" ? (call.input as { sql?: unknown }).sql : undefined;
+	const code = codeTools.has(call.name);
 
 	return (
 		<>
 			<button type="button" className="tool" aria-expanded={open} onClick={() => setOpen(!open)}>
 				<Icon name="chevr" />
-				<b>{action}</b>
-				<span className="a">{failed ? null : detail}</span>
+				<b>{described.action}</b>
+				<span className={code ? "a path" : "a"}>{failed && !code ? null : described.detail}</span>
 				{call.result === null ? (
 					<span className="d">running…</span>
 				) : failed ? (
-					<span className="d bad">failed</span>
+					<span className="d bad">{exit ?? "failed"}</span>
 				) : (
 					<Icon name="check" className="ok" />
 				)}
@@ -1476,11 +1584,15 @@ function ToolRow({ call }: { call: ToolCall }) {
 			{open ? (
 				<div className="tool-io">
 					<b>{call.name}</b>
-					<pre>{typeof sql === "string" ? sql : formatJson(call.input)}</pre>
+					<ToolInput call={call} />
 					{call.result === null ? null : (
 						<>
-							<b>{failed ? "Error" : "Result"}</b>
-							<pre className={failed ? "bad" : undefined}>{prettyOutput(call.result.output)}</pre>
+							<b>{failed ? "Error" : call.name === "bash" ? "Output" : "Result"}</b>
+							<pre className={failed ? "bad" : undefined}>
+								{call.name === "bash" || call.name === "read"
+									? call.result.output
+									: prettyOutput(call.result.output)}
+							</pre>
 						</>
 					)}
 				</div>

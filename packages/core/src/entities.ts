@@ -10,8 +10,10 @@ import type {
 	ProposableCommand,
 	pauseReasons,
 	proposalStatuses,
+	pullRequestStates,
 	readingSubjects,
 	reportOutcomes,
+	repoStatuses,
 	runStatuses,
 	runtimeNames,
 	threadLinkTypes,
@@ -58,6 +60,10 @@ export type InputRequestStatus = (typeof inputRequestStatuses)[number];
 export type RuntimeName = (typeof runtimeNames)[number];
 
 export type LimitStatus = (typeof limitStatuses)[number];
+
+export type RepoStatus = (typeof repoStatuses)[number];
+
+export type PullRequestState = (typeof pullRequestStates)[number];
 
 export type PauseReason = (typeof pauseReasons)[number];
 
@@ -340,7 +346,8 @@ export interface ThreadMessage {
 
 export type MessageMeta =
 	| { kind: "report"; threadId: string; runId: string; outcome: ReportOutcome }
-	| { kind: "question"; inputRequestId: string };
+	| { kind: "question"; inputRequestId: string }
+	| { kind: "pull_request"; pullRequestId: string; number: number; url: string };
 
 export interface RunUsage {
 	inputTokens: number;
@@ -380,6 +387,7 @@ export type RunEventPayload =
 	| { type: "message"; payload: { block: number; text: string; partial?: boolean } }
 	| { type: "tool.call"; payload: { toolUseId: string; name: string; input: unknown } }
 	| { type: "tool.result"; payload: { toolUseId: string; output: string; isError: boolean } }
+	| { type: "checkpoint"; payload: { checkouts: { checkoutId: string; dir: string; sha: string }[] } }
 	| { type: "run.finished"; payload: { status: RunStatus } };
 
 export type RunEvent = RunEventPayload & { runId: string; seq: number; createdAt: string };
@@ -636,4 +644,90 @@ export interface RuntimeCapacity {
 export interface Capacity {
 	pauseAt: number;
 	runtimes: RuntimeCapacity[];
+}
+
+export interface GitHubApp {
+	id: number;
+	slug: string;
+	ownerLogin: string;
+	htmlUrl: string;
+	createdAt: string;
+}
+
+export interface GitHubInstallation {
+	id: number;
+	account: string;
+	accountType: string;
+	selection: "all" | "selected";
+	settingsUrl: string;
+}
+
+/** The GitHub App braise acts through, with its installations as GitHub reports them now. */
+export interface GitHubConnection {
+	app: GitHubApp | null;
+	installations: GitHubInstallation[];
+	installUrl: string | null;
+	error: string | null;
+}
+
+export interface ReachableRepo {
+	githubRepoId: number;
+	installationId: number;
+	fullName: string;
+	defaultBranch: string;
+	private: boolean;
+	ventureId: string | null;
+	ventureName: string | null;
+}
+
+export interface VentureRepo {
+	id: string;
+	ventureId: string;
+	githubRepoId: number;
+	installationId: number;
+	fullName: string;
+	defaultBranch: string;
+	status: RepoStatus;
+	error: string | null;
+	mirrorHeadSha: string | null;
+	fetchedAt: string | null;
+	allowedDomains: string[];
+	openPullRequests: number;
+	createdAt: string;
+}
+
+export interface Checkout {
+	id: string;
+	threadId: string;
+	repoId: string;
+	fullName: string;
+	dir: string;
+	branch: string;
+	baseSha: string;
+	checkpointSha: string | null;
+	createdAt: string;
+	removedAt: string | null;
+}
+
+export interface PullRequest {
+	id: string;
+	threadId: string;
+	repoId: string;
+	fullName: string;
+	number: number;
+	url: string;
+	title: string;
+	branch: string;
+	state: PullRequestState;
+	headSha: string;
+	createdBy: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+/** A thread's code: its checkouts and pull requests, with PR state as GitHub last reported it. */
+export interface ThreadCode {
+	checkouts: Checkout[];
+	pullRequests: PullRequest[];
+	refreshError: string | null;
 }

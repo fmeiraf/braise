@@ -9,3 +9,5 @@ export const runControlChannel = "run_control";
 export const accessChannel = "access_events";
 
 export const capacityChannel = "capacity_events";
+
+export const codeChannel = "code_events";

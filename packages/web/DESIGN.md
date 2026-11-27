@@ -93,7 +93,7 @@ Five principles, settled by the owner:
    references such as bet numbers. Amber (`beacon`) means "needs you". Green and red are
    for diffs and outcomes.
 3. **No top bar.** Location is carried by the rail, the dock and each page's own title.
-4. **The dock sits on the ground, like the rail.** No capsule, border or shadow: flat 10px tabs with a sliding selection. Keyboard keys (1–4, I, A, H, ⌘K) live in
+4. **The dock sits on the ground, like the rail.** No capsule, border or shadow: flat 10px tabs with a sliding selection. Keyboard keys (1–5, I, A, H, ⌘K) live in
    tooltips.
 5. **Reading sizes for things you read.** Strategy, messages and proposed changes are
    set at 15.5–16px; chrome stays at 12–13.5px.
@@ -184,8 +184,15 @@ All parts are the app's own; there is no component library and no icon library
 (`src/marks.tsx` holds the 16px icon set and the marks).
 
 - **Rail and dock** (`src/shell.tsx`): venture crests in the rail; the dock's scope
-  switcher, four scoped views, Inbox and Agents, with a thumb that slides to the
-  current view.
+  switcher, the scoped views (Overview, Strategy in a venture only, Work, Threads,
+  Activity), Inbox and Agents, with a thumb that slides to the current view.
+- **Venture pages** (`src/cockpit.tsx`, `src/settings.tsx`): Overview is the venture's home:
+  an Integrations band led by GitHub (highlighted in the venture hue until it's connected
+  and a repo is added), then "At a glance", one topic row each for Strategy, Objectives,
+  Bets, Work and Threads with a figure and a link to its page, and Needs you and recent
+  activity in the aside. No objective detail on the Overview. Strategy holds the kernel and the full objective →
+  assumption → bet cards, hunches and learnings. Settings (a gear on the Overview header
+  and ⌘K, not the dock) holds GitHub, repos with their sandbox domains, and archiving.
 - **Crest** (`Crest`): a symmetric dot pattern drawn from the venture's slug. Dots
   twinkle while an agent works in that venture.
 - **Cast** (`Cast`): the live strip (what an agent is doing, with a sweep and a clock).
