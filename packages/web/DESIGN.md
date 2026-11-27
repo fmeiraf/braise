@@ -163,7 +163,13 @@ The system stack only; no web fonts. San Francisco's optical sizes do the work.
 `.app` is a grid: a 56px rail of ventures on the left, the main panel, and a 64px deck
 at the bottom holding the dock (centre) and the agent chips (right). Pages are either
 scrolling (`.page`, max 1160px; `.page.narrow`, 800px) or fixed with their own scroll
-regions (`.split` for Threads and Inbox, `.wk` for Work with its 476px inspector).
+regions (`.split` for Threads and Inbox, `.wk` for Work).
+
+A work item opens as a full page inside the stage (`.wpage`, Linear-style): a bar with
+back, position and previous/next, a 680px reading column (title, the Markdown "What done
+looks like", tasks, threads) and a 340px card-coloured side column with status,
+properties as label/value rows, the trace chain and archive. ↑↓ or J/K step through
+items in list order; Esc returns to the list with the row focused.
 
 ## Elevation & Depth
 
@@ -204,6 +210,12 @@ All parts are the app's own; there is no component library and no icon library
   an `aria-label` and a `data-tip`.
 - **Inline editing** (`Editable`): text that turns into a field on click; Enter saves,
   Escape cancels.
+- **Markdown** (`src/markdown.tsx`): `MarkdownText` renders GFM through react-markdown
+  with the shared `.md` styles (thread prose uses it too); `MarkdownField` edits in place:
+  click the rendered text and its source opens in the same reading type, with no box,
+  border or buttons; clicking away or ⌘↵ saves, Escape cancels. The work page's title,
+  task list and thread list are frameless too (Linear-style: content flows, rows only
+  tint on hover).
 - **Tooltips**: `data-tip="Label|hint"` on any element, `data-side="r"` to place it at
   the right.
 - **Toasts** (`toast()` in `src/toast.ts`): short confirmations above the dock.

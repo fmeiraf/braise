@@ -15,6 +15,7 @@ const paths = {
 	chevr: "M6 3.5l4.5 4.5-4.5 4.5",
 	chevd: "M3.5 6l4.5 4.5 4.5-4.5",
 	up: "M8 13V3 M4 7l4-4 4 4",
+	left: "M13 8H3 M7 4L3 8l4 4",
 	down: "M8 3v10 M4 9l4 4 4-4",
 	right: "M3 8h10 M9 4l4 4-4 4",
 	archive: "M2.5 3.5h11v3h-11z M3.5 6.5v6h9v-6 M6.5 9.5h3",

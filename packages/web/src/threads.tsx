@@ -26,13 +26,12 @@ import {
 	useRef,
 	useState,
 } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { api } from "./api.ts";
 import { Editable } from "./editable.tsx";
 import { describeError } from "./errors.ts";
 import { PageError } from "./holding.tsx";
 import { keys, queries } from "./live.ts";
+import { MarkdownText } from "./markdown.tsx";
 import { accent, Cast, Drone, Icon, isSquare, Need, You } from "./marks.tsx";
 import { Select } from "./menu.tsx";
 import { Skeleton } from "./parts.tsx";
@@ -1238,11 +1237,7 @@ function OwnerMessage({ message }: { message: ThreadMessage }) {
 }
 
 function Prose({ text, live = false }: { text: string; live?: boolean }) {
-	return (
-		<div className={live ? "step say live" : "step say"}>
-			<Markdown remarkPlugins={[remarkGfm]}>{text}</Markdown>
-		</div>
-	);
+	return <MarkdownText text={text} className={live ? "step say live" : "step say"} />;
 }
 
 function formatDuration(ms: number) {
@@ -1614,10 +1609,10 @@ export function WorkItemThreads({
 
 	return (
 		<section>
-			<h3>
+			<h2>
 				Threads
 				{threads.isSuccess ? <span className="cnt">{threads.data.threads.length}</span> : null}
-			</h3>
+			</h2>
 			{threads.isPending ? (
 				<Skeleton label="Loading threads…" widths={[60]} />
 			) : threads.isError ? (

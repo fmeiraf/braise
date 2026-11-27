@@ -12,7 +12,15 @@ import {
 } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { type CSSProperties, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+	type CSSProperties,
+	type FormEvent,
+	type KeyboardEvent,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import type { ArchiveWorkResult } from "./api.ts";
 import { Editable } from "./editable.tsx";
 import { describeError } from "./errors.ts";
@@ -22,6 +30,7 @@ import { PageError } from "./holding.tsx";
 import { betNumbers } from "./labels.ts";
 import { patchWork, queries, refreshVenture, rememberVenture } from "./live.ts";
 import { timeLeft } from "./loop-view.ts";
+import { MarkdownField } from "./markdown.tsx";
 import { accent, Crest, Dia, FunctionGlyph, FunctionTag, Icon, Pips, progressStatus, Rank } from "./marks.tsx";
 import { Select } from "./menu.tsx";
 import { Skeleton } from "./parts.tsx";
@@ -176,13 +185,13 @@ export function VentureWorkPage() {
 	return (
 		<WorkScreen
 			sections={[{ venture, objectives: work.data.objectives, bets: work.data.bets, items: work.data.workItems }]}
-			selectedId={item ?? null}
-			select={(next) =>
+			openId={item ?? null}
+			open={(next, replace = false) =>
 				void navigate({
 					to: "/v/$slug/work",
 					params: { slug },
 					search: next === null ? {} : { item: next },
-					replace: true,
+					replace,
 				})
 			}
 		/>
@@ -211,8 +220,10 @@ export function HoldingWorkPage() {
 		<WorkScreen
 			sections={sections}
 			holding
-			selectedId={item ?? null}
-			select={(next) => void navigate({ to: "/work", search: next === null ? {} : { item: next }, replace: true })}
+			openId={item ?? null}
+			open={(next, replace = false) =>
+				void navigate({ to: "/work", search: next === null ? {} : { item: next }, replace })
+			}
 		/>
 	);
 }
@@ -256,23 +267,78 @@ function focusItem(root: HTMLElement | null, id: string) {
 		?.focus();
 }
 
+function flatten(nodes: readonly WorkNode[]) {
+	const ids: string[] = [];
+
+	const walk = (list: readonly WorkNode[]) => {
+		for (const node of list) {
+			ids.push(node.item.id);
+
+			walk(node.children);
+		}
+	};
+
+	walk(nodes);
+
+	return ids;
+}
+
 function WorkScreen(props: {
 	sections: WorkSection[];
 	holding?: boolean;
-	selectedId: string | null;
-	select: (id: string | null) => void;
+	openId: string | null;
+	open: (id: string | null, replace?: boolean) => void;
 }) {
-	const { sections, selectedId, select } = props;
+	const { sections, openId } = props;
 	const mainRef = useRef<HTMLDivElement>(null);
+	const treeRef = useRef<HTMLDivElement>(null);
+	const savedScroll = useRef<number | null>(null);
+	const returnTo = useRef<string | null>(null);
 	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 	const [editingId, setEditingId] = useState<string | null>(null);
+	const [cursor, setCursor] = useState<string | null>(openId);
 	const client = useQueryClient();
 	const { located, forests } = locate(sections);
-	const selected = selectedId === null ? null : (located.get(selectedId) ?? null);
+	const opened = openId === null ? null : (located.get(openId) ?? null);
 	const allItems = sections.flatMap((section) => section.items);
 	const done = allItems.filter((item) => item.status === "done").length;
 	const [fn, setFn] = useState<WorkFunction | null>(null);
 	const used = workFunctions.filter((value) => allItems.some((item) => item.function === value));
+	const now = Date.now();
+
+	const order = sections.flatMap((section) => {
+		const forest = forests.get(section.venture.id);
+
+		return groupsOf(section, now).flatMap((group) => flatten(filterForest(forest?.get(group.key) ?? [], fn)));
+	});
+
+	const openItem = (id: string) => {
+		savedScroll.current = treeRef.current?.scrollTop ?? null;
+
+		setCursor(id);
+
+		props.open(id);
+	};
+
+	const closeItem = () => {
+		if (opened !== null) {
+			const id = opened.node.item.id;
+
+			returnTo.current = id;
+
+			setCursor(id);
+
+			setCollapsed((current) => {
+				const next = new Set(current);
+
+				for (const ancestor of opened.ancestors) next.delete(ancestor.item.id);
+
+				return next;
+			});
+		}
+
+		props.open(null, true);
+	};
 
 	useEffect(() => {
 		const hash = window.location.hash.slice(1);
@@ -280,21 +346,21 @@ function WorkScreen(props: {
 		if (hash !== "") document.getElementById(hash)?.scrollIntoView({ block: "start" });
 	}, []);
 
-	useEffect(() => {
-		if (selectedId === null) return;
+	useLayoutEffect(() => {
+		const id = returnTo.current;
 
-		const onEscape = (event: globalThis.KeyboardEvent) => {
-			if (event.key !== "Escape" || event.defaultPrevented) return;
+		if (openId !== null || id === null) return;
 
-			select(null);
+		returnTo.current = null;
 
-			focusItem(mainRef.current, selectedId);
-		};
+		if (treeRef.current !== null && savedScroll.current !== null) treeRef.current.scrollTop = savedScroll.current;
 
-		document.addEventListener("keydown", onEscape);
+		const row = treeItems(mainRef.current).find((element) => element.dataset.id === id);
 
-		return () => document.removeEventListener("keydown", onEscape);
-	}, [selectedId, select]);
+		row?.focus({ preventScroll: true });
+
+		row?.scrollIntoView({ block: "nearest" });
+	}, [openId]);
 
 	const move = useCommand<"work.move", WorkItem>("work.move", (response) => {
 		const venture = located.get(response.result.id)?.section.venture;
@@ -334,7 +400,7 @@ function WorkScreen(props: {
 
 			element.focus();
 
-			select(element.dataset.id ?? null);
+			setCursor(element.dataset.id ?? null);
 		};
 
 		if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
@@ -375,7 +441,13 @@ function WorkScreen(props: {
 			case "Enter":
 				event.preventDefault();
 
-				select(id);
+				openItem(id);
+
+				break;
+			case "F2":
+				event.preventDefault();
+
+				setCursor(id);
 
 				setEditingId(id);
 
@@ -384,8 +456,31 @@ function WorkScreen(props: {
 		}
 	};
 
+	if (opened !== null) {
+		const index = order.indexOf(opened.node.item.id);
+
+		return (
+			<div className="wk">
+				<WorkItemPage
+					key={opened.node.item.id}
+					located={opened}
+					holding={props.holding === true}
+					step={{
+						index,
+						total: order.length,
+						prev: index > 0 ? (order[index - 1] ?? null) : null,
+						next: index >= 0 ? (order[index + 1] ?? null) : null,
+					}}
+					go={(id) => props.open(id, true)}
+					close={closeItem}
+					onArchived={() => props.open(null, true)}
+				/>
+			</div>
+		);
+	}
+
 	return (
-		<div className={selected === null ? "wk" : "wk open"}>
+		<div className="wk">
 			<div className="wk-main" ref={mainRef}>
 				<div className="bar">
 					<h1>Work</h1>
@@ -407,10 +502,10 @@ function WorkScreen(props: {
 							))}
 						</fieldset>
 					)}
-					<span className="hint">↑↓ select · ←→ fold · ↵ rename · ⌥↑↓ reorder</span>
+					<span className="hint">↑↓ select · ←→ fold · ↵ open · F2 rename · ⌥↑↓ reorder</span>
 				</div>
 
-				<div className="wk-tree">
+				<div className="wk-tree" ref={treeRef}>
 					{sections.map((section) => (
 						<VentureWork
 							key={section.venture.id}
@@ -421,8 +516,8 @@ function WorkScreen(props: {
 							tree={{
 								collapsed,
 								toggle,
-								selectedId,
-								select,
+								cursor,
+								open: openItem,
 								editingId,
 								setEditingId,
 								onKeyDown,
@@ -432,20 +527,6 @@ function WorkScreen(props: {
 					))}
 				</div>
 			</div>
-
-			{selected === null ? null : (
-				<WorkPane
-					key={selected.node.item.id}
-					located={selected}
-					select={select}
-					close={() => {
-						select(null);
-
-						focusItem(mainRef.current, selected.node.item.id);
-					}}
-					onArchived={() => select(null)}
-				/>
-			)}
 		</div>
 	);
 }
@@ -453,8 +534,8 @@ function WorkScreen(props: {
 interface TreeState {
 	collapsed: ReadonlySet<string>;
 	toggle: (id: string, open?: boolean) => void;
-	selectedId: string | null;
-	select: (id: string | null) => void;
+	cursor: string | null;
+	open: (id: string) => void;
 	editingId: string | null;
 	setEditingId: (id: string | null) => void;
 	onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
@@ -597,7 +678,7 @@ function WorkRow(props: {
 	const cache = useWorkCache(venture);
 	const [adding, setAdding] = useState(false);
 	const open = !tree.collapsed.has(item.id);
-	const selected = tree.selectedId === item.id;
+	const selected = tree.cursor === item.id;
 	const editing = tree.editingId === item.id;
 	const canNest = item.depth < 2;
 	const base = { ventureId: venture.id, workItemId: item.id };
@@ -632,7 +713,7 @@ function WorkRow(props: {
 			aria-expanded={node.children.length > 0 ? open : undefined}
 			aria-selected={selected}
 			aria-label={item.title}
-			tabIndex={selected || (tree.selectedId === null && item.depth === 0 && item.position === 0) ? 0 : -1}
+			tabIndex={selected || (tree.cursor === null && item.depth === 0 && item.position === 0) ? 0 : -1}
 			data-id={item.id}
 			data-parent={item.parentId ?? ""}
 			className="wi"
@@ -642,7 +723,7 @@ function WorkRow(props: {
 
 				if (target.closest('[role="treeitem"]') !== event.currentTarget || target.closest("form") !== null) return;
 
-				tree.select(item.id);
+				tree.open(item.id);
 			}}
 		>
 			<div className={className} data-depth={item.depth} style={{ "--d": item.depth } as CSSProperties}>
@@ -912,7 +993,7 @@ function AddWorkForm(props: {
 	);
 }
 
-function KidRow({ venture, node, select }: { venture: VentureRef; node: WorkNode; select: (id: string) => void }) {
+function KidRow({ venture, node, open }: { venture: VentureRef; node: WorkNode; open: (id: string) => void }) {
 	const { item } = node;
 	const cache = useWorkCache(venture);
 
@@ -937,7 +1018,7 @@ function KidRow({ venture, node, select }: { venture: VentureRef; node: WorkNode
 			>
 				<Dia status={item.status} />
 			</button>
-			<button type="button" className="wt" onClick={() => select(item.id)}>
+			<button type="button" className="wt" onClick={() => open(item.id)}>
 				{item.title}
 			</button>
 			<span className="grow" />
@@ -953,22 +1034,34 @@ const priorityOptions = workPriorities.map((value) => ({
 	glyph: <Rank priority={value} />,
 }));
 
-function WorkPane({
+function editingKeys(target: EventTarget | null) {
+	return (
+		target instanceof HTMLElement &&
+		target.closest('input, textarea, select, [contenteditable], [role="listbox"]') !== null
+	);
+}
+
+function WorkItemPage({
 	located,
-	select,
+	holding,
+	step,
+	go,
 	close,
 	onArchived,
 }: {
 	located: Located;
-	select: (id: string) => void;
+	holding: boolean;
+	step: { index: number; total: number; prev: string | null; next: string | null };
+	go: (id: string) => void;
 	close: () => void;
 	onArchived: () => void;
 }) {
-	const { node, section, parent, siblings, ancestors } = located;
+	const { node, section, parent, ancestors } = located;
 	const { item } = node;
 	const venture = section.venture;
 	const cache = useWorkCache(venture);
 	const navigate = useNavigate();
+	const pageRef = useRef<HTMLElement>(null);
 	const cockpit = useQuery(queries.cockpit(venture.slug)).data;
 	const now = Date.now();
 	const groups = groupsOf(section, now);
@@ -984,6 +1077,39 @@ function WorkPane({
 	const objective = (cockpit?.objectives ?? section.objectives).find((candidate) => candidate.id === objectiveId);
 	const homeWork = homeProgress(section.items, homeKey);
 	const statusIndex = workStatuses.indexOf(item.status);
+	const { prev, next } = step;
+
+	useEffect(() => {
+		pageRef.current?.focus({ preventScroll: true });
+	}, []);
+
+	useEffect(() => {
+		const onKeyDown = (event: globalThis.KeyboardEvent) => {
+			if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || editingKeys(event.target))
+				return;
+
+			const target =
+				event.key === "ArrowUp" || event.key === "k"
+					? prev
+					: event.key === "ArrowDown" || event.key === "j"
+						? next
+						: undefined;
+
+			if (event.key === "Escape") {
+				event.preventDefault();
+
+				close();
+			} else if (target !== undefined && target !== null) {
+				event.preventDefault();
+
+				go(target);
+			}
+		};
+
+		document.addEventListener("keydown", onKeyDown);
+
+		return () => document.removeEventListener("keydown", onKeyDown);
+	}, [prev, next, go, close]);
 
 	const update = useCommand<"work.update", WorkItem>(
 		"work.update",
@@ -1004,289 +1130,323 @@ function WorkPane({
 	});
 
 	const error = update.error ?? setStatus.error ?? move.error ?? archive.error;
+	const home = parent?.item.title ?? (group === undefined ? null : group.title);
 
 	return (
-		<aside className="wk-pane insp" style={accent(venture.slug)} aria-label={`${kindLabel[kind]} details`}>
-			<div className="insp-top">
-				<div className="insp-bar">
-					<span className="cap">{kindLabel[kind]}</span>
-					<span className="mono mute">
-						{item.position + 1} of {siblings}
+		<article
+			ref={pageRef}
+			tabIndex={-1}
+			className="wpage"
+			style={accent(venture.slug)}
+			aria-label={`${kindLabel[kind]}: ${item.title}`}
+		>
+			<div className="bar">
+				<button type="button" className="btn ghost sm wpage-back" data-tip="Back to Work|esc" onClick={close}>
+					<Icon name="left" />
+					Work
+				</button>
+				{holding ? (
+					<span className="wpage-v">
+						<Crest seed={venture.slug} size={16} />
+						{venture.name}
 					</span>
-					<span className="grow" />
-					<button
-						type="button"
-						className="ib"
-						aria-label="Move up"
-						data-tip="Move up|⌥↑"
-						disabled={item.position === 0 || move.isPending}
-						onClick={() => move.mutate({ payload: { ...base, index: item.position - 1 } })}
-					>
-						<Icon name="up" />
-					</button>
-					<button
-						type="button"
-						className="ib"
-						aria-label="Move down"
-						data-tip="Move down|⌥↓"
-						disabled={item.position >= siblings - 1 || move.isPending}
-						onClick={() => move.mutate({ payload: { ...base, index: item.position + 1 } })}
-					>
-						<Icon name="down" />
-					</button>
-					<button type="button" className="ib" aria-label="Close details" data-tip="Close|esc" onClick={close}>
-						<Icon name="x" />
-					</button>
-				</div>
-				<h2>
-					<Editable
-						label="title"
-						value={item.title}
-						required
-						save={(title) => update.mutateAsync({ payload: { ...base, title } })}
-					/>
-				</h2>
-				<fieldset className="stepper">
-					<legend className="vh">Status</legend>
-					{workStatuses.map((status, index) => (
-						<button
-							key={status}
-							type="button"
-							aria-pressed={item.status === status}
-							className={index <= statusIndex ? "lit" : undefined}
-							disabled={setStatus.isPending}
-							onClick={() => setStatus.mutate({ payload: { ...base, status } })}
-						>
-							<i />
-							<span>
-								<Dia status={status} />
-								{statusLabel[status]}
-							</span>
-						</button>
-					))}
-				</fieldset>
+				) : null}
+				<span className="grow" />
+				{step.index < 0 ? null : (
+					<span className="mono mute">
+						{step.index + 1} / {step.total}
+					</span>
+				)}
+				<button
+					type="button"
+					className="ib"
+					aria-label="Previous item"
+					data-tip="Previous|↑ or K"
+					disabled={prev === null}
+					onClick={() => prev !== null && go(prev)}
+				>
+					<Icon name="up" />
+				</button>
+				<button
+					type="button"
+					className="ib"
+					aria-label="Next item"
+					data-tip="Next|↓ or J"
+					disabled={next === null}
+					onClick={() => next !== null && go(next)}
+				>
+					<Icon name="down" />
+				</button>
+				<button
+					type="button"
+					className="btn pri sm"
+					onClick={() =>
+						void navigate({
+							to: "/v/$slug/threads",
+							params: { slug: venture.slug },
+							search: { link: `work_item:${item.id}`, label: item.title },
+						})
+					}
+				>
+					<Icon name="threads" />
+					Start a thread
+				</button>
 			</div>
 
-			<div className="insp-body">
-				<div className="props">
-					<div className="prop">
-						<span className="cap">Function</span>
-						<Select
-							title="Function"
-							value={item.function}
-							options={functionOptions}
-							onChange={(value) => update.mutate({ payload: { ...base, function: value } })}
-						/>
-					</div>
-					<div className="prop">
-						<span className="cap">Priority</span>
-						<Select
-							title="Priority"
-							value={item.priority}
-							options={priorityOptions}
-							onChange={(value) => update.mutate({ payload: { ...base, priority: value } })}
-						/>
-					</div>
-					{node.total === 0 ? null : (
-						<div className="prop wide">
-							<span className="cap">
-								Progress
-								<span>
-									{node.done} of {node.total} done
-								</span>
-							</span>
-							<span className="bar-p">
-								<i style={{ width: `${(node.done / node.total) * 100}%` }} />
-							</span>
-						</div>
-					)}
-					{parent === null ? (
-						<div className="prop wide">
-							<span className="cap">Lives under</span>
-							<Select
-								title="Lives under"
-								value={homeKey}
-								disabled={move.isPending}
-								options={groups
-									.filter((option) => option.open || option.key === homeKey)
-									.map((option) => ({
-										value: option.key,
-										label: option.number === null ? option.title : `${option.number} · ${option.title}`,
-									}))}
-								onChange={(key) => {
-									const target = groups.find((option) => option.key === key);
+			<div className="wpage-cols">
+				<div className="wpage-main">
+					<div className="wpage-doc">
+						<header className="wpage-head">
+							<h1>
+								<Editable
+									label="title"
+									value={item.title}
+									required
+									save={(title) => update.mutateAsync({ payload: { ...base, title } })}
+								/>
+							</h1>
+							<p className="wpage-meta">
+								{kindLabel[kind]}
+								{home === null ? null : (
+									<>
+										{" in "}
+										{parent === null ? (
+											<span>{home}</span>
+										) : (
+											<button type="button" onClick={() => go(parent.item.id)}>
+												{home}
+											</button>
+										)}
+									</>
+								)}
+							</p>
+						</header>
 
-									if (target === undefined || key === homeKey) return;
-
-									const index = section.items.filter(
-										(other) => workHomeKey(other) === key && other.parentId === null,
-									).length;
-
-									move.mutate({ payload: { ...base, home: target.home, index } });
-								}}
+						<section>
+							<h2>What done looks like</h2>
+							<MarkdownField
+								label="description"
+								value={item.description}
+								placeholder="Describe the result that lets you mark this done. Markdown works: lists, links, code, tables."
+								save={(description) => update.mutateAsync({ payload: { ...base, description } })}
 							/>
-						</div>
-					) : null}
+						</section>
+
+						{node.children.length === 0 ? null : (
+							<section>
+								<h2>
+									{item.depth === 0 ? "Tasks" : "Subtasks"}
+									<span className="cnt">
+										{node.done}/{node.total}
+									</span>
+								</h2>
+								<ul className="kids">
+									{node.children.map((child) => (
+										<KidRow key={child.item.id} venture={venture} node={child} open={go} />
+									))}
+								</ul>
+							</section>
+						)}
+
+						<WorkItemThreads workItem={item} venture={venture} />
+
+						{error === null ? null : (
+							<p className="err" role="alert">
+								{describeError(error)}
+							</p>
+						)}
+					</div>
 				</div>
 
-				<section>
-					<h3>Traces back to</h3>
-					<ol className="chain">
-						{objective === undefined ? null : (
-							<li>
-								<Dia status={objective.status === "active" ? "open" : "done"} />
-								<div>
-									<span className="cap">
-										{objective.kind === "build" ? "Build objective" : "Objective"}
-										{objective.kind === "build" ? ` · ${homeWork.done}/${homeWork.total} done` : ""}
+				<aside className="wpage-side" aria-label={`${kindLabel[kind]} properties`}>
+					<div className="wpage-props">
+						<fieldset className="stepper">
+							<legend className="vh">Status</legend>
+							{workStatuses.map((status, index) => (
+								<button
+									key={status}
+									type="button"
+									aria-pressed={item.status === status}
+									className={index <= statusIndex ? "lit" : undefined}
+									disabled={setStatus.isPending}
+									onClick={() => setStatus.mutate({ payload: { ...base, status } })}
+								>
+									<i />
+									<span>
+										<Dia status={status} />
+										{statusLabel[status]}
 									</span>
-									<p>{objective.statement}</p>
-								</div>
-							</li>
-						)}
-						{assumption === undefined ? null : (
-							<li>
-								<Dia status="todo" />
-								<div>
-									<span className="cap">Assumption · confidence {assumption.confidence} of 4</span>
-									<p>{assumption.statement}</p>
-								</div>
-							</li>
-						)}
-						{bet === undefined ? null : (
-							<li>
-								<span className="bet-n">{group?.number ?? "B"}</span>
-								<div>
-									<span className="cap">
-										Bet · {homeWork.done}/{homeWork.total} done ·{" "}
-										{bet.status === "open" ? timeLeft(bet.deadline, now) : "closed"}
-									</span>
-									<p>{bet.action}</p>
-								</div>
-							</li>
-						)}
-						{bet === undefined && item.objectiveId === null ? (
-							<li>
-								<Dia status={progressStatus(homeWork)} />
-								<div>
-									<span className="cap">
-										Upkeep · {homeWork.done}/{homeWork.total} done
-									</span>
-									<p>Tests nothing. It keeps the venture running.</p>
-								</div>
-							</li>
-						) : null}
-						{ancestors.map((ancestor) => (
-							<li key={ancestor.item.id}>
-								<button type="button" onClick={() => select(ancestor.item.id)}>
-									<Dia status={ancestor.item.status} />
-									<div>
-										<span className="cap">{kindLabel[kindOf(ancestor.item)]}</span>
-										<p>{ancestor.item.title}</p>
-									</div>
 								</button>
-							</li>
-						))}
-						<li className="me">
-							<Dia status={item.status} />
-							<div>
-								<span className="cap">This {kind}</span>
-								<p>{item.title}</p>
-							</div>
-						</li>
-					</ol>
-				</section>
-
-				<section className="done-looks">
-					<h3>What done looks like</h3>
-					<Editable
-						label="description"
-						value={item.description}
-						multiline
-						placeholder="Describe the result that lets you mark this done."
-						save={(description) => update.mutateAsync({ payload: { ...base, description } })}
-					/>
-				</section>
-
-				{node.children.length === 0 ? null : (
-					<section>
-						<h3>
-							{item.depth === 0 ? "Tasks" : "Subtasks"}
-							<span className="cnt">
-								{node.done}/{node.total}
-							</span>
-						</h3>
-						<ul className="kids">
-							{node.children.map((child) => (
-								<KidRow key={child.item.id} venture={venture} node={child} select={select} />
 							))}
-						</ul>
+						</fieldset>
+
+						<div className="props">
+							<div className="prop">
+								<span className="cap">Function</span>
+								<Select
+									title="Function"
+									value={item.function}
+									options={functionOptions}
+									onChange={(value) => update.mutate({ payload: { ...base, function: value } })}
+								/>
+							</div>
+							<div className="prop">
+								<span className="cap">Priority</span>
+								<Select
+									title="Priority"
+									value={item.priority}
+									options={priorityOptions}
+									onChange={(value) => update.mutate({ payload: { ...base, priority: value } })}
+								/>
+							</div>
+							{node.total === 0 ? null : (
+								<div className="prop wide">
+									<span className="cap">
+										Progress
+										<span>
+											{node.done} of {node.total} done
+										</span>
+									</span>
+									<span className="bar-p">
+										<i style={{ width: `${(node.done / node.total) * 100}%` }} />
+									</span>
+								</div>
+							)}
+							{parent === null ? (
+								<div className="prop wide">
+									<span className="cap">Lives under</span>
+									<Select
+										title="Lives under"
+										value={homeKey}
+										disabled={move.isPending}
+										options={groups
+											.filter((option) => option.open || option.key === homeKey)
+											.map((option) => ({
+												value: option.key,
+												label: option.number === null ? option.title : `${option.number} · ${option.title}`,
+											}))}
+										onChange={(key) => {
+											const target = groups.find((option) => option.key === key);
+
+											if (target === undefined || key === homeKey) return;
+
+											const index = section.items.filter(
+												(other) => workHomeKey(other) === key && other.parentId === null,
+											).length;
+
+											move.mutate({ payload: { ...base, home: target.home, index } });
+										}}
+									/>
+								</div>
+							) : null}
+						</div>
+					</div>
+
+					<section className="wpage-trace">
+						<h2>Traces back to</h2>
+						<ol className="chain">
+							{objective === undefined ? null : (
+								<li>
+									<Dia status={objective.status === "active" ? "open" : "done"} />
+									<div>
+										<span className="cap">
+											{objective.kind === "build" ? "Build objective" : "Objective"}
+											{objective.kind === "build" ? ` · ${homeWork.done}/${homeWork.total} done` : ""}
+										</span>
+										<p>{objective.statement}</p>
+									</div>
+								</li>
+							)}
+							{assumption === undefined ? null : (
+								<li>
+									<Dia status="todo" />
+									<div>
+										<span className="cap">Assumption · confidence {assumption.confidence} of 4</span>
+										<p>{assumption.statement}</p>
+									</div>
+								</li>
+							)}
+							{bet === undefined ? null : (
+								<li>
+									<span className="bet-n">{group?.number ?? "B"}</span>
+									<div>
+										<span className="cap">
+											Bet · {homeWork.done}/{homeWork.total} done ·{" "}
+											{bet.status === "open" ? timeLeft(bet.deadline, now) : "closed"}
+										</span>
+										<p>{bet.action}</p>
+									</div>
+								</li>
+							)}
+							{bet === undefined && item.objectiveId === null ? (
+								<li>
+									<Dia status={progressStatus(homeWork)} />
+									<div>
+										<span className="cap">
+											Upkeep · {homeWork.done}/{homeWork.total} done
+										</span>
+										<p>Tests nothing. It keeps the venture running.</p>
+									</div>
+								</li>
+							) : null}
+							{ancestors.map((ancestor) => (
+								<li key={ancestor.item.id}>
+									<button type="button" onClick={() => go(ancestor.item.id)}>
+										<Dia status={ancestor.item.status} />
+										<div>
+											<span className="cap">{kindLabel[kindOf(ancestor.item)]}</span>
+											<p>{ancestor.item.title}</p>
+										</div>
+									</button>
+								</li>
+							))}
+							<li className="me">
+								<Dia status={item.status} />
+								<div>
+									<span className="cap">This {kind}</span>
+									<p>{item.title}</p>
+								</div>
+							</li>
+						</ol>
 					</section>
-				)}
 
-				<WorkItemThreads workItem={item} venture={venture} />
-
-				{error === null ? null : (
-					<p className="err" role="alert">
-						{describeError(error)}
-					</p>
-				)}
-
-				<p className="cap insp-when">
-					Added {ago(item.createdAt, Date.now())}
-					{item.updatedAt === item.createdAt ? null : ` · edited ${ago(item.updatedAt, Date.now())}`}
-				</p>
+					<footer className="wpage-foot">
+						<p className="cap">
+							Added {ago(item.createdAt, now)}
+							{item.updatedAt === item.createdAt ? null : ` · edited ${ago(item.updatedAt, now)}`}
+						</p>
+						{confirming ? (
+							<div className="wpage-ask">
+								<p>
+									Archive this {kind} and the {plural(descendants, "item")} under it?
+								</p>
+								<button type="button" className="btn ghost sm" onClick={() => setConfirming(false)}>
+									Cancel
+								</button>
+								<button
+									type="button"
+									className="btn danger sm"
+									disabled={archive.isPending}
+									onClick={() => archive.mutate({ payload: base })}
+								>
+									Archive {1 + descendants} items
+								</button>
+							</div>
+						) : (
+							<button
+								type="button"
+								className="btn ghost danger sm"
+								disabled={archive.isPending}
+								onClick={() => (descendants === 0 ? archive.mutate({ payload: base }) : setConfirming(true))}
+							>
+								<Icon name="archive" />
+								Archive
+							</button>
+						)}
+					</footer>
+				</aside>
 			</div>
-
-			<footer className="insp-foot">
-				{confirming ? (
-					<>
-						<span className="insp-ask">
-							Archive this {kind} and the {plural(descendants, "item")} under it?
-						</span>
-						<span className="grow" />
-						<button type="button" className="btn ghost" onClick={() => setConfirming(false)}>
-							Cancel
-						</button>
-						<button
-							type="button"
-							className="btn danger"
-							disabled={archive.isPending}
-							onClick={() => archive.mutate({ payload: base })}
-						>
-							Archive {1 + descendants} items
-						</button>
-					</>
-				) : (
-					<>
-						<button
-							type="button"
-							className="btn pri"
-							onClick={() =>
-								void navigate({
-									to: "/v/$slug/threads",
-									params: { slug: venture.slug },
-									search: { link: `work_item:${item.id}`, label: item.title },
-								})
-							}
-						>
-							<Icon name="threads" />
-							Start a thread
-						</button>
-						<span className="grow" />
-						<button
-							type="button"
-							className="btn ghost danger"
-							disabled={archive.isPending}
-							onClick={() => (descendants === 0 ? archive.mutate({ payload: base }) : setConfirming(true))}
-						>
-							<Icon name="archive" />
-							Archive
-						</button>
-					</>
-				)}
-			</footer>
-		</aside>
+		</article>
 	);
 }
 
