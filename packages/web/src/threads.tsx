@@ -27,6 +27,7 @@ import {
 	useState,
 } from "react";
 import { api } from "./api.ts";
+import { DraftStep, isDraftCall } from "./draft.tsx";
 import { Editable } from "./editable.tsx";
 import { describeError } from "./errors.ts";
 import { PageError } from "./holding.tsx";
@@ -629,15 +630,31 @@ function entryTime(entry: TimelineEntry) {
 	return entry.kind === "message" ? entry.message.createdAt : (entry.run.startedAt ?? entry.run.createdAt);
 }
 
-function Timeline({ detail, live }: { detail: ThreadDetail; live: LiveRuns }) {
+function Timeline({
+	detail,
+	live,
+	className = "tl",
+	empty = null,
+}: {
+	detail: ThreadDetail;
+	live: LiveRuns;
+	className?: string;
+	empty?: ReactNode;
+}) {
 	const space = useContext(SpaceChat);
 	const timeline = buildTimeline(detail);
 	const scroll = useStickToBottom();
 	const now = Date.now();
 
 	return (
-		<div className="tl" ref={scroll.scroller} onScroll={scroll.onScroll} onClickCapture={scroll.onClickCapture}>
+		<div
+			className={className}
+			ref={scroll.scroller}
+			onScroll={scroll.onScroll}
+			onClickCapture={scroll.onClickCapture}
+		>
 			<ol ref={scroll.content}>
+				{timeline.length === 0 ? empty : null}
 				{timeline.flatMap((entry, index) => {
 					const day = dayLabel(entryTime(entry), now);
 					const previous = timeline[index - 1];
@@ -680,16 +697,22 @@ export function PostComposer({
 	working,
 	agentName,
 	answering = false,
+	placeholder,
+	posted,
 }: {
 	threadId: string;
 	scope: Scope;
 	working: boolean;
 	agentName: string;
 	answering?: boolean;
+	placeholder?: string;
+	posted?: (result: unknown) => void;
 }) {
 	const client = useQueryClient();
 
-	const post = useCommand<"thread.post", unknown>("thread.post", () => {
+	const post = useCommand<"thread.post", unknown>("thread.post", (response) => {
+		posted?.(response.result);
+
 		void client.invalidateQueries({ queryKey: keys.thread(threadId) });
 
 		void client.invalidateQueries({ queryKey: keys.activeRuns });
@@ -701,7 +724,7 @@ export function PostComposer({
 
 	return (
 		<Composer
-			placeholder={answering ? `Answer ${agentName}` : undefined}
+			placeholder={answering ? `Answer ${agentName}` : placeholder}
 			scope={scope}
 			initialLinks={[]}
 			busy={post.isPending}
@@ -1206,9 +1229,9 @@ function SystemLine({ message }: { message: ThreadMessage }) {
 					<a href={pr.url} target="_blank" rel="noreferrer">
 						{message.body}
 					</a>
-				)}{" "}
-				·{" "}
+				)}
 				<time dateTime={message.createdAt} title={formatDateTime(message.createdAt)}>
+					{" · "}
 					{clockTime(message.createdAt)}
 				</time>
 			</span>
@@ -1479,9 +1502,15 @@ function ToolCards({ calls }: { calls: ToolCall[] }) {
 
 	const asked = calls.filter((call) => call.name === "ask_owner" && call.result !== null && !call.result.isError);
 
+	const drafted = calls.filter(isDraftCall);
+	const others = calls.filter((call) => !isDraftCall(call));
+
 	return (
 		<>
-			<ToolGroup calls={calls} />
+			{others.length === 0 ? null : <ToolGroup calls={others} />}
+			{drafted.map((call) => (
+				<DraftStep key={call.id} call={call} />
+			))}
 			{asked.map((call) => {
 				const input = call.input as { question?: unknown };
 

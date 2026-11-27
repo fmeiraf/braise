@@ -242,6 +242,7 @@ export async function listThreads(
 ) {
 	const conditions: SQL[] = [
 		isNull(threads.archivedAt),
+		isNull(threads.operatorVentureId),
 		notInArray(threads.id, db.select({ id: spaces.chatThreadId }).from(spaces)),
 	];
 

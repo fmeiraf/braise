@@ -22,6 +22,7 @@ import {
 	useState,
 } from "react";
 import type { ArchiveWorkResult } from "./api.ts";
+import { DraftControls, DraftMarks, DraftMeta, useDraftItem, Was } from "./draft.tsx";
 import { Editable } from "./editable.tsx";
 import { describeError } from "./errors.ts";
 import { focusOnMount } from "./focus.ts";
@@ -183,18 +184,20 @@ export function VentureWorkPage() {
 	const venture = { id: work.data.ventureId, slug, name };
 
 	return (
-		<WorkScreen
-			sections={[{ venture, objectives: work.data.objectives, bets: work.data.bets, items: work.data.workItems }]}
-			openId={item ?? null}
-			open={(next, replace = false) =>
-				void navigate({
-					to: "/v/$slug/work",
-					params: { slug },
-					search: next === null ? {} : { item: next },
-					replace,
-				})
-			}
-		/>
+		<DraftMarks draft={work.data.draft}>
+			<WorkScreen
+				sections={[{ venture, objectives: work.data.objectives, bets: work.data.bets, items: work.data.workItems }]}
+				openId={item ?? null}
+				open={(next, replace = false) =>
+					void navigate({
+						to: "/v/$slug/work",
+						params: { slug },
+						search: next === null ? {} : { item: next },
+						replace,
+					})
+				}
+			/>
+		</DraftMarks>
 	);
 }
 
@@ -602,25 +605,44 @@ function GroupWork(props: {
 	const [adding, setAdding] = useState(false);
 	const Heading = props.level === 2 ? "h2" : "h3";
 	const headingId = `home-heading-${venture.id}-${group.key}`;
+	const drafted = useDraftItem(group.home.type === "upkeep" ? null : group.home.id);
+	const placeable = group.open && !drafted.created;
 
 	if (props.filtered && props.roots.length === 0) return null;
 
 	return (
-		<section id={`home-${group.key}`} aria-labelledby={headingId} className={group.open ? undefined : "wk-closed"}>
+		<section
+			id={`home-${group.key}`}
+			aria-labelledby={headingId}
+			className={[group.open ? "" : "wk-closed", drafted.className].filter(Boolean).join(" ") || undefined}
+			{...drafted.attrs}
+		>
 			<div className="wk-g">
 				{group.number === null ? (
 					<Dia status={progressStatus(progress)} />
 				) : (
 					<span className="bet-n">{group.number}</span>
 				)}
-				<Heading id={headingId}>{group.title}</Heading>
-				<span className="tag plain">{group.note}</span>
+				<Heading id={headingId}>
+					{group.title}
+					<Was item={drafted} field={group.home.type === "bet" ? "action" : "statement"} />
+				</Heading>
+				<span className="tag plain">
+					{drafted.mark === null ? null : (
+						<>
+							<DraftMeta item={drafted} />
+							{" · "}
+						</>
+					)}
+					{group.note}
+				</span>
 				<i className="dots" />
 				<Pips done={progress.done} total={progress.total} />
 				<span className="mono mute">
 					{progress.done}/{progress.total}
 				</span>
-				{group.open ? (
+				<DraftControls changes={drafted.changes} />
+				{placeable ? (
 					<button
 						type="button"
 						className="ib"
@@ -651,7 +673,9 @@ function GroupWork(props: {
 
 			{adding ? (
 				<AddWorkForm venture={venture} placement={{ home: group.home }} depth={0} close={() => setAdding(false)} />
-			) : group.open && !props.filtered ? (
+			) : drafted.created && props.roots.length === 0 ? (
+				<p className="cap d-empty">No work yet. Ask the operator, or keep the bet and add it yourself.</p>
+			) : placeable && !props.filtered ? (
 				<button type="button" className="addline" onClick={() => setAdding(true)}>
 					<Icon name="plus" />
 					{props.roots.length > 0
@@ -695,6 +719,9 @@ function WorkRow(props: {
 
 	const showFunction = props.parent === null || props.parent.item.function !== item.function;
 	const error = setStatus.error ?? update.error;
+	const drafted = useDraftItem(item.id);
+	const real = drafted.mark === null || !drafted.created;
+	const growable = real && drafted.mark?.archived !== true;
 
 	const className = [
 		"wr",
@@ -716,12 +743,15 @@ function WorkRow(props: {
 			tabIndex={selected || (tree.cursor === null && item.depth === 0 && item.position === 0) ? 0 : -1}
 			data-id={item.id}
 			data-parent={item.parentId ?? ""}
-			className="wi"
+			className={["wi", drafted.className].filter(Boolean).join(" ")}
+			{...drafted.attrs}
 			onKeyDown={tree.onKeyDown}
 			onClick={(event) => {
 				const target = event.target as HTMLElement;
 
 				if (target.closest('[role="treeitem"]') !== event.currentTarget || target.closest("form") !== null) return;
+
+				if (!real) return;
 
 				tree.open(item.id);
 			}}
@@ -751,7 +781,7 @@ function WorkRow(props: {
 					tabIndex={-1}
 					data-tip={`${statusLabel[item.status]}|click for ${statusLabel[cycleStatus(item.status)].toLowerCase()}`}
 					aria-label={`Status ${statusLabel[item.status]}, change to ${statusLabel[cycleStatus(item.status)]}`}
-					disabled={setStatus.isPending}
+					disabled={setStatus.isPending || drafted.mark !== null}
 					onClick={(event) => {
 						event.stopPropagation();
 
@@ -772,12 +802,23 @@ function WorkRow(props: {
 						save={(title) => update.mutateAsync({ payload: { ...base, title } })}
 					/>
 				) : (
-					<span className="wt">{item.title}</span>
+					<span className="wt">
+						{item.title}
+						<Was item={drafted} field="title" />
+					</span>
+				)}
+
+				{drafted.mark === null ? null : (
+					<span className="cap dmeta-row">
+						<DraftMeta item={drafted} />
+					</span>
 				)}
 
 				<span className="grow" />
 
-				{canNest ? (
+				<DraftControls changes={drafted.changes} />
+
+				{canNest && growable ? (
 					<button
 						type="button"
 						className="ib add"

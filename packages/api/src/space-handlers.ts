@@ -57,6 +57,13 @@ async function assertJoinable(tx: Transaction, space: SpaceRow, thread: ThreadRo
 		});
 	}
 
+	if (thread.operatorVentureId !== null) {
+		throw new AppError("rule_violated", "An operator session can't be a member of a space", {
+			rule: "operator_not_member",
+			threadId,
+		});
+	}
+
 	if (thread.spaceId === space.id) throw noChanges();
 
 	if (thread.spaceId !== null) {

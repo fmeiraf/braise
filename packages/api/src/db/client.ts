@@ -18,3 +18,5 @@ export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export async function migrateDatabase(db: Database) {
 	await migrate(db, { migrationsFolder });
 }
+
+export type Executor = Database | Transaction;

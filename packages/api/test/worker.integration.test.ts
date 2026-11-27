@@ -504,6 +504,107 @@ describe("the agent worker", () => {
 		expect((await detailOf(started.thread.id)).inputRequest).toBeNull();
 	});
 
+	it("drafts three changes live, then reads the owner's edit on its next turn", async () => {
+		const venture = await createVenture(database);
+
+		await database.command("grant.add", {
+			payload: { profileId: "gpt", capability: "propose" },
+			idempotencyKey: freshKey("grant"),
+		});
+
+		const { session } = await ok<{ session: { id: string } }>("operator.open", {
+			ventureId: venture.id,
+			agentProfileId: "gpt",
+		});
+
+		const objective = {
+			kind: "learning",
+			statement: "Will teams pay?",
+			decision: "Whether to charge",
+			doneRule: "Twenty teams asked",
+		};
+
+		const calls = [
+			{ command: "objective.create", payload: objective, note: "A learning objective" },
+			{ command: "venture.update", payload: { name: "Kiln" }, note: "Renamed" },
+			{
+				command: "strategy.revise",
+				payload: { why: "Because it matters", what: "One sentence", diagnosis: "", guidingPolicy: "" },
+				note: "Tightened",
+			},
+		];
+
+		const prompts: string[] = [];
+		let requests = 0;
+
+		respond = (body) => {
+			requests += 1;
+
+			prompts.push(body);
+
+			const call = calls[requests - 1];
+
+			return call === undefined ? sse(replyStream) : sse(functionCallStream("draft", call));
+		};
+
+		const hints: { version: number; action: string; changeId: string | null }[] = [];
+		const three = Promise.withResolvers<void>();
+
+		const unsubscribe = database.subscribe((message) => {
+			if (message.type !== "draft" || message.ventureId !== venture.id) return;
+
+			hints.push({ version: message.version, action: message.action, changeId: message.changeId });
+
+			if (hints.length === 3) three.resolve();
+		});
+
+		const first = await ok<{ run: Run }>("thread.post", { threadId: session.id, body: "Set up the venture" });
+
+		await three.promise;
+
+		unsubscribe();
+
+		expect(await settledStatus(first.run.id, ["succeeded", "failed"])).toBe("succeeded");
+
+		expect(hints.map((hint) => [hint.version, hint.action])).toEqual([
+			[1, "add"],
+			[2, "add"],
+			[3, "add"],
+		]);
+
+		expect(prompts[0]).toContain("the operator of");
+
+		expect(prompts[0]).not.toContain('"name":"propose_changes"');
+
+		const response = await database.app.request(`/api/ventures/${venture.slug}/draft`);
+
+		const draft = (await response.json()) as { draft: { changes: { id: string; command: string }[] } };
+
+		expect(draft.draft.changes.map((change) => change.command)).toEqual(calls.map((call) => call.command));
+
+		expect(draft.draft.changes.map((change) => change.id)).toEqual(hints.map((hint) => hint.changeId));
+
+		const created = draft.draft.changes[0];
+
+		await ok("draft.revise", {
+			ventureId: venture.id,
+			changeId: created?.id,
+			payload: { ...objective, doneRule: "Thirty teams asked" },
+		});
+
+		requests = calls.length;
+
+		prompts.length = 0;
+
+		const second = await ok<{ run: Run }>("thread.post", { threadId: session.id, body: "Anything else?" });
+
+		expect(await settledStatus(second.run.id, ["succeeded", "failed"])).toBe("succeeded");
+
+		expect(prompts[0]).toContain("Since your last turn the owner:");
+
+		expect(prompts[0]).toContain(`edited objective.create (c:${created?.id}): doneRule`);
+	});
+
 	it("marks a running run interrupted when braise stops", async () => {
 		const stall = stallAfterToolCall();
 

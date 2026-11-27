@@ -12,7 +12,7 @@ import {
 	workHomeKey,
 } from "@braise/core";
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import { v7 as uuidv7 } from "uuid";
+import { v5 as uuidv5, v7 as uuidv7 } from "uuid";
 import { accessHandlers } from "./access-handlers.ts";
 import type { Transaction } from "./db/client.ts";
 import {
@@ -25,7 +25,9 @@ import {
 	ventures,
 	workItems,
 } from "./db/schema.ts";
+import { draftHandlers } from "./draft-handlers.ts";
 import { AppError } from "./errors.ts";
+import { operatorHandlers } from "./operator-handlers.ts";
 import type { HandlerContext, Handlers, VentureRow } from "./pipeline.ts";
 import { proposalHandlers } from "./proposal-handlers.ts";
 import { repoHandlers } from "./repo-handlers.ts";
@@ -36,6 +38,14 @@ function requireVenture(context: HandlerContext) {
 	if (context.venture === null) throw new AppError("internal_error", "Command ran without a venture lock");
 
 	return context.venture;
+}
+
+function idFor(context: HandlerContext) {
+	return context.presetId ?? uuidv7();
+}
+
+function doneItemId(context: HandlerContext, index: number) {
+	return context.presetId === undefined ? uuidv7() : uuidv5(`done:${index}`, context.presetId);
 }
 
 function changesBetween<Fields extends Record<string, unknown>>(current: Fields, next: Partial<Fields>) {
@@ -427,6 +437,29 @@ const domainHandlers = {
 		};
 	},
 
+	"venture.update": async (context, payload) => {
+		const venture = requireVenture(context);
+
+		const next = { name: payload.name, kind: payload.kind };
+		const changes = changesBetween(venture, next);
+
+		if (!hasChanges(changes)) throw noChanges();
+
+		const [updated] = await context.tx
+			.update(ventures)
+			.set({ ...next, updatedAt: sql`now()` })
+			.where(eq(ventures.id, venture.id))
+			.returning();
+
+		return {
+			ventureId: venture.id,
+			result: updated,
+			events: [
+				{ type: "venture.updated", subject: `venture:${venture.id}`, payload: { name: venture.name, changes } },
+			],
+		};
+	},
+
 	"strategy.revise": async (context, payload) => {
 		const venture = requireVenture(context);
 
@@ -498,12 +531,16 @@ const domainHandlers = {
 		const [objective] = await context.tx
 			.insert(objectives)
 			.values({
-				id: uuidv7(),
+				id: idFor(context),
 				ventureId: venture.id,
 				...fields,
 				doneList:
 					payload.kind === "build"
-						? payload.doneList.map((item) => ({ id: uuidv7(), text: item, done: false }))
+						? payload.doneList.map((item, index) => ({
+								id: doneItemId(context, index),
+								text: item,
+								done: false,
+							}))
 						: [],
 			})
 			.returning();
@@ -710,7 +747,7 @@ const domainHandlers = {
 		const [assumption] = await context.tx
 			.insert(assumptions)
 			.values({
-				id: uuidv7(),
+				id: idFor(context),
 				ventureId: venture.id,
 				objectiveId: payload.objectiveId,
 				statement: payload.statement,
@@ -845,7 +882,7 @@ const domainHandlers = {
 
 		const [bet] = await context.tx
 			.insert(bets)
-			.values({ id: uuidv7(), ventureId: venture.id, ...fields })
+			.values({ id: idFor(context), ventureId: venture.id, ...fields })
 			.returning();
 
 		return {
@@ -1073,7 +1110,7 @@ const domainHandlers = {
 		const [reading] = await context.tx
 			.insert(readings)
 			.values({
-				id: uuidv7(),
+				id: idFor(context),
 				ventureId: venture.id,
 				subjectType: subject.type,
 				subjectId: subject.id,
@@ -1118,7 +1155,7 @@ const domainHandlers = {
 		const [item] = await context.tx
 			.insert(workItems)
 			.values({
-				id: uuidv7(),
+				id: idFor(context),
 				...place,
 				depth: parent === null ? 0 : parent.depth + 1,
 				position: siblings.length,
@@ -1306,11 +1343,21 @@ const domainHandlers = {
 	| "repo.push"
 	| "pr.open"
 	| "pr.update"
+	| "draft.add"
+	| "draft.revise"
+	| "draft.remove"
+	| "draft.keep"
+	| "draft.drop"
+	| "draft.discard"
+	| "operator.open"
+	| "operator.new_session"
 >;
 
 export const handlers = {
 	...domainHandlers,
 	...proposalHandlers(domainHandlers),
+	...draftHandlers(domainHandlers),
+	...operatorHandlers,
 	...accessHandlers,
 	...spaceHandlers,
 	...repoHandlers,

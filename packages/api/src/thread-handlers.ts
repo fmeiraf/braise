@@ -215,11 +215,14 @@ export async function spaceOfChat(tx: Transaction | Database, threadId: string) 
 export async function runJobOf(tx: Transaction | Database, run: { id: string; runtime: string; threadId: string }) {
 	const chat = await spaceOfChat(tx, run.threadId);
 
-	return {
-		runId: run.id,
-		runtime: run.runtime,
-		priority: chat === undefined ? memberPriority : chatPriority,
-	} satisfies RunJob;
+	const [thread] = await tx
+		.select({ operatorVentureId: threads.operatorVentureId })
+		.from(threads)
+		.where(eq(threads.id, run.threadId));
+
+	const isChat = chat !== undefined || (thread !== undefined && thread.operatorVentureId !== null);
+
+	return { runId: run.id, runtime: run.runtime, priority: isChat ? chatPriority : memberPriority } satisfies RunJob;
 }
 
 export async function insertRun(tx: Transaction, thread: ThreadRow, messageId: string, retryOf: string | null = null) {

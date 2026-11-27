@@ -11,7 +11,7 @@ import {
 	workHomeKey,
 } from "@braise/core";
 import { Link } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import {
 	BetBlock,
 	BetForm,
@@ -24,6 +24,7 @@ import {
 	useLoopCommand,
 	type VentureRef,
 } from "./bets.tsx";
+import { DraftControls, DraftMeta, useDraftItem, useDraftSave, useStatusDrafted, Was } from "./draft.tsx";
 import { Editable } from "./editable.tsx";
 import { describeError } from "./errors.ts";
 import { focusOnMount } from "./focus.ts";
@@ -408,10 +409,12 @@ export function ObjectiveCard(props: CardProps) {
 	const now = Date.now();
 	const update = useLoopCommand("objective.update", venture);
 	const base = { ventureId: venture.id, objectiveId: objective.id };
+	const drafted = useDraftItem(objective.id);
+	const draftSave = useDraftSave(drafted);
 
 	const save =
 		(field: "statement" | "guardrails" | "budget" | "decision" | "doneRule" | "measure") => (value: string) =>
-			update.mutateAsync({ payload: { ...base, [field]: value } });
+			draftSave(field, value, () => update.mutateAsync({ payload: { ...base, [field]: value } }));
 
 	const due =
 		objective.byDate === null
@@ -419,14 +422,30 @@ export function ObjectiveCard(props: CardProps) {
 			: `${objective.kind === "build" ? "ends" : "due"} ${shortDate(objective.byDate, now)} · ${timeLeft(objective.byDate, now)}`;
 
 	return (
-		<article className={props.fresh.has(objective.id) ? "bet ocard fresh" : "bet ocard"}>
+		<article
+			className={["bet ocard", props.fresh.has(objective.id) ? "fresh" : "", drafted.className]
+				.filter(Boolean)
+				.join(" ")}
+			{...drafted.attrs}
+		>
 			<header className="bet-h">
 				<h3>
 					<Editable label="objective" value={objective.statement} required multiline save={save("statement")} />
+					<Was item={drafted} field="statement" />
 				</h3>
-				<Closing venture={venture} objective={objective} />
+				{drafted.mark === null ? (
+					<Closing venture={venture} objective={objective} />
+				) : (
+					<DraftControls changes={drafted.changes} />
+				)}
 			</header>
 			<p className="cap obj-meta">
+				{drafted.mark === null ? null : (
+					<>
+						<DraftMeta item={drafted} />
+						{" · "}
+					</>
+				)}
 				{kindNames[objective.kind]}
 				{objective.kind === "build" ? " · by vision, not tested" : ""} ·{" "}
 				<Editable
@@ -435,7 +454,11 @@ export function ObjectiveCard(props: CardProps) {
 					value={objective.byDate ?? ""}
 					placeholder="Set a date"
 					display={due}
-					save={(value) => update.mutateAsync({ payload: { ...base, byDate: value === "" ? null : value } })}
+					save={(value) =>
+						draftSave("byDate", value === "" ? null : value, () =>
+							update.mutateAsync({ payload: { ...base, byDate: value === "" ? null : value } }),
+						)
+					}
 				/>
 			</p>
 
@@ -676,6 +699,7 @@ function BuildBody({ venture, objective, cockpit }: CardProps) {
 
 function Assumptions({ venture, objective, cockpit, numbers, fresh }: CardProps) {
 	const [adding, setAdding] = useState(false);
+	const drafted = useDraftItem(objective.id).created;
 	const mine = rankAssumptions(cockpit.assumptions.filter((assumption) => assumption.objectiveId === objective.id));
 
 	return (
@@ -696,13 +720,13 @@ function Assumptions({ venture, objective, cockpit, numbers, fresh }: CardProps)
 						fresh={fresh}
 					/>
 				))}
-				{mine.length === 0 && !adding ? (
+				{mine.length === 0 && !adding && !drafted ? (
 					<li className="goals-none">
 						Nothing listed yet. Work backward from the objective: what has to be true for it to be reached?
 					</li>
 				) : null}
 			</ul>
-			{adding ? (
+			{drafted ? null : adding ? (
 				<AssumptionForm venture={venture} objectiveId={objective.id} close={() => setAdding(false)} />
 			) : (
 				<button type="button" className="addline" onClick={() => setAdding(true)}>
@@ -792,19 +816,26 @@ function AssumptionRow(props: {
 	const update = useLoopCommand("assumption.update", venture);
 	const archive = useLoopCommand("assumption.archive", venture);
 	const base = { ventureId: venture.id, assumptionId: assumption.id };
+	const closing = useStatusDrafted();
 	const bets = cockpit.bets.filter((bet) => bet.assumptionId === assumption.id);
-	const open = bets.filter((bet) => bet.status === "open");
-	const learnings = cockpit.learnings.filter((learning) => learning.assumptionId === assumption.id);
+	const open = bets.filter((bet) => bet.status === "open" || closing(bet.id));
+
+	const learnings = cockpit.learnings.filter(
+		(learning) => learning.assumptionId === assumption.id && !closing(learning.betId),
+	);
+
 	const proposed = cockpit.proposedBets.filter((bet) => bet.assumptionId === assumption.id);
 	const settled = assumption.status !== "open";
 	const error = update.error ?? archive.error;
+	const drafted = useDraftItem(assumption.id);
+	const draftSave = useDraftSave(drafted);
 
-	const className = ["asm", settled ? "settled" : "", props.fresh.has(assumption.id) ? "fresh" : ""]
+	const className = ["asm", settled ? "settled" : "", props.fresh.has(assumption.id) ? "fresh" : "", drafted.className]
 		.filter(Boolean)
 		.join(" ");
 
 	return (
-		<li className={className}>
+		<li className={className} {...drafted.attrs}>
 			<div className="asm-h">
 				<Conf level={assumption.confidence} />
 				<div className="goal-t">
@@ -813,15 +844,27 @@ function AssumptionRow(props: {
 							label="assumption"
 							value={assumption.statement}
 							required
-							save={(statement) => update.mutateAsync({ payload: { ...base, statement } })}
+							save={(statement) =>
+								draftSave("statement", statement, () => update.mutateAsync({ payload: { ...base, statement } }))
+							}
 						/>
+						<Was item={drafted} field="statement" />
 					</b>
 					<span>
+						{drafted.mark === null ? null : (
+							<>
+								<DraftMeta item={drafted} />
+								{" · "}
+							</>
+						)}
 						{impactNames[assumption.impact]} · {functionNames[assumption.function].toLowerCase()} ·{" "}
-						{assumptionState(assumption, cockpit.bets, cockpit.learnings, cockpit.proposedBets)}
+						{drafted.created
+							? "drafted by the operator"
+							: assumptionState(assumption, cockpit.bets, cockpit.learnings, cockpit.proposedBets)}
 					</span>
 				</div>
-				<span className="asm-ctl">
+				{drafted.mark === null ? null : <DraftControls changes={drafted.changes} />}
+				<span className="asm-ctl" hidden={drafted.mark !== null}>
 					<Select
 						className="sel pill"
 						title="Impact if false"
@@ -904,11 +947,27 @@ function AssumptionRow(props: {
 				</div>
 			)}
 
-			{settled || betting ? null : (
+			{settled || betting || drafted.created ? null : (
 				<button type="button" className="addline asm-bet" onClick={() => setBetting(true)}>
 					<Icon name="plus" />
 					{open.length === 0 ? "Register a bet that tests this" : "Register another bet"}
 				</button>
+			)}
+		</li>
+	);
+}
+
+function HunchRow({ id, children }: { id: string; children: ReactNode }) {
+	const drafted = useDraftItem(id);
+
+	return (
+		<li className={drafted.className || undefined} {...drafted.attrs}>
+			{children}
+			{drafted.mark === null ? null : (
+				<span className="hunch-draft cap">
+					<DraftMeta item={drafted} />
+					<DraftControls changes={drafted.changes} />
+				</span>
 			)}
 		</li>
 	);
@@ -942,7 +1001,7 @@ export function Hunches({ venture, cockpit }: { venture: VentureRef; cockpit: Co
 			) : null}
 			<ul className="hunches">
 				{hunches.map((hunch) => (
-					<li key={hunch.id}>
+					<HunchRow key={hunch.id} id={hunch.id}>
 						<p>
 							<Editable
 								label="hunch"
@@ -988,7 +1047,7 @@ export function Hunches({ venture, cockpit }: { venture: VentureRef; cockpit: Co
 								<Icon name="archive" />
 							</button>
 						</span>
-					</li>
+					</HunchRow>
 				))}
 			</ul>
 			{error === null ? null : (

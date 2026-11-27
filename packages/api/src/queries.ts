@@ -1,7 +1,7 @@
 import { type ProposedBet, workHomeKey } from "@braise/core";
 import { and, asc, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
-import type { Database } from "./db/client.ts";
+import type { Database, Executor } from "./db/client.ts";
 import {
 	assumptions,
 	bets,
@@ -38,7 +38,7 @@ export async function listVentures(db: Database) {
 		.orderBy(desc(ventures.updatedAt));
 }
 
-async function ventureBySlug(db: Database, slug: string) {
+export async function ventureBySlug(db: Executor, slug: string) {
 	const [venture] = await db.select().from(ventures).where(eq(ventures.slug, slug));
 
 	if (venture === undefined) throw new AppError("not_found", "Venture not found", { slug });
@@ -58,10 +58,10 @@ const strategyColumns = {
 	createdBy: strategyVersions.createdBy,
 	createdAt: strategyVersions.createdAt,
 	activatedAt: strategyVersions.activatedAt,
-	reason: commands.reason,
+	reason: sql<string | null>`coalesce(${events.payload}->>'reason', ${commands.reason})`,
 };
 
-function strategiesWithReason(db: Database) {
+function strategiesWithReason(db: Executor) {
 	return db
 		.select(strategyColumns)
 		.from(strategyVersions)
@@ -77,7 +77,7 @@ function strategiesWithReason(db: Database) {
 		.$dynamic();
 }
 
-export async function getCockpit(db: Database, slug: string) {
+export async function getCockpit(db: Executor, slug: string) {
 	const venture = await ventureBySlug(db, slug);
 
 	const [strategy] = await strategiesWithReason(db).where(
@@ -87,34 +87,44 @@ export async function getCockpit(db: Database, slug: string) {
 	const live = (table: { ventureId: AnyPgColumn; archivedAt: AnyPgColumn }) =>
 		and(eq(table.ventureId, venture.id), isNull(table.archivedAt));
 
-	const [objectiveRows, assumptionRows, betRows, learningRows, readingRows, progressRows, pending] = await Promise.all(
-		[
-			db.select().from(objectives).where(live(objectives)).orderBy(asc(objectives.createdAt)),
-			db.select().from(assumptions).where(live(assumptions)).orderBy(asc(assumptions.createdAt)),
-			db.select().from(bets).where(live(bets)).orderBy(asc(bets.createdAt)),
-			db.select().from(learnings).where(eq(learnings.ventureId, venture.id)).orderBy(desc(learnings.createdAt)),
-			db
-				.select()
-				.from(readings)
-				.where(eq(readings.ventureId, venture.id))
-				.orderBy(asc(readings.takenOn), asc(readings.createdAt)),
-			db
-				.select({
-					betId: workItems.betId,
-					objectiveId: workItems.objectiveId,
-					done: sql<number>`count(*) FILTER (WHERE ${workItems.status} = 'done')::int`,
-					total: sql<number>`count(*)::int`,
-				})
-				.from(workItems)
-				.where(live(workItems))
-				.groupBy(workItems.betId, workItems.objectiveId),
-			db
-				.select({ id: proposals.id, createdBy: proposals.createdBy, changes: proposals.changes })
-				.from(proposals)
-				.where(and(eq(proposals.ventureId, venture.id), eq(proposals.status, "pending")))
-				.orderBy(asc(proposals.createdAt)),
-		],
-	);
+	const objectiveRows = await db.select().from(objectives).where(live(objectives)).orderBy(asc(objectives.createdAt));
+
+	const assumptionRows = await db
+		.select()
+		.from(assumptions)
+		.where(live(assumptions))
+		.orderBy(asc(assumptions.createdAt), asc(assumptions.id));
+
+	const betRows = await db.select().from(bets).where(live(bets)).orderBy(asc(bets.createdAt), asc(bets.id));
+
+	const learningRows = await db
+		.select()
+		.from(learnings)
+		.where(eq(learnings.ventureId, venture.id))
+		.orderBy(desc(learnings.createdAt));
+
+	const readingRows = await db
+		.select()
+		.from(readings)
+		.where(eq(readings.ventureId, venture.id))
+		.orderBy(asc(readings.takenOn), asc(readings.createdAt));
+
+	const progressRows = await db
+		.select({
+			betId: workItems.betId,
+			objectiveId: workItems.objectiveId,
+			done: sql<number>`count(*) FILTER (WHERE ${workItems.status} = 'done')::int`,
+			total: sql<number>`count(*)::int`,
+		})
+		.from(workItems)
+		.where(live(workItems))
+		.groupBy(workItems.betId, workItems.objectiveId);
+
+	const pending = await db
+		.select({ id: proposals.id, createdBy: proposals.createdBy, changes: proposals.changes })
+		.from(proposals)
+		.where(and(eq(proposals.ventureId, venture.id), eq(proposals.status, "pending")))
+		.orderBy(asc(proposals.createdAt));
 
 	const workProgress = Object.fromEntries(
 		progressRows.map(({ done, total, ...home }) => [workHomeKey(home), { done, total }]),
@@ -143,7 +153,7 @@ export async function getCockpit(db: Database, slug: string) {
 	};
 }
 
-function liveWorkItems(db: Database, ventureIds: string[]) {
+function liveWorkItems(db: Executor, ventureIds: string[]) {
 	if (ventureIds.length === 0) return Promise.resolve([]);
 
 	return db
@@ -153,7 +163,7 @@ function liveWorkItems(db: Database, ventureIds: string[]) {
 		.orderBy(asc(workItems.depth), asc(workItems.position));
 }
 
-function liveObjectives(db: Database, ventureIds: string[]) {
+function liveObjectives(db: Executor, ventureIds: string[]) {
 	if (ventureIds.length === 0) return Promise.resolve([]);
 
 	return db
@@ -163,17 +173,17 @@ function liveObjectives(db: Database, ventureIds: string[]) {
 		.orderBy(asc(objectives.createdAt));
 }
 
-function liveBets(db: Database, ventureIds: string[]) {
+function liveBets(db: Executor, ventureIds: string[]) {
 	if (ventureIds.length === 0) return Promise.resolve([]);
 
 	return db
 		.select()
 		.from(bets)
 		.where(and(inArray(bets.ventureId, ventureIds), isNull(bets.archivedAt)))
-		.orderBy(asc(bets.createdAt));
+		.orderBy(asc(bets.createdAt), asc(bets.id));
 }
 
-export async function getVentureWork(db: Database, slug: string) {
+export async function getVentureWork(db: Executor, slug: string) {
 	const venture = await ventureBySlug(db, slug);
 
 	return {
@@ -232,7 +242,7 @@ export async function getEvents(db: Database, slug: string, page: { before: numb
 			payload: events.payload,
 			actor: events.actor,
 			runId: events.runId,
-			reason: commands.reason,
+			reason: sql<string | null>`coalesce(${events.payload}->>'reason', ${commands.reason})`,
 			createdAt: events.createdAt,
 		})
 		.from(events)
@@ -256,7 +266,7 @@ export async function getRecentEvents(db: Database, limit: number) {
 			payload: events.payload,
 			actor: events.actor,
 			runId: events.runId,
-			reason: commands.reason,
+			reason: sql<string | null>`coalesce(${events.payload}->>'reason', ${commands.reason})`,
 			createdAt: events.createdAt,
 		})
 		.from(events)

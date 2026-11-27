@@ -1,8 +1,9 @@
-import type { Inbox, InboxProposal, Proposal, ProposalChange, ProposalDetail } from "@braise/core";
-import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
+import type { Inbox, InboxDraft, InboxProposal, Proposal, ProposalChange, ProposalDetail } from "@braise/core";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { accessInbox } from "./access-queries.ts";
 import type { Database } from "./db/client.ts";
 import { assumptions, bets, objectives, proposals, strategyVersions, threads, ventures } from "./db/schema.ts";
+import { changesOf } from "./draft-handlers.ts";
 import { AppError } from "./errors.ts";
 import { staleness } from "./proposal-handlers.ts";
 import { needsInputInbox } from "./space-queries.ts";
@@ -57,26 +58,59 @@ async function toInboxItem(db: Database, row: Awaited<ReturnType<typeof inboxRow
 	} satisfies InboxProposal;
 }
 
+function toInboxDraft(row: Awaited<ReturnType<typeof inboxRows>>[number]) {
+	const { proposal } = row;
+	const changes = changesOf(proposal);
+
+	const stamps = changes.flatMap((change) => [change.createdAt, change.editedAt ?? change.createdAt]);
+
+	return {
+		kind: "draft",
+		id: proposal.id,
+		venture: row.venture,
+		status: proposal.status,
+		changeCount: changes.filter((change) => change.state === "open").length,
+		kept: changes.filter((change) => change.state === "kept").length,
+		dropped: changes.filter((change) => change.state === "dropped").length,
+		latestChangeAt: stamps.toSorted().at(-1) ?? proposal.createdAt.toISOString(),
+		createdAt: proposal.createdAt.toISOString(),
+		decidedAt: proposal.decidedAt?.toISOString() ?? null,
+	} satisfies InboxDraft;
+}
+
 export async function getInbox(db: Database) {
-	const [pending, decided] = await Promise.all([
+	const notDraft = isNull(threads.operatorVentureId);
+	const isDraft = isNotNull(threads.operatorVentureId);
+
+	const [pending, decided, drafting, closedDrafts] = await Promise.all([
 		inboxRows(db)
-			.where(and(eq(proposals.status, "pending"), isNull(ventures.archivedAt)))
+			.where(and(eq(proposals.status, "pending"), isNull(ventures.archivedAt), notDraft))
 			.orderBy(asc(proposals.createdAt)),
-		inboxRows(db).where(ne(proposals.status, "pending")).orderBy(desc(proposals.decidedAt)).limit(decidedLimit),
+		inboxRows(db)
+			.where(and(ne(proposals.status, "pending"), notDraft))
+			.orderBy(desc(proposals.decidedAt))
+			.limit(decidedLimit),
+		inboxRows(db)
+			.where(and(eq(proposals.status, "drafting"), isNull(ventures.archivedAt)))
+			.orderBy(asc(proposals.createdAt)),
+		inboxRows(db)
+			.where(and(inArray(proposals.status, ["approved", "rejected"]), isDraft))
+			.orderBy(desc(proposals.decidedAt))
+			.limit(decidedLimit),
 	]);
 
 	const [pendingProposals, decidedProposals, access, questions] = await Promise.all([
 		Promise.all(pending.map((row) => toInboxItem(db, row))),
-		Promise.all(decided.map((row) => toInboxItem(db, row))),
+		Promise.all(decided.filter((row) => row.proposal.status !== "drafting").map((row) => toInboxItem(db, row))),
 		accessInbox(db),
 		needsInputInbox(db),
 	]);
 
 	return {
-		pending: [...pendingProposals, ...access.pending, ...questions.pending].toSorted((left, right) =>
-			left.createdAt.localeCompare(right.createdAt),
+		pending: [...pendingProposals, ...drafting.map(toInboxDraft), ...access.pending, ...questions.pending].toSorted(
+			(left, right) => left.createdAt.localeCompare(right.createdAt),
 		),
-		decided: [...decidedProposals, ...access.decided, ...questions.decided]
+		decided: [...decidedProposals, ...closedDrafts.map(toInboxDraft), ...access.decided, ...questions.decided]
 			.toSorted((left, right) => (right.decidedAt ?? "").localeCompare(left.decidedAt ?? ""))
 			.slice(0, decidedLimit),
 	} satisfies Inbox;

@@ -5,6 +5,7 @@ import {
 	capabilityLabels,
 	changeLabels,
 	type InboxAccessRequest,
+	type InboxDraft,
 	type InboxItem,
 	type InboxNeedsInput,
 	impacts,
@@ -20,6 +21,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { ApiRequestError } from "./api.ts";
+import { DraftControls, DraftRoomProvider, stepOf, useDraftRoom } from "./draft.tsx";
 import { describeError } from "./errors.ts";
 import { DiffField } from "./history.tsx";
 import { PageError } from "./holding.tsx";
@@ -255,7 +257,10 @@ export function InboxPage() {
 	if (inbox.isError) return <PageError error={inbox.error} retry={() => void inbox.refetch()} />;
 
 	const { pending, decided } = inbox.data;
-	const selectedId = search.question ?? search.access ?? search.proposal ?? pending[0]?.id ?? decided[0]?.id ?? null;
+
+	const selectedId =
+		search.question ?? search.access ?? search.draft ?? search.proposal ?? pending[0]?.id ?? decided[0]?.id ?? null;
+
 	const selected = [...pending, ...decided].find((item) => item.id === selectedId);
 
 	return (
@@ -296,7 +301,9 @@ export function InboxPage() {
 					<AccessReview key={`${selected.id}:${selected.status}`} item={selected} />
 				) : selected?.kind === "needs_input" ? (
 					<QuestionReview key={`${selected.id}:${selected.status}`} item={selected} />
-				) : search.access === undefined && search.question === undefined ? (
+				) : selected?.kind === "draft" ? (
+					<DraftReview key={`${selected.id}:${selected.status}`} item={selected} />
+				) : search.access === undefined && search.question === undefined && search.draft === undefined ? (
 					<Review key={selectedId} proposalId={selectedId} />
 				) : (
 					<div className="rev">
@@ -316,8 +323,16 @@ function questionTitle(item: InboxNeedsInput) {
 	return `${item.agent.name} asks: ${item.question}`;
 }
 
+function draftTitle(item: InboxDraft) {
+	return item.status === "drafting"
+		? `Draft · ${plural(item.changeCount, "change")}`
+		: `Draft · ${item.kept} kept, ${item.dropped} dropped`;
+}
+
 function itemTitle(item: InboxItem) {
 	if (item.kind === "proposal") return item.title;
+
+	if (item.kind === "draft") return draftTitle(item);
 
 	return item.kind === "needs_input" ? questionTitle(item) : accessTitle(item);
 }
@@ -325,11 +340,15 @@ function itemTitle(item: InboxItem) {
 function itemSearch(item: InboxItem) {
 	if (item.kind === "proposal") return { proposal: item.id };
 
+	if (item.kind === "draft") return { draft: item.id };
+
 	return item.kind === "needs_input" ? { question: item.id } : { access: item.id };
 }
 
 function itemMeta(item: InboxItem) {
 	if (item.kind === "proposal") return `${plural(item.changeCount, "change")} · ${actorName(item.createdBy)}`;
+
+	if (item.kind === "draft") return item.kept === 0 ? "Operator" : `Operator · ${item.kept} kept so far`;
 
 	if (item.kind === "needs_input")
 		return item.space === null ? item.thread.title : `${item.space.title} · ${item.thread.title}`;
@@ -337,9 +356,13 @@ function itemMeta(item: InboxItem) {
 	return `Access request${item.attempts > 1 ? ` · tried ${item.attempts}×` : ""}`;
 }
 
+function isDecided(item: InboxItem) {
+	return item.status !== "pending" && item.status !== "drafting";
+}
+
 function InboxRow({ item, selected }: { item: InboxItem; selected: boolean }) {
 	const now = Date.now();
-	const decided = item.status !== "pending";
+	const decided = isDecided(item);
 	const at = item.decidedAt ?? item.createdAt;
 	const proposal = item.kind === "proposal" ? item : null;
 
@@ -382,6 +405,8 @@ function InboxRow({ item, selected }: { item: InboxItem; selected: boolean }) {
 
 function decisionWord(item: InboxItem) {
 	if (item.kind === "proposal") return item.status;
+
+	if (item.kind === "draft") return item.kept === 0 ? "dropped" : "kept";
 
 	if (item.kind === "needs_input") return "answered";
 
@@ -1255,7 +1280,13 @@ export function NeedsYou({ ventureId }: { ventureId: string }) {
 			</Sec>
 			{items.length === 0 ? <p className="empty">Nothing needs you.</p> : null}
 			{items.map((item) =>
-				item.kind === "proposal" ? (
+				item.kind === "draft" ? (
+					<Link key={item.id} to="/inbox" search={{ draft: item.id }} className="quest">
+						<Need />
+						<b>{draftTitle(item)}</b>
+						<span>The operator drafted these · {ago(item.latestChangeAt, now)}</span>
+					</Link>
+				) : item.kind === "proposal" ? (
 					<Link key={item.id} to="/inbox" search={{ proposal: item.id }} className="quest">
 						<Need />
 						<b>{item.title}</b>
@@ -1283,5 +1314,71 @@ export function NeedsYou({ ventureId }: { ventureId: string }) {
 				),
 			)}
 		</section>
+	);
+}
+
+function DraftRows() {
+	const room = useDraftRoom();
+	const changes = room?.draft?.changes ?? [];
+
+	if (room === null) return null;
+
+	return (
+		<ol className="d-rev">
+			{changes.map((change) => (
+				<li
+					key={change.id}
+					className={change.stale === null && change.error === null ? "d-row" : "d-row bad"}
+					data-kind={stepOf(change.command, change.payload).kind}
+				>
+					<span className="k">{stepOf(change.command, change.payload).label}</span>
+					<span className="d-row-t">
+						<b>{change.label}</b>
+						<span className="cap">
+							{change.stale ?? change.error ?? change.note}
+							{change.editedBy === "owner" ? " · edited by you" : ""}
+						</span>
+					</span>
+					<DraftControls changes={[change]} />
+				</li>
+			))}
+		</ol>
+	);
+}
+
+function DraftReview({ item }: { item: InboxDraft }) {
+	const now = Date.now();
+
+	return (
+		<div className="rev" style={accent(item.venture.slug)}>
+			<span className="rev-kind">
+				<Crest seed={item.venture.slug} size={14} />
+				{item.venture.name} · Operator draft
+			</span>
+			<h2>{draftTitle(item)}</h2>
+			<span className="rev-meta">Latest change {ago(item.latestChangeAt, now)}</span>
+			{item.status === "drafting" ? (
+				<>
+					<p className="lede">
+						The operator drafted these on {item.venture.name}'s board. Nothing applies until you keep it; keeping
+						a change also keeps what it builds on.
+					</p>
+					<DraftRoomProvider slug={item.venture.slug} ventureId={item.venture.id} view={null}>
+						<DraftRows />
+					</DraftRoomProvider>
+					<p className="rev-foot">
+						<Link to="/v/$slug/strategy" params={{ slug: item.venture.slug }} className="btn ghost sm">
+							See them on the board
+							<Icon name="chevr" />
+						</Link>
+					</p>
+				</>
+			) : (
+				<p className="lede">
+					This draft closed {item.decidedAt === null ? "" : ago(item.decidedAt, now)}: {item.kept} kept,{" "}
+					{item.dropped} dropped.
+				</p>
+			)}
+		</div>
 	);
 }

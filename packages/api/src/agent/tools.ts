@@ -6,11 +6,15 @@ import {
 	type Capability,
 	type CommandName,
 	capabilityLabels,
+	commandSchemas,
+	draftNoteLength,
 	failCauses,
 	impacts,
 	maxConfidence,
+	maxDraftChanges,
 	maxProposalChanges,
 	maxThreadsStartedPerRun,
+	operableCommands,
 	proposalTitleLength,
 	threadLinkTypes,
 	workFunctions,
@@ -24,9 +28,12 @@ import type { CodeHost } from "../code/host.ts";
 import { codingTools } from "../code/tools.ts";
 import type { Database } from "../db/client.ts";
 import { bets, objectives, runs, workItems } from "../db/schema.ts";
+import { boardOf } from "../draft-handlers.ts";
+import { draftProjection } from "../draft-view.ts";
 import { AppError } from "../errors.ts";
 import { handlers } from "../handlers.ts";
 import { executeCommand, type Services } from "../pipeline.ts";
+import { renderBoard, renderDraftChanges } from "./board.ts";
 import { type Reader, readerStatementTimeoutMs } from "./reader.ts";
 import type { AgentTool, ToolOutput } from "./runtime.ts";
 
@@ -43,6 +50,7 @@ export interface ToolScope {
 	rootRunId?: string;
 	threadId: string;
 	chatOf?: { spaceId: string; ventureId: string | null } | null;
+	operator?: { ventureId: string; slug: string } | null;
 	onInputRequested?: () => void;
 	coding?: { code: CodeHost; ventureId: string; threadTitle: string; signal: AbortSignal } | null;
 }
@@ -356,6 +364,48 @@ const proposeDescription = `Propose changes to a venture's strategy, objectives,
 Group related changes into one proposal, in the order they should apply. strategy.revise needs the full new text of all four fields (copy unchanged ones). A change can build on an earlier one in the same proposal: give objectiveId or assumptionId as {"ref": <index of that objective.create or assumption.create>}. Closing a bet and registering the next one belong in one proposal.
 The changes are checked right away; an error comes back if one would fail.`;
 
+function cleanSchema(value: unknown) {
+	if (Array.isArray(value)) {
+		const items: unknown[] = value.map(cleanSchema);
+
+		return items;
+	}
+
+	if (typeof value !== "object" || value === null) return value;
+
+	const entries = Object.entries(value as Record<string, unknown>).flatMap(([key, inner]) => {
+		if (key === "$schema" || (key === "additionalProperties" && inner === false)) return [];
+
+		if (key === "properties" && typeof inner === "object" && inner !== null) {
+			const { ventureId: _ventureId, ...rest } = inner as Record<string, unknown>;
+
+			return [[key, cleanSchema(rest)]];
+		}
+
+		if (key === "required" && Array.isArray(inner)) return [[key, inner.filter((field) => field !== "ventureId")]];
+
+		return [[key, cleanSchema(inner)]];
+	});
+
+	const cleaned: unknown = Object.fromEntries(entries);
+
+	return cleaned;
+}
+
+/** The payload schema of every operable command, generated from the zod schemas, without the venture id. */
+export function operableSchemas() {
+	return operableCommands
+		.map((name) => `- ${name}: ${JSON.stringify(cleanSchema(z.toJSONSchema(commandSchemas[name], { io: "input" })))}`)
+		.join("\n");
+}
+
+const draftDescription =
+	() => `Draft one change to this venture's board: the owner sees it on the venture's pages at once and keeps or drops it. Nothing applies until the owner keeps it, so never say a change is applied.
+Give the command, its payload (the fields below; ventureId is filled in for you) and a one-line note saying why, which becomes the recorded reason when kept.
+Any id field that names something you drafted earlier may point at its change instead: {"change": "<change id>"} for objectiveId, assumptionId, betId, a home's id, a reading subject's id and parentId. To change an item that is itself still drafted, revise its change with draft_revise instead of drafting an update. The change is checked against the board with every other open change; an error comes back if it would fail. At most ${maxDraftChanges} open changes.
+Commands and their payloads (JSON Schema):
+${operableSchemas()}`;
+
 const linkShape = {
 	type: z.enum(threadLinkTypes).describe("What the link points at"),
 	id: z.uuid().describe("The id of the work item, bet, assumption, objective or venture"),
@@ -472,6 +522,119 @@ export function braiseTools(scope: ToolScope) {
 					command: (name, payload) => command(name, payload),
 					fail: failure,
 				});
+
+	const operator = scope.operator ?? null;
+
+	const askOwner = defineTool({
+		name: "ask_owner",
+		description:
+			"Ask the owner one clear question you can't answer by looking things up. It goes to the owner's inbox as Needs you, and your run ends right after; the owner's reply in this thread starts your next run.",
+		input: { question: z.string().min(1).max(4_000) },
+		execute: async ({ question }) => {
+			const output = await command("input.request", { question }, () => ({
+				asked: true,
+				message: "Asked. Your run ends now; the owner's reply resumes the work.",
+			}));
+
+			if (!output.isError) scope.onInputRequested?.();
+
+			return output;
+		},
+	});
+
+	const readTools = [
+		defineTool({
+			name: "describe_schema",
+			description: "List the tables and columns of braise's database that the query tool can read.",
+			input: {},
+			execute: () => attempt(async () => ok(await describeSchema(scope.reader))),
+		}),
+		defineTool({
+			name: "query",
+			description: sqlDescription,
+			input: { sql: z.string().min(1).max(10_000).describe("One SELECT statement, without a trailing semicolon") },
+			execute: ({ sql }) => attempt(async () => ok(await runReadQuery(scope.reader, sql))),
+		}),
+	];
+
+	const linkTools = [
+		defineTool({
+			name: "link_thread",
+			description: "Link this thread to a work item, bet, assumption, objective or venture, so it shows up there.",
+			input: linkShape,
+			execute: (link) => command("thread.link", { threadId: scope.threadId, link }),
+		}),
+		defineTool({
+			name: "unlink_thread",
+			description: "Remove a link from this thread.",
+			input: linkShape,
+			execute: (link) => command("thread.unlink", { threadId: scope.threadId, link }),
+		}),
+	];
+
+	if (operator !== null) {
+		const drafted = (result: unknown) => {
+			const added = result as { changeId: string; entityId: string | null; label: string; open: number };
+
+			return { changeId: added.changeId, entityId: added.entityId, label: added.label, openChanges: added.open };
+		};
+
+		return [
+			defineTool({
+				name: "board",
+				description:
+					"Read this venture's board as the owner sees it now: strategy, objectives, assumptions, bets and the work tree, with every drafted change in place and marked with its change id, then the open changes with any that are stale or fail.",
+				input: {},
+				execute: () =>
+					attempt(async () => {
+						const projected = await draftProjection(scope.db, handlers, scope.services, operator.slug);
+
+						const board = projected?.board ?? (await boardOf(scope.db, operator.slug));
+
+						return ok(
+							`${renderBoard(board, projected?.draft ?? null)}\n\nOpen draft changes:\n${renderDraftChanges(projected?.draft ?? null)}`,
+						);
+					}),
+			}),
+			defineTool({
+				name: "draft",
+				description: draftDescription(),
+				input: {
+					command: z.enum(operableCommands),
+					payload: z.record(z.string(), z.unknown()).describe("The command's fields, without ventureId"),
+					note: z.string().min(1).max(draftNoteLength).describe("Why, in one line"),
+				},
+				execute: ({ command: name, payload, note }) =>
+					command("draft.add", { ventureId: operator.ventureId, command: name, payload, note }, drafted),
+			}),
+			defineTool({
+				name: "draft_revise",
+				description:
+					"Replace the payload of an open drafted change (give the whole payload, as for draft). Use it to change something you drafted, to keep the owner's edits while changing another field, or to re-check a stale change against the board as it is now.",
+				input: {
+					changeId: z.uuid(),
+					payload: z.record(z.string(), z.unknown()),
+					note: z.string().min(1).max(draftNoteLength).optional(),
+				},
+				execute: ({ changeId, payload, note }) =>
+					command(
+						"draft.revise",
+						{ ventureId: operator.ventureId, changeId, payload, ...(note === undefined ? {} : { note }) },
+						drafted,
+					),
+			}),
+			defineTool({
+				name: "draft_remove",
+				description:
+					"Withdraw an open drafted change, and with it every open change that points at it. The result lists what was withdrawn.",
+				input: { changeId: z.uuid() },
+				execute: ({ changeId }) => command("draft.remove", { ventureId: operator.ventureId, changeId }),
+			}),
+			askOwner,
+			...readTools,
+			...linkTools,
+		];
+	}
 
 	return [
 		...coding,

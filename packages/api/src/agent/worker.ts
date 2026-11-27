@@ -284,7 +284,7 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 
 					yield* Effect.addFinalizer(() => deltas.drained);
 
-					const runContext = yield* query(() => loadRunContext(db, run));
+					const runContext = yield* query(() => loadRunContext(db, run, services));
 
 					state.thread.ventureId = runContext.scope?.id ?? null;
 
@@ -393,6 +393,10 @@ export function agentWorkerLayer(runtimes: AgentRuntime[]) {
 									runContext.space?.role === "chat"
 										? { spaceId: runContext.space.id, ventureId: runContext.space.ventureId }
 										: null,
+								operator:
+									runContext.operator === null
+										? null
+										: { ventureId: runContext.operator.ventureId, slug: runContext.operator.slug },
 								onInputRequested: () => {
 									state.endAfterTool = true;
 								},

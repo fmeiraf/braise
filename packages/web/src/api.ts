@@ -8,12 +8,14 @@ import type {
 	CommandName,
 	CommandResponse,
 	DomainEvent,
+	DraftSummary,
 	ErrorCode,
 	GitHubConnection,
 	HoldingRow,
 	HoldingWork,
 	Inbox,
 	LinkTarget,
+	OperatorState,
 	ProposalDetail,
 	ReachableRepo,
 	SpaceDetail,
@@ -71,6 +73,9 @@ export type RecentEvent = DomainEvent & { ventureSlug: string; ventureName: stri
 export const api = {
 	ventures: () => request<{ ventures: HoldingRow[] }>("/api/ventures"),
 	cockpit: (slug: string) => request<Cockpit>(`/api/ventures/${encodeURIComponent(slug)}`),
+	board: (slug: string) => request<Board>(`/api/ventures/${encodeURIComponent(slug)}?draft=current`),
+	draft: (slug: string) => request<{ draft: DraftSummary | null }>(`/api/ventures/${encodeURIComponent(slug)}/draft`),
+	operator: (slug: string) => request<OperatorState>(`/api/ventures/${encodeURIComponent(slug)}/operator`),
 	versions: (slug: string) =>
 		request<{ ventureId: string; lastSeq: number; versions: StrategyVersion[] }>(
 			`/api/ventures/${encodeURIComponent(slug)}/strategy/versions`,
@@ -79,7 +84,7 @@ export const api = {
 		request<{ ventureId: string; lastSeq: number; events: DomainEvent[] }>(
 			`/api/ventures/${encodeURIComponent(slug)}/events?limit=${limit}${before === null ? "" : `&before=${before}`}`,
 		),
-	work: (slug: string) => request<VentureWork>(`/api/ventures/${encodeURIComponent(slug)}/work`),
+	work: (slug: string) => request<DraftWork>(`/api/ventures/${encodeURIComponent(slug)}/work?draft=current`),
 	holdingWork: () => request<HoldingWork>("/api/work"),
 	recentEvents: (limit = 100) => request<{ events: RecentEvent[] }>(`/api/events?limit=${limit}`),
 	threads: (filter: { ventureId?: string; subject?: string; space?: string }) => {
@@ -121,6 +126,11 @@ export const api = {
 		});
 	},
 };
+
+/** The cockpit as the venture's pages show it: with the open draft applied and marked. */
+export type Board = Cockpit & { draft: DraftSummary | null };
+
+export type DraftWork = VentureWork & { draft: DraftSummary | null };
 
 export type CreatedVenture = Pick<Cockpit, "venture" | "strategy">;
 

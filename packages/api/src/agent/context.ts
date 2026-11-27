@@ -4,6 +4,7 @@ import {
 	type Capability,
 	capabilities,
 	capabilityLabels,
+	type DraftChange,
 	isAgentActor,
 	type Learning,
 	type MemberState,
@@ -17,7 +18,7 @@ import {
 	type ThreadLink,
 	type ThreadMessage,
 } from "@braise/core";
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type { Database } from "../db/client.ts";
 import {
 	agentGrants,
@@ -34,9 +35,14 @@ import {
 	ventureRepos,
 	ventures,
 } from "../db/schema.ts";
+import { boardOf, changesOf } from "../draft-handlers.ts";
+import { draftProjection } from "../draft-view.ts";
 import { AppError } from "../errors.ts";
+import { handlers } from "../handlers.ts";
+import type { Services } from "../pipeline.ts";
 import { getCockpit } from "../queries.ts";
 import { getThread } from "../thread-queries.ts";
+import { renderBoard, renderDraftChanges } from "./board.ts";
 
 export interface ContextVenture {
 	id: string;
@@ -114,6 +120,16 @@ export interface ContextCode {
 	pullRequests: { number: number; fullName: string; url: string; state: string; title: string }[];
 }
 
+/** What the operator reads before a turn: the board with its draft, and what the owner did with the draft. */
+export interface OperatorContext {
+	ventureId: string;
+	slug: string;
+	board: string;
+	changes: string;
+	openChanges: number;
+	ownerActions: string[];
+}
+
 export interface RunContext {
 	today: string;
 	agent: { name: string; actor: string; grants: Capability[] };
@@ -136,6 +152,7 @@ export interface RunContext {
 	transcript: Pick<ThreadMessage, "author" | "body">[];
 	pendingProposals: { id: string; title: string; changeCount: number }[];
 	code: ContextCode | null;
+	operator: OperatorContext | null;
 	message: string;
 }
 
@@ -227,7 +244,44 @@ export function renderLoop(name: string, loop: LoopState) {
 	].join("\n");
 }
 
+function renderOperatorSystemPrompt(context: RunContext, operator: OperatorContext) {
+	const name = context.scope?.name ?? "the venture";
+
+	const actions =
+		operator.ownerActions.length === 0
+			? ""
+			: `\n\nSince your last turn the owner:\n${operator.ownerActions.map((line) => `- ${line}`).join("\n")}`;
+
+	return `You are ${context.agent.name}, the operator of ${name} inside braise, the owner's holding for their product ventures. You run this venture's board the way someone drives a project tool through its API: its name and kind, its strategy (why, what, diagnosis, guiding policy), objectives, the assumptions they rest on, bets that test one assumption each, readings, and the work tree (initiative → task → subtask) under bets, build objectives and Upkeep.
+
+How you work:
+- Everything you change goes into the venture's draft with the draft tool, one change per call, and appears on the owner's pages at once. The owner keeps, edits or drops each change. Nothing applies until the owner keeps it: never say a change is applied, say it is drafted.
+- Do what was asked by drafting it straight away rather than describing it. Ask only when the request is ambiguous.
+- Build on what you drafted by pointing at its change: {"change": "<change id>"}. To change something still drafted, revise its change with draft_revise; draft_remove withdraws one.
+- Keep the owner's edits: when the owner edited a drafted change, revise only the fields you were asked to change and leave theirs as they are.
+- A stale change no longer fits the board because the row it touches changed since. Look at the board and revise it, or withdraw it if it no longer makes sense.
+- Read the board with the board tool after the owner acts, and the database with query when you need more. Look ids up; never guess them.
+- Follow the loop's rules: a bet is registered in full (action, signal, pass and fail marks, method, deadline) and tests one open assumption under a metric or learning objective; at most two metric or learning objectives climb at once; stop and ask the owner instead of drafting another bet when an assumption reaches confidence 0, three bets on it have failed, or the budget or a guardrail is broken.
+- You can't create or archive ventures, change repos, grants, threads or spaces; say so plainly when asked.
+
+How to answer: one short reply per turn, in Markdown, saying what you drafted or changed in the draft. Don't repeat the board back.
+
+Lines from "braise" in the conversation are system notes, such as what the owner kept or dropped.
+
+Today is ${context.today}.
+
+The board now, with the draft in place:
+${operator.board}
+
+Open draft changes (${operator.openChanges}):
+${operator.changes}${actions}
+
+Thread id: ${context.thread.id} ("${context.thread.title}").`;
+}
+
 export function renderSystemPrompt(context: RunContext) {
+	if (context.operator !== null) return renderOperatorSystemPrompt(context, context.operator);
+
 	const scope =
 		context.scope === null
 			? "This thread belongs to the Holding (all ventures)."
@@ -618,9 +672,74 @@ async function loadCode(db: Database, ventureId: string, threadId: string) {
 	return { repos, checkouts: held, pullRequests: prs } satisfies ContextCode;
 }
 
+function decisionLines(changes: DraftChange[], since: Date | null) {
+	const after = (stamp: string | null) => stamp !== null && (since === null || new Date(stamp) > since);
+	const lines: string[] = [];
+
+	for (const change of changes) {
+		const label = `${change.command} (c:${change.id})`;
+
+		if (change.decidedBy === "owner" && after(change.decidedAt)) lines.push(`${change.state} ${label}`);
+
+		if (change.editedBy === "owner" && after(change.editedAt) && change.state === "open") {
+			lines.push(
+				`edited ${label}: ${change.editedFields.join(", ") || "its payload"} now ${JSON.stringify(change.payload)}`,
+			);
+		}
+	}
+
+	return lines;
+}
+
+async function loadOperator(
+	db: Database,
+	services: Services | null,
+	venture: { id: string; slug: string },
+	runId: string,
+) {
+	const projected = services === null ? null : await draftProjection(db, handlers, services, venture.slug);
+
+	const board = projected?.board ?? (await boardOf(db, venture.slug));
+
+	const draft = projected?.draft ?? null;
+
+	const [previous] = await db
+		.select({ createdAt: runs.createdAt })
+		.from(runs)
+		.innerJoin(threads, eq(threads.id, runs.threadId))
+		.where(and(eq(threads.operatorVentureId, venture.id), ne(runs.id, runId)))
+		.orderBy(desc(runs.createdAt), desc(runs.id))
+		.limit(1);
+
+	const since = previous?.createdAt ?? null;
+
+	const drafts = await db
+		.select({ changes: proposals.changes })
+		.from(proposals)
+		.innerJoin(threads, eq(threads.id, proposals.threadId))
+		.where(
+			and(
+				eq(proposals.ventureId, venture.id),
+				isNotNull(threads.operatorVentureId),
+				or(eq(proposals.status, "drafting"), since === null ? sql`false` : gt(proposals.decidedAt, since)),
+			),
+		)
+		.orderBy(asc(proposals.createdAt));
+
+	return {
+		ventureId: venture.id,
+		slug: venture.slug,
+		board: renderBoard(board, draft),
+		changes: renderDraftChanges(draft),
+		openChanges: draft?.changes.length ?? 0,
+		ownerActions: drafts.flatMap((row) => decisionLines(changesOf(row), since)),
+	} satisfies OperatorContext;
+}
+
 export async function loadRunContext(
 	db: Database,
 	run: { id: string; threadId: string; messageId: string; actor: string; retryOf: string | null },
+	services: Services | null = null,
 ) {
 	const detail = await getThread(db, run.threadId);
 
@@ -741,5 +860,9 @@ export async function loadRunContext(
 		message: trigger.body,
 		pendingProposals: pendingRows.map((row) => ({ id: row.id, title: row.title, changeCount: row.changes.length })),
 		code,
+		operator:
+			detail.thread.operatorVentureId === null || detail.venture === null
+				? null
+				: await loadOperator(db, services, detail.venture, run.id),
 	} satisfies RunContext;
 }

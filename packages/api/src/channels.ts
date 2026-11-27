@@ -11,3 +11,5 @@ export const accessChannel = "access_events";
 export const capacityChannel = "capacity_events";
 
 export const codeChannel = "code_events";
+
+export const draftChannel = "draft_events";

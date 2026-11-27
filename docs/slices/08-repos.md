@@ -1,6 +1,6 @@
 # Slice 8: Repos, sandboxed checkouts and pull requests
 
-Status: **in progress** 2026-11-26. This is the build spec; the rules in `docs/architecture.md` apply
+Status: **landed** 2026-11-26 (commit `336afe6`). This is the build spec; the rules in `docs/architecture.md` apply
 throughout. It gives ventures their GitHub repos and lets agents change code: each thread works in its
 own checkout, runs commands in a sandbox, and hands its work to the owner as a pull request.
 

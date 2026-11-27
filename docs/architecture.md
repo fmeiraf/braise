@@ -135,6 +135,10 @@ Planned (order may change):
 8. **Repos, sandboxed checkouts and pull requests:** GitHub repos per venture through a GitHub App,
    per-thread checkouts from a bare mirror, braise's own coding tools on both runtimes with bash in
    srt, and push and pull requests under the `code` capability. Spec: `docs/slices/08-repos.md`.
+9. **The operator:** one chat per venture whose agent operates the board (strategy, objectives,
+   assumptions, bets, readings, work items, the venture's name and kind) into a draft that grows
+   live on the venture's pages; the owner keeps or drops each change. Spec:
+   `docs/slices/09-operator.md`.
 
 Milestone: braise manages itself as a venture (dogfooding).
 
@@ -236,6 +240,31 @@ Milestone: braise manages itself as a venture (dogfooding).
   files no access request (like owner-only commands). Invariant 7 holds: limit readings
   arrive as a new runtime signal (`limit`) on the unchanged contract. Process rule 2 holds:
   every new table and column is used by this slice. The process rules otherwise held.
+
+- **Slice 9, The operator** (2026-11-27): an operator chat per venture in sessions
+  (`threads.operator_venture_id`, ended by New session or 4 hours idle, checked on open and post); the
+  venture's single draft as a `drafting` proposal whose changes carry stable ids, entity ids, notes,
+  bases and states; `draft.add/revise/remove` (agent, only in the operator chat) and
+  `draft.revise/keep/drop/discard` (owner) with pointers, dependency closures and pointer rewriting;
+  preset ids in the create handlers; `venture.update`; the draft view of the cockpit and work tree
+  (replayed in a savepoint under the venture lock, cached by draft version and `last_seq`); the `draft`
+  SSE hint; the operator tools (`board`, `draft`, `draft_revise`, `draft_remove`) and prompt mode; the
+  operator panel, draft states on Overview, Strategy and Work, the draft bar and the inbox's Draft item.
+  The spec's tests pass against real Postgres, the worker end to end runs Pi against MSW. In the running
+  app with real Claude runs on the example venture, steps 1–10 were exercised: step 3 first hit the
+  two-climbing-objectives limit, and the agent asked the owner before drafting a bet close and an
+  objective close to make room; in step 6 the archive was of the B3 interviews initiative, since the
+  venture has no onboarding initiative; step 7 kept an initiative, which brought its bet, assumption and
+  objective; step 10's idle roll-over happened on its own overnight. The changes kept during the demo
+  are applied to the example venture; the rest of the draft was dropped.
+  Rule review (process rule 3): invariant 5 holds as written: agents only draft, and only the owner's
+  keep applies a change, through the same handlers in one transaction and one `seq` range. Invariant 6
+  holds: kept changes are recorded under the owner, and their events carry `proposalId`, `changeId` and
+  the change's note as the reason. Invariant 2 holds: draft commands are commands; those that apply
+  nothing write no domain events, and the draft view writes only inside a savepoint it rolls back.
+  Invariant 4 holds: `draft.*` sit under `propose`, and `not_in_operator_chat` is a placement rule that
+  files no access request, like `not_in_space_chat`. Process rule 2 holds: every new column and index
+  is used by this slice. The process rules otherwise held.
 
 ## Decisions log
 
@@ -552,3 +581,26 @@ Milestone: braise manages itself as a venture (dogfooding).
   on the Overview header and from ⌘K, holds the GitHub connection, repos and archiving. The dock
   gains Strategy (venture scope only) and the keys become 1–5. Extends the UI topology entry of
   2026-11-25.
+- 2026-11-26: The operator (owner, planned as slice 9): each venture gets one operator chat whose
+  agent can draft any command in the operable set (`venture.update`, `strategy.revise`, and the
+  create, update, status, close, move and archive commands of objectives, assumptions, bets,
+  readings and work items) into the venture's single draft, shown live on its pages and in the inbox.
+  Only the owner's keep applies a change, so invariant 5 holds. Archives become draftable from the
+  operator chat (they stay owner-only everywhere else, 2026-11-24); `venture.create`,
+  `venture.archive` and repo commands stay out. Work item writes in the operator chat go through
+  the draft; other threads keep their direct `work` writes.
+- 2026-11-26: The operator chat is made of sessions (owner): one open session per venture, ended by
+  New session or after 4 hours without a message; the agent's transcript is the session's messages.
+  Drafts are a state of the item in the UI, with ids fixed when drafted, but stored as changes in the
+  draft rather than as flagged rows (spec: `docs/slices/09-operator.md`).
+- 2026-11-27: Building slice 9 settled: the draft is capped at 50 open changes (from the spike: about
+  110 ms to replay 50 changes and query the board). A draft change's base also covers the real rows it
+  points at, and keeping changes re-bases the open ones that were fresh, so only edits from outside the
+  draft make it stale. A kept change's note is its recorded reason, stored in its events' payload. The
+  cockpit's draft view is `?draft=current` on the cockpit's own route. Operator sessions don't show in
+  the Threads list, and a session takes its agent from `operator.open` (default Claude). The capability
+  `propose` is labelled "Proposals and drafts". See "As built" in `docs/slices/09-operator.md`.
+- 2026-11-27: Web: the operator panel is a 408px third column of `.app` toggled from the rail, `O` and
+  ⌘K, remembered per browser; venture pages read the draft-aware cockpit and work responses, so a drafted
+  item renders with its page's own components and keeps its React key when kept. Draft states follow
+  `ui-prototype-operator.html` (dashed outline, green new, struck red old value, red archive).

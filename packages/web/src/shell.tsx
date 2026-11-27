@@ -1,9 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { DraftBar, DraftRoomProvider } from "./draft.tsx";
 import { queries, rememberVenture, useHintStream } from "./live.ts";
 import { accent, Crest, Drone, Elapsed, hueOf, Icon, type IconName, isSquare, You } from "./marks.tsx";
 import { Select } from "./menu.tsx";
+import { OperatorPanel } from "./operator.tsx";
 import { Palette } from "./palette.tsx";
 import { ago } from "./time.ts";
 import { useToasts } from "./toast.ts";
@@ -36,6 +38,26 @@ function scopedPath(view: View, slug: string | null) {
 	return view === "overview" ? prefix || "/" : `${prefix}/${view}`;
 }
 
+const draftViews = { overview: "overview", strategy: "strategy", work: "work" } as const;
+
+const operatorKey = "braise.operator";
+
+function remembered() {
+	try {
+		return window.localStorage.getItem(operatorKey) === "open";
+	} catch {
+		return false;
+	}
+}
+
+function remember(open: boolean) {
+	try {
+		window.localStorage.setItem(operatorKey, open ? "open" : "closed");
+	} catch {
+		return;
+	}
+}
+
 const keyViews: Record<string, View> = {
 	"1": "overview",
 	"2": "strategy",
@@ -55,6 +77,7 @@ export function Shell() {
 	const pathname = useLocation({ select: (location) => location.pathname });
 	const { slug } = useParams({ strict: false });
 	const [palette, setPalette] = useState(false);
+	const [operating, setOperating] = useState(remembered);
 	const scope = slug ?? null;
 	const view = viewOf(pathname);
 	const rows = ventures.data?.ventures ?? [];
@@ -67,6 +90,16 @@ export function Shell() {
 	useEffect(() => {
 		document.documentElement.style.setProperty("--acc", scope === null ? "var(--ink)" : hueOf(scope));
 	}, [scope]);
+
+	const toggleOperator = useCallback((next?: boolean) => {
+		setOperating((current) => {
+			const value = next ?? !current;
+
+			remember(value);
+
+			return value;
+		});
+	}, []);
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -92,6 +125,7 @@ export function Shell() {
 
 			if (scoped !== undefined && (scope !== null || holdingViews.includes(scoped)))
 				void navigate({ to: scopedPath(scoped, scope) });
+			else if (key === "o" && scope !== null) toggleOperator();
 			else if (key === "i") void navigate({ to: "/inbox" });
 			else if (key === "a") void navigate({ to: "/agents" });
 			else if (key === "h") void navigate({ to: "/" });
@@ -100,7 +134,7 @@ export function Shell() {
 		document.addEventListener("keydown", onKeyDown);
 
 		return () => document.removeEventListener("keydown", onKeyDown);
-	}, [navigate, scope]);
+	}, [navigate, scope, toggleOperator]);
 
 	const slot = (target: View, key: string, label: string, count = 0) => (
 		<Link
@@ -116,8 +150,11 @@ export function Shell() {
 		</Link>
 	);
 
-	return (
-		<div className="app">
+	const operatorOpen = operating && scope !== null && scopeVenture !== undefined;
+	const draftView = (draftViews as Record<string, (typeof draftViews)[keyof typeof draftViews]>)[view] ?? null;
+
+	const shell = (
+		<div className={operatorOpen ? "app op-open" : "app"}>
 			<nav className="rail" aria-label="Ventures">
 				<Link
 					to="/"
@@ -165,6 +202,19 @@ export function Shell() {
 					<Icon name="plus" />
 				</Link>
 				<span className="grow" />
+				{scope === null ? null : (
+					<button
+						type="button"
+						className="r-i op-rail"
+						aria-label="Operator"
+						aria-pressed={operatorOpen}
+						data-tip="Operator|press O"
+						data-side="r"
+						onClick={() => toggleOperator()}
+					>
+						<Drone size={18} />
+					</button>
+				)}
 				<button
 					type="button"
 					className="r-i"
@@ -183,6 +233,16 @@ export function Shell() {
 			<main key={pathname} className={fixedViews.has(view) ? "main fixed enter" : "main enter"}>
 				<Outlet />
 			</main>
+
+			{operatorOpen ? (
+				<OperatorPanel
+					key={scopeVenture.id}
+					venture={{ id: scopeVenture.id, slug: scopeVenture.slug, name: scopeVenture.name }}
+					close={() => toggleOperator(false)}
+				/>
+			) : null}
+
+			{scopeVenture === undefined || draftView === null ? null : <DraftBar />}
 
 			<footer className="deck">
 				<span />
@@ -264,8 +324,18 @@ export function Shell() {
 
 			<Tips />
 			<Toasts down={stream === "down"} />
-			{palette ? <Palette scope={scope} close={() => setPalette(false)} /> : null}
+			{palette ? (
+				<Palette scope={scope} close={() => setPalette(false)} operator={() => toggleOperator(true)} />
+			) : null}
 		</div>
+	);
+
+	if (scopeVenture === undefined) return shell;
+
+	return (
+		<DraftRoomProvider slug={scopeVenture.slug} ventureId={scopeVenture.id} view={draftView}>
+			{shell}
+		</DraftRoomProvider>
 	);
 }
 
