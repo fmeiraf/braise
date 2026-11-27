@@ -114,6 +114,16 @@ const glyphs = [
 	"M9.5 3.5h5 M10.5 3.5v5.5L5 18.5a1.4 1.4 0 0 0 1.2 2h11.6a1.4 1.4 0 0 0 1.2-2L13.5 9V3.5 M7.5 14.5h9",
 ] as const;
 
+/** The name of a venture's hue, for assets drawn per hue. */
+export function hueNameOf(slug: string) {
+	return hues[hash(slug) % hues.length] ?? hues[0];
+}
+
+/** Picks one of `count` options from a slug, independently of its hue and glyph. */
+export function pickOf(slug: string, salt: string, count: number) {
+	return avalanche(hash(`${slug}·${salt}`)) % count;
+}
+
 /** A venture's glyph: one line drawing, picked from its slug like its hue. */
 export function glyphOf(slug: string) {
 	return glyphs[avalanche(hash(`${slug}·glyph`)) % glyphs.length] ?? glyphs[0];

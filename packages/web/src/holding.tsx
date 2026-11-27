@@ -1,4 +1,5 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { CreateVenture } from "./create-venture.tsx";
 import { describeError } from "./errors.ts";
 import { NeedsYou } from "./inbox.tsx";
@@ -7,6 +8,7 @@ import { HoldingIcon, IconTile } from "./marks.tsx";
 import { Sec, Skeleton } from "./parts.tsx";
 import { ago } from "./time.ts";
 import { BreakGround, VentureCard } from "./valley/campus.tsx";
+import { City } from "./valley/city.tsx";
 import { doneThisWeek, workCounts } from "./valley/figures.ts";
 import { Attention, Kicker, Legend, Sky } from "./valley/hero.tsx";
 import { OnShift } from "./valley/on-shift.tsx";
@@ -52,6 +54,7 @@ export function HoldingPage() {
 	const work = useQuery(queries.holdingWork());
 	const working = useWorking();
 	const toneOf = useVentureTones();
+	const [hot, setHot] = useState<string | null>(null);
 
 	const cockpits = useQueries({
 		queries: (ventures.data?.ventures ?? []).map((venture) => queries.cockpit(venture.slug)),
@@ -84,6 +87,7 @@ export function HoldingPage() {
 		<div className="valley">
 			<section className="vl-hero">
 				<Sky />
+				<City ventures={ventures.data.ventures} toneOf={toneOf} hot={hot} setHot={setHot} />
 				<div className="vl-hud">
 					<Kicker>The Holding</Kicker>
 					<h1 className="vl-h1">The Valley never sleeps.</h1>
@@ -131,6 +135,8 @@ export function HoldingPage() {
 										tone={toneOf(row)}
 										working={working.find((item) => item.run.ventureSlug === row.slug)}
 										now={now}
+										hot={hot === row.slug}
+										setHot={setHot}
 									/>
 								))}
 								<BreakGround />
