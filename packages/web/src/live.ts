@@ -1,4 +1,4 @@
-import type { Cockpit, HoldingWork, StreamHint, ThreadHint, VentureWork, WorkItem } from "@braise/core";
+import type { Cockpit, DraftHint, HoldingWork, StreamHint, ThreadHint, VentureWork, WorkItem } from "@braise/core";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "./api.ts";
@@ -9,6 +9,9 @@ export const keys = {
 	holdingWork: ["work"] as const,
 	venture: (slug: string) => ["venture", slug] as const,
 	cockpit: (slug: string) => ["venture", slug, "cockpit"] as const,
+	board: (slug: string) => ["venture", slug, "board"] as const,
+	draft: (slug: string) => ["venture", slug, "draft"] as const,
+	operator: (slug: string) => ["venture", slug, "operator"] as const,
 	versions: (slug: string) => ["venture", slug, "versions"] as const,
 	events: (slug: string) => ["venture", slug, "events"] as const,
 	work: (slug: string) => ["venture", slug, "work"] as const,
@@ -34,6 +37,9 @@ export const queries = {
 	ventures: () => queryOptions({ queryKey: keys.ventures, queryFn: api.ventures }),
 	recent: () => queryOptions({ queryKey: keys.recent, queryFn: () => api.recentEvents() }),
 	cockpit: (slug: string) => queryOptions({ queryKey: keys.cockpit(slug), queryFn: () => api.cockpit(slug) }),
+	board: (slug: string) => queryOptions({ queryKey: keys.board(slug), queryFn: () => api.board(slug) }),
+	draft: (slug: string) => queryOptions({ queryKey: keys.draft(slug), queryFn: () => api.draft(slug) }),
+	operator: (slug: string) => queryOptions({ queryKey: keys.operator(slug), queryFn: () => api.operator(slug) }),
 	versions: (slug: string) => queryOptions({ queryKey: keys.versions(slug), queryFn: () => api.versions(slug) }),
 	work: (slug: string) => queryOptions({ queryKey: keys.work(slug), queryFn: () => api.work(slug) }),
 	holdingWork: () => queryOptions({ queryKey: keys.holdingWork, queryFn: api.holdingWork }),
@@ -72,6 +78,23 @@ export function applyThreadHint(client: QueryClient, hint: ThreadHint) {
 	void client.invalidateQueries({ queryKey: keys.inbox });
 
 	void client.invalidateQueries({ queryKey: keys.capacity });
+}
+
+export function refreshDraft(client: QueryClient, slug: string) {
+	return Promise.all([
+		client.invalidateQueries({ queryKey: keys.board(slug) }),
+		client.invalidateQueries({ queryKey: keys.work(slug) }),
+		client.invalidateQueries({ queryKey: keys.draft(slug) }),
+		client.invalidateQueries({ queryKey: keys.operator(slug) }),
+		client.invalidateQueries({ queryKey: keys.inbox }),
+	]);
+}
+
+export function applyDraftHint(client: QueryClient, hint: DraftHint) {
+	const slug = slugById.get(hint.ventureId);
+
+	if (slug !== undefined) void refreshDraft(client, slug);
+	else void client.invalidateQueries({ queryKey: keys.inbox });
 }
 
 export function applyCapacityHint(client: QueryClient) {
@@ -172,6 +195,12 @@ export function updateCockpit(client: QueryClient, slug: string, seq: number, up
 		return update({ ...current, venture: { ...current.venture, lastSeq: seq } });
 	});
 
+	client.setQueryData<Cockpit>(keys.board(slug), (current) =>
+		current === undefined ? current : update({ ...current, venture: { ...current.venture, lastSeq: seq } }),
+	);
+
+	void client.invalidateQueries({ queryKey: keys.board(slug) });
+
 	void client.invalidateQueries({ queryKey: keys.ventures });
 
 	void client.invalidateQueries({ queryKey: keys.recent });
@@ -263,6 +292,12 @@ export function useHintStream(client: QueryClient) {
 				heard();
 
 				applyCodeHint(client, JSON.parse(event.data as string) as { ventureId: string; threadId: string | null });
+			});
+
+			next.addEventListener("draft", (event) => {
+				heard();
+
+				applyDraftHint(client, JSON.parse(event.data as string) as DraftHint);
 			});
 
 			next.addEventListener("reset", () => {

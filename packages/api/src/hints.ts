@@ -1,4 +1,4 @@
-import type { RunDelta, StreamHint, ThreadHint } from "@braise/core";
+import type { DraftHint, RunDelta, StreamHint, ThreadHint } from "@braise/core";
 import { Cause, Context, Deferred, Effect, Layer, PubSub, Schedule, type Scope } from "effect";
 import pg from "pg";
 import { z } from "zod";
@@ -7,6 +7,7 @@ import {
 	capacityChannel,
 	codeChannel,
 	deltaChannel,
+	draftChannel,
 	notifyChannel,
 	runControlChannel,
 	threadChannel,
@@ -20,6 +21,7 @@ export type HubMessage =
 	| { type: "access" }
 	| { type: "capacity"; heldRunId: string | null }
 	| { type: "code"; ventureId: string; threadId: string | null }
+	| ({ type: "draft" } & DraftHint)
 	| { type: "reset" };
 
 const reconnectDelay = "1 second";
@@ -27,6 +29,13 @@ const reconnectDelay = "1 second";
 const threadHint = z.object({ threadId: z.uuid(), ventureId: z.uuid().nullable() });
 
 const codeHint = z.object({ ventureId: z.uuid(), threadId: z.uuid().nullable() });
+
+const draftHint = z.object({
+	ventureId: z.uuid(),
+	version: z.number().int().min(0),
+	changeId: z.uuid().nullable(),
+	action: z.enum(["add", "revise", "remove", "keep", "drop", "discard"]),
+});
 
 const runDelta = z.object({
 	threadId: z.uuid(),
@@ -70,6 +79,11 @@ export function parseHubMessage(channel: string, payload: string) {
 
 			return parsed.success ? ({ type: "code", ...parsed.data } satisfies HubMessage) : null;
 		}
+		case draftChannel: {
+			const parsed = draftHint.safeParse(parseJson(payload));
+
+			return parsed.success ? ({ type: "draft", ...parsed.data } satisfies HubMessage) : null;
+		}
 		case capacityChannel:
 			return {
 				type: "capacity",
@@ -99,6 +113,7 @@ const channels = [
 	accessChannel,
 	capacityChannel,
 	codeChannel,
+	draftChannel,
 ];
 
 function listen(connectionString: string, pubsub: PubSub.PubSub<HubMessage>, ended: Deferred.Deferred<void>) {

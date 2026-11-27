@@ -51,7 +51,36 @@ export const proposableCommands = [
 
 export const legacyProposableCommands = ["bet.set_status", "goal.create", "goal.update"] as const;
 
-export const proposalStatuses = ["pending", "approved", "rejected"] as const;
+/** What the operator may draft: everything on a venture's board, never ventures, repos, grants or threads. */
+export const operableCommands = [
+	"venture.update",
+	"strategy.revise",
+	"objective.create",
+	"objective.update",
+	"objective.check",
+	"objective.close",
+	"objective.archive",
+	"assumption.create",
+	"assumption.update",
+	"assumption.archive",
+	"bet.create",
+	"bet.update",
+	"bet.close",
+	"bet.archive",
+	"reading.record",
+	"work.create",
+	"work.update",
+	"work.set_status",
+	"work.move",
+	"work.archive",
+] as const;
+
+export const draftChangeStates = ["open", "kept", "dropped"] as const;
+export const maxDraftChanges = 50;
+export const draftNoteLength = 300;
+export const defaultOperatorIdleSeconds = 4 * 60 * 60;
+
+export const proposalStatuses = ["pending", "approved", "rejected", "drafting"] as const;
 export const capabilities = ["work", "links", "propose", "delegate", "code"] as const;
 export const accessRequestStatuses = ["pending", "approved", "denied"] as const;
 export const defaultAgentProfileId = "claude";
@@ -84,6 +113,10 @@ const changePayload = z.record(z.string(), z.unknown());
 const proposalChange = z.strictObject({ command: z.enum(proposableCommands), payload: changePayload });
 
 const note = z.string().trim().min(1).max(2_000);
+
+const draftNote = z.string().trim().min(1).max(draftNoteLength);
+
+const changeIds = z.array(id).min(1).max(maxDraftChanges);
 
 const profileId = z.string().regex(slugPattern).max(40);
 
@@ -154,6 +187,9 @@ export const commandSchemas = {
 		guidingPolicy: longText.default(""),
 	}),
 	"venture.archive": z.strictObject({ ...ventureScoped }),
+	"venture.update": z
+		.strictObject({ ...ventureScoped, name: text.max(120).optional(), kind: z.enum(ventureKinds).optional() })
+		.refine((value) => someField(value, ["name", "kind"]), { message: "Change at least one field" }),
 	"strategy.revise": z.strictObject({
 		...ventureScoped,
 		why: text,
@@ -426,6 +462,24 @@ export const commandSchemas = {
 		note: note.optional(),
 	}),
 	"proposal.reject": z.strictObject({ ...ventureScoped, proposalId: id, note: note.optional() }),
+	"draft.add": z.strictObject({
+		...ventureScoped,
+		command: z.enum(operableCommands),
+		payload: changePayload,
+		note: draftNote,
+	}),
+	"draft.revise": z.strictObject({
+		...ventureScoped,
+		changeId: id,
+		payload: changePayload,
+		note: draftNote.optional(),
+	}),
+	"draft.remove": z.strictObject({ ...ventureScoped, changeId: id }),
+	"draft.keep": z.strictObject({ ...ventureScoped, changeIds }),
+	"draft.drop": z.strictObject({ ...ventureScoped, changeIds }),
+	"draft.discard": z.strictObject({ ...ventureScoped }),
+	"operator.open": z.strictObject({ ...ventureScoped, agentProfileId: profileId.optional() }),
+	"operator.new_session": z.strictObject({ ...ventureScoped, agentProfileId: profileId.optional() }),
 	"access.request": z.strictObject({
 		capability,
 		threadId: id,
@@ -447,6 +501,12 @@ export type CommandPayload<Name extends CommandName> = z.output<(typeof commandS
 export type ProposableCommand = (typeof proposableCommands)[number];
 
 export type LegacyProposableCommand = (typeof legacyProposableCommands)[number];
+
+export type OperableCommand = (typeof operableCommands)[number];
+
+export function isOperable(command: string): command is OperableCommand {
+	return (operableCommands as readonly string[]).includes(command);
+}
 
 export const commandsRequiringReason = new Set<CommandName>(["strategy.revise", "proposal.approve"]);
 

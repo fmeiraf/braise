@@ -22,6 +22,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { cloneElement, type FormEvent, type ReactElement, useId, useState } from "react";
+import { DraftControls, DraftMeta, useDraftItem, useDraftSave, Was } from "./draft.tsx";
+import { Editable } from "./editable.tsx";
 import { describeError } from "./errors.ts";
 import { focusOnMount } from "./focus.ts";
 import { refreshVenture } from "./live.ts";
@@ -643,9 +645,15 @@ export function BetBlock(props: {
 	const judged = latest === null ? null : judgeReading(bet, latest.value);
 	const archive = useLoopCommand("bet.archive", venture);
 	const bodyId = `bet-${bet.id}`;
+	const drafted = useDraftItem(bet.id);
+	const className = ["betx", props.fresh ? "fresh" : "", drafted.className].filter(Boolean).join(" ");
+
+	if (drafted.mark !== null) {
+		return <DraftedBet bet={bet} number={props.number} item={drafted} className={className} />;
+	}
 
 	return (
-		<div className={props.fresh ? "betx fresh" : "betx"}>
+		<div className={className}>
 			<button
 				type="button"
 				className="betx-h"
@@ -795,6 +803,71 @@ export function BetBlock(props: {
 					)}
 				</div>
 			) : null}
+		</div>
+	);
+}
+
+function DraftedBet({
+	bet,
+	number,
+	item,
+	className,
+}: {
+	bet: Bet;
+	number: string;
+	item: ReturnType<typeof useDraftItem>;
+	className: string;
+}) {
+	const now = Date.now();
+	const save = useDraftSave(item);
+	const editable = item.created;
+
+	const field = (name: "action" | "deadline" | "passAt", value: string) =>
+		save(name, name === "passAt" ? Number(value) : value, () => Promise.resolve());
+
+	return (
+		<div className={className} {...item.attrs}>
+			<div className="betx-h">
+				<span className="bet-n">{number}</span>
+				<span className="betx-t">
+					<b>
+						{editable ? (
+							<Editable label="action" value={bet.action} required save={(value) => field("action", value)} />
+						) : (
+							bet.action
+						)}
+						<Was item={item} field="action" />
+					</b>
+					<span>
+						<DraftMeta item={item} /> · pass at{" "}
+						{editable ? (
+							<Editable
+								label="pass mark"
+								value={String(bet.passAt)}
+								display={amount(bet.passAt, bet.unit)}
+								save={(value) => field("passAt", value)}
+							/>
+						) : (
+							amount(bet.passAt, bet.unit)
+						)}{" "}
+						· {failPhrase(bet)} · {methodLabels[bet.method].toLowerCase()} · by{" "}
+						{editable ? (
+							<Editable
+								label="deadline"
+								type="date"
+								value={bet.deadline}
+								display={shortDate(bet.deadline, now)}
+								save={(value) => field("deadline", value)}
+							/>
+						) : (
+							shortDate(bet.deadline, now)
+						)}
+						<Was item={item} field="deadline" format={(value) => `by ${shortDate(String(value), now)}`} />
+						<Was item={item} field="passAt" format={(value) => `pass at ${amount(Number(value), bet.unit)}`} />
+					</span>
+				</span>
+				<DraftControls changes={item.changes} />
+			</div>
 		</div>
 	);
 }

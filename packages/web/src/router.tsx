@@ -60,6 +60,7 @@ const inboxRoute = createRoute({
 		proposal: z.string().optional(),
 		access: z.string().optional(),
 		question: z.string().optional(),
+		draft: z.string().optional(),
 	}),
 	component: InboxPage,
 });

@@ -80,6 +80,7 @@ describe("buildTimeline", () => {
 				ventureId: null,
 				agentProfileId: "claude",
 				spaceId: null,
+				operatorVentureId: null,
 				startedByRunId: null,
 				title: "T",
 				lastSeq: 2,

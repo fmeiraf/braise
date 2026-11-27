@@ -4,9 +4,11 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { getAgents } from "./access-queries.ts";
 import type { Database } from "./db/client.ts";
+import { draftProjection } from "./draft-view.ts";
 import { AppError } from "./errors.ts";
 import { handlers } from "./handlers.ts";
 import type { HintHubShape, HubMessage } from "./hints.ts";
+import { getOperator } from "./operator-handlers.ts";
 import { executeCommand, type Services } from "./pipeline.ts";
 import { getInbox, getProposal } from "./proposal-queries.ts";
 import {
@@ -17,6 +19,7 @@ import {
 	getStrategyVersions,
 	getVentureWork,
 	listVentures,
+	ventureBySlug,
 } from "./queries.ts";
 import { registerCodeRoutes } from "./repo-routes.ts";
 import { getCapacity, getSpace, listSpaces } from "./space-queries.ts";
@@ -34,6 +37,8 @@ const eventsQuery = z.object({
 });
 
 const spacesQuery = z.object({ ventureId: z.uuid().optional() });
+
+const draftQuery = z.object({ draft: z.literal("current").optional() });
 
 const threadsQuery = z.object({
 	ventureId: z.uuid().optional(),
@@ -143,11 +148,54 @@ export function createApp({ db, hub, services }: { db: Database; hub: HintHubSha
 
 	app.get("/ventures", async (c) => c.json({ ventures: await listVentures(db) }));
 
-	app.get("/ventures/:slug", async (c) => c.json(await getCockpit(db, c.req.param("slug"))));
+	const projection = (slug: string) => draftProjection(db, handlers, services, slug);
+
+	app.get("/ventures/:slug", async (c) => {
+		const slug = c.req.param("slug");
+		const { draft } = parseQuery(draftQuery, c.req.query());
+
+		const projected = draft === undefined ? null : await projection(slug);
+
+		if (projected === null) return c.json({ ...(await getCockpit(db, slug)), draft: null });
+
+		const { workItems: _workItems, ...cockpit } = projected.board;
+
+		return c.json({ ...cockpit, draft: projected.draft });
+	});
 
 	app.get("/work", async (c) => c.json(await getHoldingWork(db)));
 
-	app.get("/ventures/:slug/work", async (c) => c.json(await getVentureWork(db, c.req.param("slug"))));
+	app.get("/ventures/:slug/work", async (c) => {
+		const slug = c.req.param("slug");
+		const { draft } = parseQuery(draftQuery, c.req.query());
+
+		const projected = draft === undefined ? null : await projection(slug);
+
+		if (projected === null) return c.json({ ...(await getVentureWork(db, slug)), draft: null });
+
+		const { board } = projected;
+
+		return c.json({
+			ventureId: board.venture.id,
+			lastSeq: board.venture.lastSeq,
+			objectives: board.objectives,
+			bets: board.bets,
+			workItems: board.workItems,
+			draft: projected.draft,
+		});
+	});
+
+	app.get("/ventures/:slug/draft", async (c) => {
+		const projected = await projection(c.req.param("slug"));
+
+		return c.json({ draft: projected?.draft ?? null });
+	});
+
+	app.get("/ventures/:slug/operator", async (c) => {
+		const venture = await ventureBySlug(db, c.req.param("slug"));
+
+		return c.json(await getOperator(db, venture.id));
+	});
 
 	app.get("/ventures/:slug/strategy/versions", async (c) => {
 		const { version } = parseQuery(versionQuery, c.req.query());
@@ -252,6 +300,12 @@ export function createApp({ db, hub, services }: { db: Database; hub: HintHubSha
 
 			if (message.type === "code")
 				return frame("code", { ventureId: message.ventureId, threadId: message.threadId });
+
+			if (message.type === "draft") {
+				const { type: _type, ...hint } = message;
+
+				return frame("draft", hint);
+			}
 
 			if (message.type === "reset") return frame("reset", {});
 

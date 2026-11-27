@@ -333,6 +333,7 @@ export const threads = pgTable(
 		id: uuid("id").primaryKey(),
 		ventureId: uuid("venture_id").references(() => ventures.id),
 		spaceId: uuid("space_id").references(spaceIdColumn),
+		operatorVentureId: uuid("operator_venture_id").references(() => ventures.id),
 		startedByRunId: uuid("started_by_run_id").references(runIdColumn),
 		agentProfileId: text("agent_profile_id")
 			.notNull()
@@ -349,6 +350,9 @@ export const threads = pgTable(
 		index("threads_venture_updated_idx").on(table.ventureId, table.updatedAt.desc()),
 		index("threads_space_idx").on(table.spaceId),
 		index("threads_started_by_run_idx").on(table.startedByRunId),
+		uniqueIndex("threads_one_open_operator_session")
+			.on(table.operatorVentureId)
+			.where(sql`${table.operatorVentureId} IS NOT NULL AND ${table.archivedAt} IS NULL`),
 	],
 );
 
@@ -541,7 +545,8 @@ export const proposals = pgTable(
 		title: text("title").notNull(),
 		reason: text("reason").notNull(),
 		changes: jsonb("changes").$type<ProposalChange[]>().notNull(),
-		status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull(),
+		status: text("status", { enum: ["pending", "approved", "rejected", "drafting"] }).notNull(),
+		version: integer("version").notNull().default(0),
 		applied: jsonb("applied").$type<(AppliedChange | null)[]>(),
 		note: text("note"),
 		createdAt: createdAt(),
@@ -551,7 +556,8 @@ export const proposals = pgTable(
 		index("proposals_status_created_idx").on(table.status, table.createdAt),
 		index("proposals_venture_idx").on(table.ventureId),
 		index("proposals_thread_idx").on(table.threadId),
-		check("proposals_status_check", sql`${table.status} IN ('pending','approved','rejected')`),
+		uniqueIndex("proposals_one_draft").on(table.ventureId).where(sql`${table.status} = 'drafting'`),
+		check("proposals_status_check", sql`${table.status} IN ('pending','approved','rejected','drafting')`),
 	],
 );
 

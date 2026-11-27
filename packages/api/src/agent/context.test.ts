@@ -22,6 +22,7 @@ const base = {
 	message: "What should we do next?",
 	pendingProposals: [],
 	code: null,
+	operator: null,
 } satisfies RunContext;
 
 const withCode = {
@@ -124,7 +125,9 @@ describe("permissions in the system prompt", () => {
 
 		expect(prompt).toContain("You are Claude, the agent inside braise");
 
-		expect(prompt).toContain("Granted now: Work and readings, Thread links, Proposals. Not granted: nothing.");
+		expect(prompt).toContain(
+			"Granted now: Work and readings, Thread links, Proposals and drafts. Not granted: nothing.",
+		);
 
 		expect(prompt).not.toContain("(not granted)");
 	});
@@ -134,7 +137,7 @@ describe("permissions in the system prompt", () => {
 
 		expect(prompt).toContain("- Work and readings (not granted): create");
 
-		expect(prompt).toContain("Granted now: Thread links. Not granted: Work and readings, Proposals.");
+		expect(prompt).toContain("Granted now: Thread links. Not granted: Work and readings, Proposals and drafts.");
 
 		expect(prompt).toContain("braise files an access request in the owner's inbox");
 	});
@@ -363,5 +366,44 @@ describe("retries in the prompt", () => {
 		expect(prompt).toContain("What it had written so far:\nI created the flyers item and");
 
 		expect(prompt).toContain("Continue from there; don't repeat these.");
+	});
+});
+
+describe("the operator prompt mode", () => {
+	const operator = {
+		...base,
+		scope: {
+			id: "v-1",
+			slug: "corner-bakery",
+			name: "Corner Bakery",
+			strategy: null,
+			loop: { objectives: [], assumptions: [], bets: [], learnings: [] },
+		},
+		operator: {
+			ventureId: "v-1",
+			slug: "corner-bakery",
+			board: "Venture: Corner Bakery (id v-1, for profit)",
+			changes: '- c:c-1 bet.create "B1": {"passAt":30} · Test the price',
+			openChanges: 1,
+			ownerActions: ['edited bet.create (c:c-1): deadline now {"deadline":"2027-01-10"}'],
+		},
+	} satisfies RunContext;
+
+	it("drafts instead of proposing and shows the board, the draft and the owner's actions", () => {
+		const prompt = renderSystemPrompt(operator);
+
+		expect(prompt).toContain("You are Claude, the operator of Corner Bakery");
+
+		expect(prompt).toContain("never say a change is applied");
+
+		expect(prompt).toContain("Keep the owner's edits");
+
+		expect(prompt).toContain("Venture: Corner Bakery (id v-1, for profit)");
+
+		expect(prompt).toContain("Open draft changes (1):\n- c:c-1 bet.create");
+
+		expect(prompt).toContain("Since your last turn the owner:\n- edited bet.create (c:c-1): deadline");
+
+		expect(prompt).not.toContain("propose_changes");
 	});
 });

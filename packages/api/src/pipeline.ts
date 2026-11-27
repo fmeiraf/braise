@@ -19,7 +19,7 @@ import type { z } from "zod";
 import { accessChannel, capacityChannel, notifyChannel, threadChannel } from "./channels.ts";
 import type { CodeHost, CodeJob } from "./code/host.ts";
 import type { Database, Transaction } from "./db/client.ts";
-import { agentGrants, agentProfiles, commands, events, runs, spaces, ventures } from "./db/schema.ts";
+import { agentGrants, agentProfiles, commands, events, runs, spaces, threads, ventures } from "./db/schema.ts";
 import { AppError } from "./errors.ts";
 
 export interface RunJob {
@@ -49,6 +49,7 @@ export interface HandlerContext {
 	reason: string | null;
 	runId: string | null;
 	venture: VentureRow | null;
+	presetId?: string | undefined;
 	queueRun(job: RunJob): void;
 	scheduleLift(pause: { id: string; until: Date }): void;
 	queueCode(job: CodeJob): void;
@@ -142,6 +143,15 @@ async function finishVentureCommand(
 	request: CommandRequest,
 	outcome: VentureOutcome,
 ) {
+	if (outcome.events.length === 0) {
+		const [current] = await tx
+			.select({ lastSeq: ventures.lastSeq })
+			.from(ventures)
+			.where(eq(ventures.id, outcome.ventureId));
+
+		return { ventureId: outcome.ventureId, seq: current?.lastSeq ?? 0 };
+	}
+
 	const [sequenced] = await tx
 		.update(ventures)
 		.set({ lastSeq: sql`${ventures.lastSeq} + ${outcome.events.length}`, updatedAt: sql`now()` })
@@ -250,6 +260,30 @@ async function assertInSpaceChat(db: Database, name: CommandName, request: Comma
 	}
 }
 
+const operatorCommands = new Set<CommandName>(["draft.add", "draft.revise", "draft.remove"]);
+
+async function assertInOperatorChat(db: Database, name: CommandName, request: CommandRequest, payload: object) {
+	if (!isAgentActor(request.actor) || !operatorCommands.has(name)) return;
+
+	const runId = request.runId ?? null;
+
+	const [session] =
+		runId === null
+			? []
+			: await db
+					.select({ ventureId: threads.operatorVentureId })
+					.from(runs)
+					.innerJoin(threads, eq(threads.id, runs.threadId))
+					.where(eq(runs.id, runId));
+
+	if (session?.ventureId === null || session === undefined || session.ventureId !== ventureIdOf(payload)) {
+		throw new AppError("not_in_operator_chat", "Only the venture's operator, in its operator chat, can draft", {
+			command: name,
+			actor: request.actor,
+		});
+	}
+}
+
 async function assertGranted(
 	db: Database,
 	handlers: Handlers,
@@ -308,6 +342,8 @@ async function run<Name extends CommandName>(
 	const { payload, idempotencyKey, reason } = parse(name, request.body);
 
 	await assertInSpaceChat(db, name, request);
+
+	await assertInOperatorChat(db, name, request, payload);
 
 	await assertGranted(db, handlers, services, name, request, { payload, idempotencyKey });
 

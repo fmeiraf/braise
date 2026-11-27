@@ -23,7 +23,7 @@ interface PaletteItem {
 }
 
 /** The command menu: jump to a venture, a view or a thread. */
-export function Palette({ scope, close }: { scope: string | null; close: () => void }) {
+export function Palette({ scope, close, operator }: { scope: string | null; close: () => void; operator: () => void }) {
 	const navigate = useNavigate();
 	const ventures = useQuery(queries.ventures()).data?.ventures ?? [];
 	const threads = useQuery(queries.threads({})).data?.threads ?? [];
@@ -37,6 +37,17 @@ export function Palette({ scope, close }: { scope: string | null; close: () => v
 	const scopeName = scope === null ? "Holding" : (ventures.find((venture) => venture.slug === scope)?.name ?? scope);
 
 	const items: PaletteItem[] = [
+		...(scope === null
+			? []
+			: [
+					{
+						key: "operator",
+						label: "Operator",
+						sub: `Run ${scopeName}'s board · O`,
+						glyph: <Drone size={14} />,
+						go: operator,
+					},
+				]),
 		...ventures.map((venture) => ({
 			key: `venture:${venture.id}`,
 			label: venture.name,

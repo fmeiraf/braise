@@ -307,6 +307,8 @@ export const capabilityPhrases = {
 /** Numbers a venture's bets in the order they were made: B1, B2, … */
 export function betNumbers(bets: readonly Pick<Bet, "id" | "createdAt">[]) {
 	return new Map(
-		bets.toSorted((a, b) => a.createdAt.localeCompare(b.createdAt)).map((bet, index) => [bet.id, `B${index + 1}`]),
+		bets
+			.toSorted((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+			.map((bet, index) => [bet.id, `B${index + 1}`]),
 	);
 }

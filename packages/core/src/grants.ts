@@ -5,7 +5,7 @@ export type Capability = (typeof capabilities)[number];
 export const capabilityCommands = {
 	work: ["work.create", "work.update", "work.set_status", "work.move", "reading.record", "objective.check"],
 	links: ["thread.link", "thread.unlink"],
-	propose: ["proposal.create"],
+	propose: ["proposal.create", "draft.add", "draft.revise", "draft.remove"],
 	delegate: ["thread.start", "thread.message", "run.retry", "space.add_thread", "space.remove_thread"],
 	code: ["repo.push", "pr.open", "pr.update"],
 } as const satisfies Record<Capability, readonly CommandName[]>;
@@ -13,7 +13,7 @@ export const capabilityCommands = {
 export const capabilityLabels = {
 	work: "Work and readings",
 	links: "Thread links",
-	propose: "Proposals",
+	propose: "Proposals and drafts",
 	delegate: "Start and direct threads",
 	code: "Push branches and open PRs",
 } as const satisfies Record<Capability, string>;
@@ -48,6 +48,9 @@ const attemptVerbs: Partial<Record<CommandName, string>> = {
 	"thread.link": "link this thread",
 	"thread.unlink": "unlink this thread",
 	"proposal.create": "propose",
+	"draft.add": "draft a change",
+	"draft.revise": "revise a drafted change",
+	"draft.remove": "withdraw a drafted change",
 	"thread.start": "start a thread",
 	"thread.message": "message a thread",
 	"run.retry": "retry a thread",

@@ -1,8 +1,9 @@
-import type { Cockpit, StrategyVersion } from "@braise/core";
+import { type Cockpit, type StrategyVersion, strategyMarkKey } from "@braise/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { type FormEvent, type KeyboardEvent, type ReactNode, useState } from "react";
 import { api } from "./api.ts";
+import { DraftControls, DraftMarks, DraftMeta, useDraftItem, useStatusDrafted, Was } from "./draft.tsx";
 import { describeError } from "./errors.ts";
 import { EventItem } from "./feed.tsx";
 import { focusOnMount } from "./focus.ts";
@@ -35,7 +36,7 @@ const kernelFields = [
 type KernelKey = (typeof kernelFields)[number]["key"];
 
 function useCockpitPage(slug: string, render: (cockpit: Cockpit) => ReactNode) {
-	const cockpit = useQuery(queries.cockpit(slug));
+	const cockpit = useQuery(queries.board(slug));
 
 	if (cockpit.isPending) {
 		return (
@@ -49,7 +50,7 @@ function useCockpitPage(slug: string, render: (cockpit: Cockpit) => ReactNode) {
 
 	rememberVenture(cockpit.data.venture.id, slug, cockpit.data.venture.lastSeq);
 
-	return render(cockpit.data);
+	return <DraftMarks draft={cockpit.data.draft}>{render(cockpit.data)}</DraftMarks>;
 }
 
 export function CockpitPage() {
@@ -195,6 +196,7 @@ function Topics({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 
 function VentureSheet({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 	const { venture, strategy } = cockpit;
+	const drafted = useDraftItem(venture.id);
 	const live = useWorking().find((item) => item.run.ventureSlug === slug);
 
 	return (
@@ -202,12 +204,28 @@ function VentureSheet({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 			<div className="sheet-crest">
 				<Crest seed={slug} size={48} live={live !== undefined} />
 			</div>
-			<div>
-				<h1 className="h1">{venture.name}</h1>
+			<div className={["sheet-id", drafted.className].filter(Boolean).join(" ")} {...drafted.attrs}>
+				<h1 className="h1">
+					{venture.name}
+					<Was item={drafted} field="name" />
+				</h1>
 				<div className="sheet-meta">
 					<span className="cap">
-						{kindLabel[venture.kind]} · strategy v{strategy.version}
+						{drafted.mark === null ? null : (
+							<>
+								<DraftMeta item={drafted} />
+								{" · "}
+							</>
+						)}
+						{kindLabel[venture.kind]}
+						{drafted.mark?.fields.kind === undefined ? null : (
+							<span className="d-was-inline">
+								{kindLabel[drafted.mark.fields.kind as Cockpit["venture"]["kind"]]}
+							</span>
+						)}{" "}
+						· strategy v{strategy.version}
 					</span>
+					<DraftControls changes={drafted.changes} />
 					{live === undefined ? null : (
 						<ThreadLink ventureSlug={slug} threadId={live.run.threadId} className="sheet-cast">
 							<Cast label={workingLabel(live)} since={live.run.startedAt ?? live.run.createdAt} />
@@ -256,14 +274,15 @@ function StrategyView({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 	const [adding, setAdding] = useState(false);
 	const numbers = betNumbers(bets);
 	const ref = { id: venture.id, slug };
-	const open = objectives.filter((objective) => objective.status === "active");
+	const closing = useStatusDrafted();
+	const open = objectives.filter((objective) => objective.status === "active" || closing(objective.id));
 
 	const active = [
 		...open.filter((objective) => objective.kind !== "build"),
 		...open.filter((objective) => objective.kind === "build"),
 	];
 
-	const closed = objectives.filter((objective) => objective.status !== "active");
+	const closed = objectives.filter((objective) => objective.status !== "active" && !closing(objective.id));
 
 	return (
 		<div className="page" style={accent(slug)}>
@@ -323,7 +342,8 @@ function StrategyPanel({
 	startOpen: boolean;
 }) {
 	const client = useQueryClient();
-	const [open, setOpen] = useState(startOpen);
+	const drafted = useDraftItem(strategyMarkKey);
+	const [open, setOpen] = useState(startOpen || drafted.mark !== null);
 	const [draft, setDraft] = useState<Record<KernelKey, string> | null>(null);
 	const [reason, setReason] = useState("");
 	const nextVersion = strategy.version + 1;
@@ -384,8 +404,18 @@ function StrategyPanel({
 	const revisedAt = strategy.activatedAt ?? strategy.createdAt;
 
 	return (
-		<section aria-labelledby="strategy-heading">
+		<section
+			aria-labelledby="strategy-heading"
+			className={["kernel", drafted.className].filter(Boolean).join(" ")}
+			{...drafted.attrs}
+		>
 			<Sec title="Kernel" id="strategy-heading">
+				{drafted.mark === null ? null : (
+					<span className="cap">
+						<DraftMeta item={drafted} />
+					</span>
+				)}
+				<DraftControls changes={drafted.changes} />
 				<span className="cap sec-note">
 					v{strategy.version} · {strategy.version === 1 ? "created" : "revised"} {ago(revisedAt, Date.now())}
 				</span>
@@ -425,7 +455,10 @@ function StrategyPanel({
 										</button>
 									</dd>
 								) : (
-									<dd>{strategy[key]}</dd>
+									<dd>
+										{strategy[key]}
+										<Was item={drafted} field={key} />
+									</dd>
 								)}
 							</div>
 						))}

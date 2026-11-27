@@ -244,6 +244,25 @@ export interface HoldingRow {
 	lastActivityAt: string;
 }
 
+/** One operator chat session of a venture. */
+export interface OperatorSession {
+	id: string;
+	title: string;
+	agentProfileId: string;
+	createdAt: string;
+	archivedAt: string | null;
+	messageCount: number;
+	lastMessageAt: string | null;
+}
+
+export interface OperatorState {
+	ventureId: string;
+	session: OperatorSession | null;
+	sessions: OperatorSession[];
+	idleSeconds: number;
+	changeStates: Record<string, "open" | "kept" | "dropped">;
+}
+
 export interface Cockpit {
 	venture: Venture;
 	strategy: StrategyVersion;
@@ -282,6 +301,7 @@ export const errorCodes = [
 	"rule_violated",
 	"not_granted",
 	"not_in_space_chat",
+	"not_in_operator_chat",
 	"internal_error",
 ] as const;
 
@@ -313,6 +333,7 @@ export interface Thread {
 	id: string;
 	ventureId: string | null;
 	spaceId: string | null;
+	operatorVentureId: string | null;
 	startedByRunId: string | null;
 	agentProfileId: string;
 	title: string;
@@ -517,7 +538,20 @@ export interface InboxNeedsInput {
 	decidedAt: string | null;
 }
 
-export type InboxItem = InboxProposal | InboxAccessRequest | InboxNeedsInput;
+export interface InboxDraft {
+	kind: "draft";
+	id: string;
+	venture: { id: string; slug: string; name: string };
+	status: ProposalStatus;
+	changeCount: number;
+	kept: number;
+	dropped: number;
+	latestChangeAt: string;
+	createdAt: string;
+	decidedAt: string | null;
+}
+
+export type InboxItem = InboxProposal | InboxAccessRequest | InboxNeedsInput | InboxDraft;
 
 export interface Inbox {
 	pending: InboxItem[];
