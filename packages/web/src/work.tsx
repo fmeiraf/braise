@@ -32,7 +32,7 @@ import { betNumbers } from "./labels.ts";
 import { patchWork, queries, refreshVenture, rememberVenture } from "./live.ts";
 import { timeLeft } from "./loop-view.ts";
 import { MarkdownField } from "./markdown.tsx";
-import { accent, Crest, Dia, FunctionGlyph, FunctionTag, Icon, Pips, progressStatus, Rank } from "./marks.tsx";
+import { AppIcon, accent, Dia, FunctionGlyph, FunctionTag, Icon, Pips, progressStatus, Rank } from "./marks.tsx";
 import { Select } from "./menu.tsx";
 import { Skeleton } from "./parts.tsx";
 import { WorkItemThreads } from "./threads.tsx";
@@ -580,7 +580,7 @@ function VentureWork({
 	return (
 		<section style={accent(section.venture.slug)} aria-labelledby={`venture-${section.venture.id}`}>
 			<h2 className="wk-v" id={`venture-${section.venture.id}`}>
-				<Crest seed={section.venture.slug} size={18} />
+				<AppIcon slug={section.venture.slug} size={18} />
 				<Link to="/v/$slug/work" params={{ slug: section.venture.slug }}>
 					{section.venture.name}
 				</Link>
@@ -1188,7 +1188,7 @@ function WorkItemPage({
 				</button>
 				{holding ? (
 					<span className="wpage-v">
-						<Crest seed={venture.slug} size={16} />
+						<AppIcon slug={venture.slug} size={16} />
 						{venture.name}
 					</span>
 				) : null}

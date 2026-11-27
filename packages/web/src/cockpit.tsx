@@ -13,7 +13,7 @@ import { NeedsYou } from "./inbox.tsx";
 import { betNumbers, kindLabel } from "./labels.ts";
 import { keys, queries, rememberVenture, updateCockpit } from "./live.ts";
 import { timeLeft } from "./loop-view.ts";
-import { accent, Cast, Crest, Icon, type IconName } from "./marks.tsx";
+import { AppIcon, accent, Cast, Icon, type IconName } from "./marks.tsx";
 import { AddObjectiveForm, ClosedObjectives, Hunches, Learnings, ObjectiveCard } from "./objectives.tsx";
 import { Hero, Sec, Skeleton } from "./parts.tsx";
 import { Integrations } from "./repos.tsx";
@@ -202,7 +202,7 @@ function VentureSheet({ slug, cockpit }: { slug: string; cockpit: Cockpit }) {
 	return (
 		<header className="sheet home-sheet">
 			<div className="sheet-crest">
-				<Crest seed={slug} size={48} live={live !== undefined} />
+				<AppIcon slug={slug} size={56} />
 			</div>
 			<div className={["sheet-id", drafted.className].filter(Boolean).join(" ")} {...drafted.attrs}>
 				<h1 className="h1">

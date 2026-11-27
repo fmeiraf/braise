@@ -6,7 +6,7 @@ import { CreateVenture } from "./create-venture.tsx";
 import { describeError } from "./errors.ts";
 import { kindLabel } from "./labels.ts";
 import { queries } from "./live.ts";
-import { accent, Cast, Crest, Icon } from "./marks.tsx";
+import { AppIcon, accent, Cast, Icon } from "./marks.tsx";
 import { Hero, Sec, Skeleton } from "./parts.tsx";
 import { ago } from "./time.ts";
 import { useWorking, workingLabel } from "./working.tsx";
@@ -109,7 +109,7 @@ export function HoldingPage() {
 						<li key={row.id}>
 							<Link to="/v/$slug" params={{ slug: row.slug }} className="vc" style={accent(row.slug)}>
 								<div className="vc-top">
-									<Crest seed={row.slug} size={44} live={live !== undefined} />
+									<AppIcon slug={row.slug} size={52} />
 									<span className="cap">{kindLabel[row.kind]}</span>
 								</div>
 								<h3>{row.name}</h3>
@@ -175,7 +175,7 @@ export function HoldingPage() {
 						>
 							<td>
 								<Link to="/v/$slug" params={{ slug: row.slug }} className="vcell">
-									<Crest seed={row.slug} size={16} live={liveIn(row.slug) !== undefined} />
+									<AppIcon slug={row.slug} size={16} />
 									{row.name}
 									{liveIn(row.slug) === undefined ? null : <span className="tag live">Working</span>}
 								</Link>

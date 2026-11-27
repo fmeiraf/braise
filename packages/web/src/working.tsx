@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { CSSProperties, DragEventHandler, ReactNode } from "react";
 import { queries } from "./live.ts";
+import { ventureTone } from "./venture-state.ts";
 
 export interface Working {
 	run: ActiveRun;
@@ -20,6 +21,14 @@ export function useWorking() {
 
 		return { run, agent: agents.find((agent) => agent.id === profileId) ?? null } satisfies Working;
 	});
+}
+
+/** Each venture's state from the live inbox and runs: needs you, running, queued or nothing. */
+export function useVentureTones() {
+	const pending = useQuery(queries.inbox()).data?.pending ?? [];
+	const runs = useQuery(queries.activeRuns()).data?.runs ?? [];
+
+	return (venture: { id: string; slug: string }) => ventureTone(venture, { pending, runs });
 }
 
 /** Looks an agent up by its profile id or its actor (`agent:<id>`). */

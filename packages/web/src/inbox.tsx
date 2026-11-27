@@ -27,7 +27,7 @@ import { DiffField } from "./history.tsx";
 import { PageError } from "./holding.tsx";
 import { capabilityPhrases, plural } from "./labels.ts";
 import { keys, queries, refreshVenture } from "./live.ts";
-import { accent, Crest, Dia, Icon, Need } from "./marks.tsx";
+import { AppIcon, accent, Dia, Icon, Need } from "./marks.tsx";
 import { Select } from "./menu.tsx";
 import { Sec, Skeleton } from "./parts.tsx";
 import { actorName } from "./thread-timeline.ts";
@@ -576,7 +576,7 @@ function ReviewBody({ detail }: { detail: ProposalDetail }) {
 	return (
 		<div className="rev" style={accent(venture.slug)}>
 			<div className="rev-kind">
-				<Crest seed={venture.slug} size={14} />
+				<AppIcon slug={venture.slug} size={16} />
 				<span>
 					<Link to="/v/$slug" params={{ slug: venture.slug }}>
 						{venture.name}
@@ -759,7 +759,7 @@ function QuestionReview({ item }: { item: InboxNeedsInput }) {
 	return (
 		<div className="rev" style={accent(item.venture?.slug)}>
 			<div className="rev-kind">
-				{item.venture === null ? <Icon name="holding" /> : <Crest seed={item.venture.slug} size={14} />}
+				{item.venture === null ? <Icon name="holding" /> : <AppIcon slug={item.venture.slug} size={16} />}
 				<span>{item.venture?.name ?? "Holding"}</span>
 				<i>·</i>
 				<span>{item.space === null ? "Question" : `Question in ${item.space.title}`}</span>
@@ -865,7 +865,7 @@ function AccessReview({ item }: { item: InboxAccessRequest }) {
 	return (
 		<div className="rev" style={accent(item.venture?.slug)}>
 			<div className="rev-kind">
-				{item.venture === null ? <Icon name="holding" /> : <Crest seed={item.venture.slug} size={14} />}
+				{item.venture === null ? <Icon name="holding" /> : <AppIcon slug={item.venture.slug} size={16} />}
 				<span>
 					{item.venture === null ? (
 						"Holding"
@@ -1352,7 +1352,7 @@ function DraftReview({ item }: { item: InboxDraft }) {
 	return (
 		<div className="rev" style={accent(item.venture.slug)}>
 			<span className="rev-kind">
-				<Crest seed={item.venture.slug} size={14} />
+				<AppIcon slug={item.venture.slug} size={16} />
 				{item.venture.name} · Operator draft
 			</span>
 			<h2>{draftTitle(item)}</h2>
