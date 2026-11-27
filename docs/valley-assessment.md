@@ -365,7 +365,7 @@ Nothing is open. Work happens on branch `feat/valley-ui`.
 | Q-d, Q-e | **Copy as in the mock**: the "THE HOLDING" kicker, "The Valley never sleeps.", "N ventures on shift", "Break ground". The kicker's dot becomes the live-connection indicator (`useHintStream` state: green when live). |
 | Q-f | **Clicking a building opens the venture** (`/v/$slug`). |
 | Q-g | Default taken: "of N" counts **agent profiles** (`agents.length`), the same set as the agent chips. |
-| Q-h | **Fourth tile: work done this week**, from `holdingWork().workItems` with `status === "done"` and `updatedAt` within 7 days. This is approximate: `updatedAt` also moves when a done item is edited. An exact count would need `work.status_set` events per venture, which is a query change and goes against "no API work". |
+| Q-h | **Fourth tile: work done this week**: items that a `work.status_set` event moved to done in the last 7 days and that are still done, read from each venture's existing events endpoint (paged back seven days). No API change. |
 | Q-i, Q-k | **Styling like the mock, app-wide**: card shadows and hover lift, glows, big-number stat tiles, the amber count badge, the coloured version pill. This replaces v6's flat, plain-number, no-pill rules (C7–C12): DESIGN.md's named rules are rewritten in phase 0. Amber Means You and Hue Means Venture stay. |
 | Q-j | **Drop the Ledger table.** The sort state and `columns` in `holding.tsx` go with it. |
 | Q-l | Default taken: commit `valley-mock.html` and the sprite render page as references with Biome ignores, since the sprites are rendered from them. |

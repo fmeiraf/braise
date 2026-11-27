@@ -1,4 +1,13 @@
-import type { Cockpit, DraftHint, HoldingWork, StreamHint, ThreadHint, VentureWork, WorkItem } from "@braise/core";
+import type {
+	Cockpit,
+	DomainEvent,
+	DraftHint,
+	HoldingWork,
+	StreamHint,
+	ThreadHint,
+	VentureWork,
+	WorkItem,
+} from "@braise/core";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { createContext, useEffect, useState } from "react";
 import { api } from "./api.ts";
@@ -14,6 +23,7 @@ export const keys = {
 	operator: (slug: string) => ["venture", slug, "operator"] as const,
 	versions: (slug: string) => ["venture", slug, "versions"] as const,
 	events: (slug: string) => ["venture", slug, "events"] as const,
+	week: (slug: string) => ["venture", slug, "events", "week"] as const,
 	work: (slug: string) => ["venture", slug, "work"] as const,
 	threads: ["threads"] as const,
 	threadList: (scope: { ventureId?: string; subject?: string; space?: string }) =>
@@ -43,6 +53,28 @@ export const queries = {
 	versions: (slug: string) => queryOptions({ queryKey: keys.versions(slug), queryFn: () => api.versions(slug) }),
 	work: (slug: string) => queryOptions({ queryKey: keys.work(slug), queryFn: () => api.work(slug) }),
 	holdingWork: () => queryOptions({ queryKey: keys.holdingWork, queryFn: api.holdingWork }),
+	week: (slug: string, since: number) =>
+		queryOptions({
+			queryKey: keys.week(slug),
+			queryFn: async () => {
+				const collected: DomainEvent[] = [];
+				let before: number | null = null;
+
+				for (;;) {
+					const page = await api.events(slug, before, 200);
+
+					collected.push(...page.events);
+
+					const oldest = page.events.at(-1);
+
+					if (oldest === undefined || page.events.length < 200 || Date.parse(oldest.createdAt) < since) break;
+
+					before = oldest.seq;
+				}
+
+				return collected;
+			},
+		}),
 	threads: (scope: { ventureId?: string; subject?: string; space?: string }) =>
 		queryOptions({ queryKey: keys.threadList(scope), queryFn: () => api.threads(scope) }),
 	thread: (id: string) => queryOptions({ queryKey: keys.thread(id), queryFn: () => api.thread(id) }),

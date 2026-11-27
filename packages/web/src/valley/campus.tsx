@@ -24,6 +24,8 @@ function Strip({
 	lastActivityAt: string;
 	now: number;
 }) {
+	if (tone === "needs") return <span className="cast idle">Waiting on you</span>;
+
 	if (working !== undefined) {
 		return (
 			<Cast
@@ -32,8 +34,6 @@ function Strip({
 			/>
 		);
 	}
-
-	if (tone === "needs") return <span className="cast idle">Waiting on you</span>;
 
 	if (tone === "wait") return <span className="cast idle">Queued for an agent</span>;
 
@@ -79,6 +79,8 @@ export function VentureCard({
 			style={accent(row.slug)}
 			onPointerEnter={() => setHot(row.slug)}
 			onPointerLeave={() => setHot(null)}
+			onFocus={() => setHot(row.slug)}
+			onBlur={() => setHot(null)}
 		>
 			<div className="vl-vc-h">
 				<AppIcon slug={row.slug} size={52} tone={tone} />
