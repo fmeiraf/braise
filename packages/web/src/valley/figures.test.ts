@@ -101,18 +101,30 @@ describe("workCounts", () => {
 });
 
 describe("doneThisWeek", () => {
-	it("counts done items changed in the last seven days", () => {
-		const now = Date.parse("2026-11-27T12:00:00Z");
+	const now = Date.parse("2026-11-27T12:00:00Z");
 
-		expect(
-			doneThisWeek(
-				[
-					{ status: "done", updatedAt: "2026-11-26T12:00:00Z", archivedAt: null },
-					{ status: "done", updatedAt: "2026-11-10T12:00:00Z", archivedAt: null },
-					{ status: "doing", updatedAt: "2026-11-26T12:00:00Z", archivedAt: null },
-				],
-				now,
-			),
-		).toBe(1);
+	const marked = (id: string, to: string, createdAt: string) => ({
+		type: "work.status_set",
+		subject: `work:${id}`,
+		payload: { title: id, changes: { status: { from: "doing", to } } },
+		createdAt,
+	});
+
+	it("counts items marked done this week that are still done", () => {
+		const events = [
+			marked("a", "done", "2026-11-26T12:00:00Z"),
+			marked("b", "done", "2026-11-10T12:00:00Z"),
+			marked("c", "done", "2026-11-25T12:00:00Z"),
+			marked("d", "doing", "2026-11-25T12:00:00Z"),
+			{ type: "work.moved", subject: "work:e", payload: {}, createdAt: "2026-11-26T12:00:00Z" },
+		];
+
+		const items = ["a", "b", "c", "d", "e"].map((id) => ({
+			id,
+			status: id === "c" || id === "d" ? ("doing" as const) : ("done" as const),
+			archivedAt: null,
+		}));
+
+		expect(doneThisWeek(events, items, now)).toBe(1);
 	});
 });

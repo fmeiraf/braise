@@ -8614,12 +8614,8 @@ pre {
 	}
 }
 
-.vl-venture .vl-hero {
-	height: 400px;
-}
 .vl-venture .vl-hud {
-	right: 44%;
-	max-width: none;
+	max-width: 52%;
 }
 .vl-venture .vl-hud .sheet {
 	margin: 26px 0 0;
@@ -8649,7 +8645,7 @@ pre {
 }
 @media (max-width: 1100px) {
 	.vl-venture .vl-hud {
-		right: 40%;
+		max-width: 58%;
 	}
 	.vl-venture .vl-hud .h1 {
 		font-size: 36px;
@@ -8657,7 +8653,10 @@ pre {
 }
 @media (max-width: 760px) {
 	.vl-venture .vl-hud {
-		right: 16px;
+		max-width: none;
+	}
+	.vl-venture .vl-hero {
+		padding: 24px 16px 56px;
 	}
 	.vl-venture .vl-city {
 		display: none;
@@ -8673,7 +8672,14 @@ pre {
 	margin-left: -9px;
 }
 .vl-venture .vl-hero {
-	height: 380px;
+	height: auto;
+	min-height: 380px;
+	padding: 48px 0 64px 56px;
+}
+.vl-venture .vl-hud {
+	position: relative;
+	left: 0;
+	top: 0;
 }
 .vl-venture .vl-sheet .vl-page > :first-child .sec,
 .vl-venture .vl-sheet .vl-page > .sec:first-child {

@@ -1,4 +1,4 @@
-import type { Cockpit, WorkItem, WorkStatus } from "@braise/core";
+import type { Cockpit, DomainEvent, WorkItem, WorkStatus } from "@braise/core";
 import { amount, latestOf, shareOfWay } from "../loop-view.ts";
 
 const weekMs = 7 * 24 * 60 * 60 * 1000;
@@ -48,9 +48,25 @@ export function workCounts(items: readonly Pick<WorkItem, "ventureId" | "status"
 	return counts;
 }
 
-/** Work items marked done in the last seven days, judged by their last change. */
-export function doneThisWeek(items: readonly Pick<WorkItem, "status" | "updatedAt" | "archivedAt">[], now: number) {
-	return items.filter(
-		(item) => item.status === "done" && item.archivedAt === null && now - Date.parse(item.updatedAt) <= weekMs,
-	).length;
+export const weekAgo = (now: number) => now - weekMs;
+
+function movedToDone(event: Pick<DomainEvent, "type" | "payload">) {
+	const changes = event.payload.changes as { status?: { to?: unknown } } | undefined;
+
+	return event.type === "work.status_set" && changes?.status?.to === "done";
+}
+
+/** Work items marked done in the last seven days that are still done. */
+export function doneThisWeek(
+	events: readonly Pick<DomainEvent, "type" | "subject" | "payload" | "createdAt">[],
+	items: readonly Pick<WorkItem, "id" | "status" | "archivedAt">[],
+	now: number,
+) {
+	const marked = new Set(
+		events
+			.filter((event) => movedToDone(event) && Date.parse(event.createdAt) >= weekAgo(now))
+			.map((event) => event.subject.replace(/^work:/u, "")),
+	);
+
+	return items.filter((item) => item.status === "done" && item.archivedAt === null && marked.has(item.id)).length;
 }

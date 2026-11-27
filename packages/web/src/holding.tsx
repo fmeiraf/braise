@@ -9,7 +9,7 @@ import { Sec, Skeleton } from "./parts.tsx";
 import { ago } from "./time.ts";
 import { BreakGround, VentureCard } from "./valley/campus.tsx";
 import { City } from "./valley/city.tsx";
-import { doneThisWeek, workCounts } from "./valley/figures.ts";
+import { doneThisWeek, weekAgo, workCounts } from "./valley/figures.ts";
 import { Attention, Kicker, Legend, Sky } from "./valley/hero.tsx";
 import { plan } from "./valley/layout.ts";
 import { OnShift } from "./valley/on-shift.tsx";
@@ -42,10 +42,12 @@ function Stat({
 	);
 }
 
-function shiftLine(count: number) {
-	if (count === 0) return "Nobody is on shift.";
+function shiftLine(ventures: number, runs: number) {
+	if (ventures > 0) return ventures === 1 ? "1 venture on shift." : `${ventures} ventures on shift.`;
 
-	return count === 1 ? "1 venture on shift." : `${count} ventures on shift.`;
+	if (runs > 0) return runs === 1 ? "1 agent on shift at the Holding." : `${runs} agents on shift at the Holding.`;
+
+	return "Nobody is on shift.";
 }
 
 export function HoldingPage() {
@@ -59,6 +61,12 @@ export function HoldingPage() {
 
 	const cockpits = useQueries({
 		queries: (ventures.data?.ventures ?? []).map((venture) => queries.cockpit(venture.slug)),
+	});
+
+	const [since] = useState(() => weekAgo(Date.now()));
+
+	const weeks = useQueries({
+		queries: (ventures.data?.ventures ?? []).map((venture) => queries.week(venture.slug, since)),
 	});
 
 	if (ventures.isPending) {
@@ -78,6 +86,7 @@ export function HoldingPage() {
 	const pending = inbox.data?.pending ?? [];
 	const items = work.data?.workItems ?? [];
 	const onShift = new Set(working.map((item) => item.run.ventureSlug).filter((slug) => slug !== null)).size;
+	const agentsOnShift = new Set(working.map((item) => item.agent?.id ?? item.run.id)).size;
 
 	const oldestNeed = pending
 		.map((item) => (item.kind === "draft" ? item.latestChangeAt : item.createdAt))
@@ -98,7 +107,7 @@ export function HoldingPage() {
 				<div className="vl-hud">
 					<Kicker>The Holding</Kicker>
 					<h1 className="vl-h1">The Valley never sleeps.</h1>
-					<p className="vl-h2">{shiftLine(onShift)}</p>
+					<p className="vl-h2">{shiftLine(onShift, working.length)}</p>
 					<Attention count={pending.length} />
 				</div>
 				<Legend />
@@ -110,7 +119,7 @@ export function HoldingPage() {
 						<Stat
 							icon={<IconTile name="agents" hue="var(--holding)" light="var(--holding-light)" size={46} />}
 							label="On shift"
-							value={working.length}
+							value={agentsOnShift}
 							note={`of ${agents.data?.agents.length ?? 0} agents`}
 						/>
 						<Stat
@@ -125,7 +134,11 @@ export function HoldingPage() {
 						<Stat
 							icon={<IconTile name="work" hue="var(--ok)" light="var(--ok-light)" size={46} />}
 							label="Work done"
-							value={doneThisWeek(items, now)}
+							value={doneThisWeek(
+								weeks.flatMap((week) => week.data ?? []),
+								items,
+								now,
+							)}
 							note="this week"
 						/>
 					</div>
