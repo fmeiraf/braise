@@ -604,3 +604,25 @@ Milestone: braise manages itself as a venture (dogfooding).
   ⌘K, remembered per browser; venture pages read the draft-aware cockpit and work responses, so a drafted
   item renders with its page's own components and keeps its React key when kept. Draft states follow
   `ui-prototype-operator.html` (dashed outline, green new, struck red old value, red archive).
+- 2026-11-27: UI v7, the Valley (owner, on `docs/valley-assessment.md`): the web app follows
+  `valley-mock.html` app-wide, replacing v6 (2026-11-25). A violet-black night palette with six
+  saturated venture hues, an app-icon tile per venture in place of the crest, an 84px rail with a
+  state dot per venture, lifted cards with shadows, glows for live and waiting state, stat tiles,
+  and on the Holding and venture Overviews a hero with an isometric city (one building per venture)
+  above a sheet. The venture Overview keeps its content; only its design changes. Contract:
+  `packages/web/DESIGN.md`, rewritten. impeccable stays mandatory; where it conflicts with the comp,
+  the comp wins. Plan and phases: `docs/valley-assessment.md`.
+- 2026-11-27: Under v7, a venture's hue, app-icon glyph and building archetype are all derived from
+  its slug in the web client (extends 2026-11-25); nothing is stored and `hueOf`'s hash and hue order
+  stay fixed, so no venture changes colour. Running is shown in the venture hue, not the comp's blue.
+  Venture states are needs you, running, queued and quiet; the comp's shipped and crashed states are
+  dropped, so v7 needs no API, core or schema change. Owner approvals stay in the Inbox: the
+  Overview's Needs you rows link there, with no one-click approve. The Holding's Ledger table is
+  dropped.
+- 2026-11-27: The Valley's city is pre-rendered building and ground images (one per archetype and
+  hue, rendered once from the comp's three.js scene and committed under `assets/web/valley/`)
+  placed on an isometric grid in the DOM, with HTML labels and CSS motion. No three.js or WebGL at
+  runtime ("fastest and low resource intensive", owner). Re-rendering is a manual step, not a build
+  step.
+- 2026-11-27: Biome also skips `valley-mock.html` at the repo root, the v7 comp, like the earlier
+  prototypes.
