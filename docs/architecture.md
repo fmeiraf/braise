@@ -626,3 +626,8 @@ Milestone: braise manages itself as a venture (dogfooding).
   step.
 - 2026-11-27: Biome also skips `valley-mock.html` at the repo root, the v7 comp, like the earlier
   prototypes.
+- 2026-11-27: The Valley's images are rendered by `valley-render.html` at the repo root (the comp's
+  three.js buildings with colours per venture hue, one fixed camera, cropped to transparent WebP), which
+  also writes their anchors into `packages/web/src/valley/sprites.ts`. To re-render: serve the repo root,
+  open the page, and save `window.valleySprites`. Biome skips the page like the comp. The city has 3×3,
+  4×4 or 5×5 lots and always keeps one free, so it shows at most 24 ventures.

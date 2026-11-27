@@ -54,6 +54,8 @@ export function VentureCard({
 	tone,
 	working,
 	now,
+	hot,
+	setHot,
 }: {
 	row: HoldingRow;
 	cockpit: Cockpit | undefined;
@@ -61,6 +63,8 @@ export function VentureCard({
 	tone: VentureTone | null;
 	working: Working | undefined;
 	now: number;
+	hot: boolean;
+	setHot: (slug: string | null) => void;
 }) {
 	const lead = cockpit === undefined ? null : leadObjective(cockpit);
 	const objectives = cockpit?.objectives.filter((objective) => objective.status === "active").length ?? 0;
@@ -68,7 +72,14 @@ export function VentureCard({
 	const statuses = (["done", "doing", "todo"] as const).filter((status) => work[status] > 0);
 
 	return (
-		<Link to="/v/$slug" params={{ slug: row.slug }} className="vl-vc" style={accent(row.slug)}>
+		<Link
+			to="/v/$slug"
+			params={{ slug: row.slug }}
+			className={hot ? "vl-vc hot" : "vl-vc"}
+			style={accent(row.slug)}
+			onPointerEnter={() => setHot(row.slug)}
+			onPointerLeave={() => setHot(null)}
+		>
 			<div className="vl-vc-h">
 				<AppIcon slug={row.slug} size={52} tone={tone} />
 				<div className="vl-vc-t">

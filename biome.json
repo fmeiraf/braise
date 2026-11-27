@@ -31,7 +31,8 @@
 			"!ui-prototype*.html",
 			"!strategy-loop-report.html",
 			"!model-sheet.html",
-			"!valley-mock.html"
+			"!valley-mock.html",
+			"!valley-render.html"
 		]
 	}
 }
